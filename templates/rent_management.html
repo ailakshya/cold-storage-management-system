@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rent Management - Cold Storage</title>
+    <title>Account Management - Cold Storage</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
@@ -26,12 +26,6 @@
             box-shadow: 4px 4px 0 #000;
             padding: 0.75rem;
             font-size: 1rem;
-            transition: all 0.2s ease;
-        }
-        .neu-input:focus {
-            outline: none;
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
         }
         .neu-button {
             border: 3px solid #000;
@@ -45,342 +39,438 @@
             transform: translate(-2px, -2px);
             box-shadow: 6px 6px 0 #000;
         }
-        .neu-button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #000;
+        .customer-card {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            margin-bottom: 1rem;
+            background: white;
+        }
+        .truck-list {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .truck-list.expanded {
+            max-height: 1000px;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-size: 0.875rem;
+            font-weight: 600;
         }
     </style>
 </head>
 <body class="bg-[#FFF9E6] min-h-screen p-8">
     <div class="max-w-7xl mx-auto">
+        <!-- Header -->
         <header class="flex justify-between items-center mb-8 neu-border bg-white p-6">
             <div>
                 <div class="flex items-center gap-3">
-                    <i class="bi bi-receipt-cutoff text-4xl text-purple-600"></i>
+                    <i class="bi bi-wallet2 text-4xl text-green-600"></i>
                     <div>
-                        <h1 class="text-3xl font-bold">Rent Management</h1>
-                        <p class="text-gray-600">Search and generate rent invoices</p>
+                        <h1 class="text-3xl font-bold">Account Management</h1>
+                        <p class="text-gray-600">Customer accounts and payment collection</p>
                     </div>
                 </div>
             </div>
-            <button onclick="goBack()" class="neu-button bg-gray-200">
+            <button onclick="window.history.back()" class="neu-button bg-gray-200">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
         </header>
 
-        <!-- Search Section -->
-        <div class="neu-border bg-white p-6 mb-8">
-            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
-                <i class="bi bi-search"></i>
-                Search Customer or Truck
-            </h2>
-
-            <div class="grid grid-cols-2 gap-6 mb-4">
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Search by Phone Number
-                    </label>
-                    <div class="flex gap-2">
-                        <input
-                            type="tel"
-                            id="searchPhone"
-                            class="flex-1 neu-input"
-                            placeholder="Enter phone number"
-                            maxlength="10"
-                        >
-                        <button onclick="searchByPhone()" class="neu-button bg-blue-500 text-white">
-                            <i class="bi bi-search"></i> Search
-                        </button>
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="neu-border bg-gradient-to-br from-green-400 to-green-600 text-white p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">Total Customers</p>
+                        <p class="text-3xl font-bold mt-2" id="totalCustomers">0</p>
                     </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
-                        Search by Truck Number
-                    </label>
-                    <div class="flex gap-2">
-                        <input
-                            type="text"
-                            id="searchTruck"
-                            class="flex-1 neu-input"
-                            placeholder="Enter truck number"
-                        >
-                        <button onclick="searchByTruck()" class="neu-button bg-blue-500 text-white">
-                            <i class="bi bi-search"></i> Search
-                        </button>
-                    </div>
+                    <i class="bi bi-people text-5xl opacity-50"></i>
                 </div>
             </div>
 
-            <div id="searchResults" class="hidden mt-6">
-                <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
-                    <i class="bi bi-list-check"></i>
-                    Search Results
-                </h3>
-                <div id="searchResultsContent"></div>
+            <div class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">Total Trucks</p>
+                        <p class="text-3xl font-bold mt-2" id="totalTrucks">0</p>
+                    </div>
+                    <i class="bi bi-truck text-5xl opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="neu-border bg-gradient-to-br from-yellow-400 to-yellow-600 text-white p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">Outstanding Amount</p>
+                        <p class="text-3xl font-bold mt-2" id="totalOutstanding">₹0</p>
+                    </div>
+                    <i class="bi bi-cash-stack text-5xl opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="neu-border bg-gradient-to-br from-purple-400 to-purple-600 text-white p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm opacity-90">Total Collected</p>
+                        <p class="text-3xl font-bold mt-2" id="totalCollected">₹0</p>
+                    </div>
+                    <i class="bi bi-check-circle text-5xl opacity-50"></i>
+                </div>
             </div>
         </div>
 
-        <!-- Recent Room Entries Section -->
-        <div class="neu-border bg-white p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold flex items-center gap-2">
-                    <i class="bi bi-door-open"></i>
-                    Recent Room Entries
-                </h2>
-                <div class="flex gap-2">
-                    <select id="entriesLimit" onchange="changeEntriesLimit()" class="neu-input text-sm p-2">
-                        <option value="10">10 entries</option>
-                        <option value="20">20 entries</option>
-                        <option value="50">50 entries</option>
-                        <option value="100">100 entries</option>
-                        <option value="0">All entries</option>
-                    </select>
+        <!-- Search Bar -->
+        <div class="neu-border bg-white p-4 mb-6">
+            <div class="flex gap-4">
+                <div class="flex-1">
+                    <input
+                        type="text"
+                        id="searchInput"
+                        class="w-full neu-input"
+                        placeholder="Search by customer name, phone, or village..."
+                        oninput="filterCustomers()"
+                    >
                 </div>
+                <button onclick="loadCustomerAccounts()" class="neu-button bg-blue-500 text-white">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
             </div>
-            <div id="recentRoomEntries" class="overflow-auto" style="max-height: 600px;">
-                <table class="w-full" id="roomEntriesTable">
-                    <thead class="sticky top-0 bg-white">
-                        <tr class="border-b-2 border-black">
-                            <th class="text-left p-2 font-bold">Truck No</th>
-                            <th class="text-left p-2 font-bold">Customer</th>
-                            <th class="text-left p-2 font-bold">Phone</th>
-                            <th class="text-left p-2 font-bold">Room</th>
-                            <th class="text-left p-2 font-bold">Floor</th>
-                            <th class="text-left p-2 font-bold">Qty</th>
-                            <th class="text-left p-2 font-bold">Date</th>
-                            <th class="text-left p-2 font-bold">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="roomEntriesTableBody">
-                        <tr>
-                            <td colspan="8" class="text-center p-4 text-gray-500">Loading room entries...</td>
-                        </tr>
-                    </tbody>
-                </table>
+        </div>
+
+        <!-- Customer Accounts List -->
+        <div id="customersContainer">
+            <div class="text-center py-12">
+                <i class="bi bi-hourglass-split text-6xl text-gray-400"></i>
+                <p class="text-gray-600 mt-4">Loading customer accounts...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white neu-border p-8 max-w-md w-full mx-4">
+            <h3 class="text-2xl font-bold mb-6">Collect Payment</h3>
+
+            <div class="mb-4">
+                <p class="text-sm text-gray-600">Customer</p>
+                <p class="text-xl font-bold" id="paymentCustomerName">-</p>
+            </div>
+
+            <div class="mb-4">
+                <p class="text-sm text-gray-600">Phone</p>
+                <p class="text-lg" id="paymentCustomerPhone">-</p>
+            </div>
+
+            <div class="mb-6">
+                <p class="text-sm text-gray-600">Total Outstanding</p>
+                <p class="text-3xl font-bold text-red-600" id="paymentTotalAmount">₹0</p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Payment Amount *
+                </label>
+                <input
+                    type="number"
+                    id="paymentAmount"
+                    class="w-full neu-input"
+                    placeholder="Enter amount"
+                    step="0.01"
+                    min="0"
+                >
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Payment Notes (Optional)
+                </label>
+                <textarea
+                    id="paymentNotes"
+                    class="w-full neu-input"
+                    rows="3"
+                    placeholder="Enter payment notes"
+                ></textarea>
+            </div>
+
+            <div class="flex gap-4">
+                <button onclick="processPayment()" class="flex-1 neu-button bg-green-500 text-white">
+                    <i class="bi bi-check-circle"></i> Collect Payment
+                </button>
+                <button onclick="closePaymentModal()" class="flex-1 neu-button bg-gray-300">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </button>
             </div>
         </div>
     </div>
 
     <script>
         const token = localStorage.getItem('token');
-        let allEntries = [];
-        let allRoomEntries = [];
-        let entriesLimit = 10;
+        let allCustomerAccounts = [];
+        let currentPaymentCustomer = null;
+        let rentPerItem = 0;
 
-        window.addEventListener('load', function() {
-            loadAllData();
-        });
-
-        async function loadAllData() {
+        // Load rent per item setting
+        async function loadRentSetting() {
             try {
+                const response = await fetch('/api/settings/rent_per_item', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const setting = await response.json();
+                rentPerItem = parseFloat(setting.setting_value);
+            } catch (error) {
+                console.error('Error loading rent setting:', error);
+                rentPerItem = 10; // Default fallback
+            }
+        }
+
+        // Load all customer accounts with their entries
+        async function loadCustomerAccounts() {
+            try {
+                // Load rent setting first
+                await loadRentSetting();
+
                 // Fetch all entries
                 const entriesResponse = await fetch('/api/entries', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                allEntries = await entriesResponse.json();
+                const entries = await entriesResponse.json();
 
-                // Fetch all room entries
-                const roomEntriesResponse = await fetch('/api/room-entries', {
+                // Fetch all rent payments
+                const paymentsResponse = await fetch('/api/rent-payments', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                allRoomEntries = await roomEntriesResponse.json();
+                const allPayments = await paymentsResponse.json();
 
-                displayRoomEntries();
-            } catch (error) {
-                console.error('Error loading data:', error);
-                document.getElementById('roomEntriesTableBody').innerHTML =
-                    '<tr><td colspan="8" class="text-center p-4 text-red-500">Failed to load data</td></tr>';
-            }
-        }
+                // Group entries by phone number (customer)
+                const customerMap = new Map();
 
-        function changeEntriesLimit() {
-            const select = document.getElementById('entriesLimit');
-            entriesLimit = parseInt(select.value);
-            displayRoomEntries();
-        }
+                entries.forEach(entry => {
+                    const phone = entry.phone;
+                    if (!customerMap.has(phone)) {
+                        customerMap.set(phone, {
+                            name: entry.name,
+                            phone: entry.phone,
+                            village: entry.village || 'N/A',
+                            trucks: [],
+                            payments: [],
+                            totalQuantity: 0,
+                            totalRent: 0,
+                            totalPaid: 0
+                        });
+                    }
 
-        function displayRoomEntries() {
-            const tbody = document.getElementById('roomEntriesTableBody');
+                    const customer = customerMap.get(phone);
+                    const quantity = entry.expected_quantity || 0;
+                    const rent = quantity * rentPerItem;
 
-            if (allRoomEntries.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4 text-gray-500">No room entries yet</td></tr>';
-                return;
-            }
+                    customer.trucks.push({
+                        id: entry.id,
+                        truck_number: entry.truck_number,
+                        quantity: quantity,
+                        rent: rent,
+                        date: new Date(entry.created_at).toLocaleDateString('en-IN')
+                    });
 
-            // Limit entries
-            const entriesToShow = entriesLimit === 0 ? allRoomEntries : allRoomEntries.slice(0, entriesLimit);
-
-            tbody.innerHTML = entriesToShow.map(roomEntry => {
-                // Find matching entry for customer info
-                const entry = allEntries.find(e => e.id === roomEntry.entry_id);
-                const customerName = entry?.name || '-';
-                const customerPhone = entry?.phone || '-';
-
-                const date = new Date(roomEntry.created_at);
-                const formattedDate = date.toLocaleString('en-IN', {
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                    customer.totalQuantity += quantity;
+                    customer.totalRent += rent;
                 });
 
-                const truckColor = getTruckColor(roomEntry.truck_number);
+                // Calculate total paid per customer and add payment history
+                allPayments.forEach(payment => {
+                    const customer = Array.from(customerMap.values()).find(c => c.phone === payment.phone);
+                    if (customer) {
+                        customer.totalPaid += payment.amount;
+                        customer.payments.push(payment);
+                    }
+                });
 
-                return `
-                    <tr class="border-b border-gray-200 hover:bg-purple-50">
-                        <td class="p-2 font-bold ${truckColor}">${roomEntry.truck_number}</td>
-                        <td class="p-2">${customerName}</td>
-                        <td class="p-2">${customerPhone}</td>
-                        <td class="p-2">${roomEntry.room_no}</td>
-                        <td class="p-2">${roomEntry.floor}</td>
-                        <td class="p-2">${roomEntry.quantity}</td>
-                        <td class="p-2 text-sm">${formattedDate}</td>
-                        <td class="p-2">
-                            <button onclick="goToRent(${roomEntry.entry_id})" class="neu-button bg-green-500 text-white text-xs px-3 py-1">
-                                <i class="bi bi-cash-coin"></i> Rent
-                            </button>
-                        </td>
-                    </tr>
+                // Sort payments by date (newest first) for each customer
+                Array.from(customerMap.values()).forEach(customer => {
+                    customer.payments.sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+                });
+
+                // Convert map to array and calculate balance
+                allCustomerAccounts = Array.from(customerMap.values()).map(customer => ({
+                    ...customer,
+                    balance: customer.totalRent - customer.totalPaid
+                }));
+
+                // Sort by balance (highest first)
+                allCustomerAccounts.sort((a, b) => b.balance - a.balance);
+
+                displayCustomerAccounts(allCustomerAccounts);
+                updateSummary();
+
+            } catch (error) {
+                console.error('Error loading customer accounts:', error);
+                document.getElementById('customersContainer').innerHTML = `
+                    <div class="text-center py-12">
+                        <i class="bi bi-exclamation-triangle text-6xl text-red-500"></i>
+                        <p class="text-red-600 mt-4">Error loading accounts: ${error.message}</p>
+                    </div>
                 `;
-            }).join('');
+            }
         }
 
-        async function searchByPhone() {
-            const phone = document.getElementById('searchPhone').value.trim();
+        function displayCustomerAccounts(accounts) {
+            const container = document.getElementById('customersContainer');
 
-            if (!phone) {
-                alert('Please enter a phone number');
-                return;
-            }
-
-            // Find all entries with this phone
-            const matchingEntries = allEntries.filter(e => e.phone.includes(phone));
-
-            if (matchingEntries.length === 0) {
-                showSearchResults('No entries found for phone: ' + phone, []);
-                return;
-            }
-
-            // Find room entries for these entries
-            const matchingRoomEntries = allRoomEntries.filter(re =>
-                matchingEntries.some(e => e.id === re.entry_id)
-            );
-
-            showSearchResults(`Found ${matchingEntries.length} entries for phone: ${phone}`, matchingRoomEntries, matchingEntries);
-        }
-
-        async function searchByTruck() {
-            const truckNumber = document.getElementById('searchTruck').value.trim().toUpperCase();
-
-            if (!truckNumber) {
-                alert('Please enter a truck number');
-                return;
-            }
-
-            // Find room entries with this truck number
-            const matchingRoomEntries = allRoomEntries.filter(re =>
-                re.truck_number.toUpperCase().includes(truckNumber)
-            );
-
-            if (matchingRoomEntries.length === 0) {
-                showSearchResults('No entries found for truck: ' + truckNumber, []);
-                return;
-            }
-
-            // Find corresponding entries
-            const matchingEntries = allEntries.filter(e =>
-                matchingRoomEntries.some(re => re.entry_id === e.id)
-            );
-
-            showSearchResults(`Found ${matchingRoomEntries.length} entries for truck: ${truckNumber}`, matchingRoomEntries, matchingEntries);
-        }
-
-        function showSearchResults(message, roomEntries, entries = []) {
-            const resultsDiv = document.getElementById('searchResults');
-            const contentDiv = document.getElementById('searchResultsContent');
-
-            resultsDiv.classList.remove('hidden');
-
-            if (roomEntries.length === 0) {
-                contentDiv.innerHTML = `
-                    <div class="p-4 bg-yellow-50 neu-border">
-                        <p class="text-yellow-800"><i class="bi bi-info-circle"></i> ${message}</p>
+            if (accounts.length === 0) {
+                container.innerHTML = `
+                    <div class="neu-border bg-white p-12 text-center">
+                        <i class="bi bi-inbox text-6xl text-gray-400"></i>
+                        <p class="text-gray-600 mt-4 text-lg">No customer accounts found</p>
                     </div>
                 `;
                 return;
             }
 
-            // Group by customer (phone)
-            const groupedByPhone = {};
-            roomEntries.forEach(re => {
-                const entry = entries.find(e => e.id === re.entry_id);
-                const phone = entry?.phone || 'Unknown';
+            container.innerHTML = accounts.map((customer, index) => `
+                <div class="customer-card">
+                    <div class="p-6">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <h3 class="text-2xl font-bold">${customer.name}</h3>
+                                    ${customer.balance > 0 ? `
+                                        <span class="badge bg-red-500 text-white">
+                                            Outstanding: ₹${customer.balance.toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                                        </span>
+                                    ` : `
+                                        <span class="badge bg-green-500 text-white">
+                                            <i class="bi bi-check-circle"></i> Paid
+                                        </span>
+                                    `}
+                                </div>
+                                <div class="flex gap-6 text-gray-600 mb-4">
+                                    <div class="flex items-center gap-2">
+                                        <i class="bi bi-telephone"></i>
+                                        <span>${customer.phone}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <i class="bi bi-geo-alt"></i>
+                                        <span>${customer.village}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <i class="bi bi-truck"></i>
+                                        <span>${customer.trucks.length} Trucks</span>
+                                    </div>
+                                    <div class="flex items-center gap-2">
+                                        <i class="bi bi-box"></i>
+                                        <span>${customer.totalQuantity} Items</span>
+                                    </div>
+                                </div>
 
-                if (!groupedByPhone[phone]) {
-                    groupedByPhone[phone] = {
-                        customer: entry,
-                        roomEntries: []
-                    };
-                }
-                groupedByPhone[phone].roomEntries.push(re);
-            });
-
-            let html = `<div class="p-4 bg-green-50 neu-border mb-4">
-                <p class="text-green-800 font-bold"><i class="bi bi-check-circle"></i> ${message}</p>
-            </div>`;
-
-            Object.keys(groupedByPhone).forEach(phone => {
-                const data = groupedByPhone[phone];
-                const customer = data.customer;
-                const customerRoomEntries = data.roomEntries;
-
-                html += `
-                    <div class="mb-6 neu-border bg-white p-4">
-                        <div class="flex justify-between items-center mb-4">
-                            <div>
-                                <h4 class="text-lg font-bold">${customer?.name || 'Unknown'}</h4>
-                                <p class="text-sm text-gray-600">Phone: ${phone} | Village: ${customer?.village || 'N/A'}</p>
+                                <div class="grid grid-cols-3 gap-4 mb-4">
+                                    <div class="p-3 bg-blue-50 border-2 border-blue-200">
+                                        <p class="text-sm text-gray-600">Total Rent</p>
+                                        <p class="text-xl font-bold text-blue-600">₹${customer.totalRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                    <div class="p-3 bg-green-50 border-2 border-green-200">
+                                        <p class="text-sm text-gray-600">Total Paid</p>
+                                        <p class="text-xl font-bold text-green-600">₹${customer.totalPaid.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                    <div class="p-3 bg-red-50 border-2 border-red-200">
+                                        <p class="text-sm text-gray-600">Balance Due</p>
+                                        <p class="text-xl font-bold text-red-600">₹${customer.balance.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
+                                    </div>
+                                </div>
                             </div>
-                            <button onclick="goToRent(${customer?.id})" class="neu-button bg-purple-500 text-white">
-                                <i class="bi bi-cash-coin"></i> Generate Rent Invoice
-                            </button>
-                        </div>
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="border-b border-black">
-                                    <th class="text-left p-2">Truck No</th>
-                                    <th class="text-left p-2">Room</th>
-                                    <th class="text-left p-2">Floor</th>
-                                    <th class="text-left p-2">Qty</th>
-                                    <th class="text-left p-2">Date</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${customerRoomEntries.map(re => {
-                                    const date = new Date(re.created_at).toLocaleString('en-IN', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric'
-                                    });
-                                    const truckColor = getTruckColor(re.truck_number);
-                                    return `
-                                        <tr class="border-b border-gray-200">
-                                            <td class="p-2 font-bold ${truckColor}">${re.truck_number}</td>
-                                            <td class="p-2">${re.room_no}</td>
-                                            <td class="p-2">${re.floor}</td>
-                                            <td class="p-2">${re.quantity}</td>
-                                            <td class="p-2">${date}</td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            });
 
-            contentDiv.innerHTML = html;
+                            <div class="flex flex-col gap-2">
+                                ${customer.balance > 0 ? `
+                                    <button onclick="openPaymentModal(${index})" class="neu-button bg-green-500 text-white">
+                                        <i class="bi bi-cash"></i> Collect Payment
+                                    </button>
+                                ` : ''}
+                                <button onclick="toggleTruckList(${index})" class="neu-button bg-blue-500 text-white">
+                                    <i class="bi bi-list"></i> <span id="toggleText${index}">Show Trucks</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Truck List and Payment History (Hidden by default) -->
+                        <div id="truckList${index}" class="truck-list mt-4">
+                            <div class="grid grid-cols-2 gap-6">
+                                <!-- Trucks -->
+                                <div>
+                                    <h4 class="font-bold mb-3 flex items-center gap-2">
+                                        <i class="bi bi-truck"></i>
+                                        All Trucks for ${customer.name}
+                                    </h4>
+                                    <table class="w-full">
+                                        <thead class="bg-gray-100 border-2 border-black">
+                                            <tr>
+                                                <th class="text-left p-3 font-bold">Truck Number</th>
+                                                <th class="text-left p-3 font-bold">Quantity</th>
+                                                <th class="text-left p-3 font-bold">Rent</th>
+                                                <th class="text-left p-3 font-bold">Date</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${customer.trucks.map(truck => `
+                                                <tr class="border-b border-gray-200">
+                                                    <td class="p-3 font-bold ${getTruckColor(truck.truck_number)}">${truck.truck_number}</td>
+                                                    <td class="p-3">${truck.quantity}</td>
+                                                    <td class="p-3 font-bold">₹${truck.rent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                    <td class="p-3 text-sm">${truck.date}</td>
+                                                </tr>
+                                            `).join('')}
+                                            <tr class="bg-gray-100 font-bold">
+                                                <td class="p-3">TOTAL</td>
+                                                <td class="p-3">${customer.totalQuantity}</td>
+                                                <td class="p-3">₹${customer.totalRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                <td class="p-3">-</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Payment History -->
+                                <div>
+                                    <h4 class="font-bold mb-3 flex items-center gap-2">
+                                        <i class="bi bi-receipt"></i>
+                                        Payment History
+                                    </h4>
+                                    <div id="paymentHistory${index}" class="space-y-2">
+                                        ${customer.payments && customer.payments.length > 0 ? customer.payments.map(payment => `
+                                            <div class="p-3 bg-green-50 border-2 border-green-200">
+                                                <div class="flex justify-between items-start mb-2">
+                                                    <div>
+                                                        <p class="font-bold text-green-700">₹${payment.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
+                                                        <p class="text-xs text-gray-600">${new Date(payment.payment_date).toLocaleDateString('en-IN')} ${new Date(payment.payment_date).toLocaleTimeString('en-IN')}</p>
+                                                    </div>
+                                                    <button onclick="viewReceipt('${payment.receipt_number}')" class="text-xs neu-button bg-blue-500 text-white py-1 px-2" style="padding: 0.25rem 0.5rem;">
+                                                        <i class="bi bi-printer"></i> Receipt
+                                                    </button>
+                                                </div>
+                                                ${payment.notes ? `<p class="text-xs text-gray-500">${payment.notes}</p>` : ''}
+                                            </div>
+                                        `).join('') : '<p class="text-gray-500 text-sm p-4 bg-gray-50 border-2 border-gray-200">No payments yet</p>'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function toggleTruckList(index) {
+            const truckList = document.getElementById(`truckList${index}`);
+            const toggleText = document.getElementById(`toggleText${index}`);
+
+            if (truckList.classList.contains('expanded')) {
+                truckList.classList.remove('expanded');
+                toggleText.textContent = 'Show Trucks';
+            } else {
+                truckList.classList.add('expanded');
+                toggleText.textContent = 'Hide Trucks';
+            }
         }
 
         function getTruckColor(truckNumber) {
@@ -392,13 +482,113 @@
             return 'text-gray-700';
         }
 
-        function goToRent(entryId) {
-            window.location.href = `/rent?entry_id=${entryId}`;
+        function filterCustomers() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            if (!searchTerm) {
+                displayCustomerAccounts(allCustomerAccounts);
+                return;
+            }
+
+            const filtered = allCustomerAccounts.filter(customer =>
+                customer.name.toLowerCase().includes(searchTerm) ||
+                customer.phone.includes(searchTerm) ||
+                customer.village.toLowerCase().includes(searchTerm)
+            );
+
+            displayCustomerAccounts(filtered);
         }
 
-        function goBack() {
-            window.history.back();
+        function updateSummary() {
+            const totalCustomers = allCustomerAccounts.length;
+            const totalTrucks = allCustomerAccounts.reduce((sum, c) => sum + c.trucks.length, 0);
+            const totalOutstanding = allCustomerAccounts.reduce((sum, c) => sum + c.balance, 0);
+            const totalCollected = allCustomerAccounts.reduce((sum, c) => sum + c.totalPaid, 0);
+
+            document.getElementById('totalCustomers').textContent = totalCustomers;
+            document.getElementById('totalTrucks').textContent = totalTrucks;
+            document.getElementById('totalOutstanding').textContent = '₹' + totalOutstanding.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            document.getElementById('totalCollected').textContent = '₹' + totalCollected.toLocaleString('en-IN', {minimumFractionDigits: 2});
         }
+
+        function openPaymentModal(index) {
+            currentPaymentCustomer = allCustomerAccounts[index];
+
+            document.getElementById('paymentCustomerName').textContent = currentPaymentCustomer.name;
+            document.getElementById('paymentCustomerPhone').textContent = currentPaymentCustomer.phone;
+            document.getElementById('paymentTotalAmount').textContent = '₹' + currentPaymentCustomer.balance.toLocaleString('en-IN', {minimumFractionDigits: 2});
+            document.getElementById('paymentAmount').value = currentPaymentCustomer.balance.toFixed(2);
+            document.getElementById('paymentNotes').value = '';
+
+            document.getElementById('paymentModal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.add('hidden');
+            currentPaymentCustomer = null;
+        }
+
+        async function processPayment() {
+            const amount = parseFloat(document.getElementById('paymentAmount').value);
+            const notes = document.getElementById('paymentNotes').value;
+
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid payment amount');
+                return;
+            }
+
+            if (amount > currentPaymentCustomer.balance) {
+                if (!confirm(`Payment amount (₹${amount}) is more than balance (₹${currentPaymentCustomer.balance.toFixed(2)}). Continue?`)) {
+                    return;
+                }
+            }
+
+            try {
+                // Get first entry ID for this customer
+                const entryId = currentPaymentCustomer.trucks[0].id;
+
+                const response = await fetch('/api/rent-payments', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        entry_id: entryId,
+                        phone: currentPaymentCustomer.phone,
+                        amount: amount,
+                        payment_method: 'cash',
+                        notes: notes || `Payment for account - ${currentPaymentCustomer.name}`
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to process payment');
+                }
+
+                const result = await response.json();
+
+                // Open receipt in new window
+                if (result.receipt_number) {
+                    window.open(`/payment-receipt?receipt=${result.receipt_number}`, '_blank', 'width=800,height=600');
+                }
+
+                alert(`Payment of ₹${amount.toFixed(2)} collected successfully!\nReceipt: ${result.receipt_number}`);
+                closePaymentModal();
+                loadCustomerAccounts(); // Reload to update balances
+
+            } catch (error) {
+                console.error('Error processing payment:', error);
+                alert('Error processing payment: ' + error.message);
+            }
+        }
+
+        function viewReceipt(receiptNumber) {
+            window.open(`/payment-receipt?receipt=${receiptNumber}`, '_blank', 'width=800,height=600');
+        }
+
+        // Load accounts on page load
+        window.addEventListener('load', loadCustomerAccounts);
     </script>
 </body>
 </html>

@@ -110,10 +110,11 @@
                 <small class="text-xs opacity-75">Update room data</small>
             </button>
 
-            <button class="page-button bg-[#FFD3B6]" onclick="navigate('/loading-invoice')">
-                <i class="bi bi-receipt"></i>
-                <span>Loading Invoice</span>
-                <small class="text-xs opacity-75">Manage invoices</small>
+            <!-- Show Account button only for employees with accountant access -->
+            <button id="accountButton" class="page-button bg-[#FFD3B6] hidden" onclick="navigate('/rent-management')">
+                <i class="bi bi-wallet2"></i>
+                <span>Account</span>
+                <small class="text-xs opacity-75">View balances & manage accounts</small>
             </button>
         </div>
 
@@ -182,6 +183,18 @@
                 window.location.href = '/logout';
             }
         }
+
+        // Check if employee has accountant access
+        (function() {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                // Show account button only if employee has accountant access
+                if (user.has_accountant_access) {
+                    document.getElementById('accountButton').classList.remove('hidden');
+                }
+            }
+        })();
 
         // Show employee-specific notifications
         setTimeout(() => {

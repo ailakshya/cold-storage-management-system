@@ -16,6 +16,7 @@ func NewRouter(
 	entryEventHandler *handlers.EntryEventHandler,
 	systemSettingHandler *handlers.SystemSettingHandler,
 	rentPaymentHandler *handlers.RentPaymentHandler,
+	invoiceHandler *handlers.InvoiceHandler,
 	pageHandler *handlers.PageHandler,
 	authMiddleware *middleware.AuthMiddleware,
 ) *mux.Router {
@@ -105,13 +106,22 @@ func NewRouter(
 	entryEventsAPI.Use(authMiddleware.Authenticate)
 	entryEventsAPI.HandleFunc("", entryEventHandler.CreateEntryEvent).Methods("POST")
 
-	// Protected API routes - Rent Payments (accountants and admins only)
+	// Protected API routes - Rent Payments (accountants, admins, and employees with accountant access)
 	rentPaymentsAPI := r.PathPrefix("/api/rent-payments").Subrouter()
 	rentPaymentsAPI.Use(authMiddleware.Authenticate)
-	rentPaymentsAPI.HandleFunc("", authMiddleware.RequireRole("accountant", "admin")(http.HandlerFunc(rentPaymentHandler.CreatePayment)).ServeHTTP).Methods("POST")
-	rentPaymentsAPI.HandleFunc("", authMiddleware.RequireRole("accountant", "admin")(http.HandlerFunc(rentPaymentHandler.ListPayments)).ServeHTTP).Methods("GET")
-	rentPaymentsAPI.HandleFunc("/entry/{entry_id}", authMiddleware.RequireRole("accountant", "admin")(http.HandlerFunc(rentPaymentHandler.GetPaymentsByEntry)).ServeHTTP).Methods("GET")
-	rentPaymentsAPI.HandleFunc("/phone", authMiddleware.RequireRole("accountant", "admin")(http.HandlerFunc(rentPaymentHandler.GetPaymentsByPhone)).ServeHTTP).Methods("GET")
+	rentPaymentsAPI.HandleFunc("", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.CreatePayment)).ServeHTTP).Methods("POST")
+	rentPaymentsAPI.HandleFunc("", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.ListPayments)).ServeHTTP).Methods("GET")
+	rentPaymentsAPI.HandleFunc("/entry/{entry_id}", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.GetPaymentsByEntry)).ServeHTTP).Methods("GET")
+	rentPaymentsAPI.HandleFunc("/phone", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.GetPaymentsByPhone)).ServeHTTP).Methods("GET")
+
+	// Protected API routes - Invoices (employees and admins can create, all can view)
+	invoicesAPI := r.PathPrefix("/api/invoices").Subrouter()
+	invoicesAPI.Use(authMiddleware.Authenticate)
+	invoicesAPI.HandleFunc("", invoiceHandler.CreateInvoice).Methods("POST")
+	invoicesAPI.HandleFunc("", invoiceHandler.ListInvoices).Methods("GET")
+	invoicesAPI.HandleFunc("/{id}", invoiceHandler.GetInvoice).Methods("GET")
+	invoicesAPI.HandleFunc("/number/{number}", invoiceHandler.GetInvoiceByNumber).Methods("GET")
+	invoicesAPI.HandleFunc("/customer/{customer_id}", invoiceHandler.GetCustomerInvoices).Methods("GET")
 
 	return r
 }

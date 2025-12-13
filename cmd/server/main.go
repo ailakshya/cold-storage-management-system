@@ -34,6 +34,7 @@ func main() {
 	roomEntryRepo := repositories.NewRoomEntryRepository(pool)
 	systemSettingRepo := repositories.NewSystemSettingRepository(pool)
 	rentPaymentRepo := repositories.NewRentPaymentRepository(pool)
+	invoiceRepo := repositories.NewInvoiceRepository(pool)
 
 	// Initialize services
 	userService := services.NewUserService(userRepo, jwtManager)
@@ -42,6 +43,7 @@ func main() {
 	roomEntryService := services.NewRoomEntryService(roomEntryRepo, entryRepo, entryEventRepo)
 	systemSettingService := services.NewSystemSettingService(systemSettingRepo)
 	rentPaymentService := services.NewRentPaymentService(rentPaymentRepo)
+	invoiceService := services.NewInvoiceService(invoiceRepo)
 
 	// Initialize handlers
 	userHandler := handlers.NewUserHandler(userService)
@@ -52,6 +54,7 @@ func main() {
 	entryEventHandler := handlers.NewEntryEventHandler(entryEventRepo)
 	systemSettingHandler := handlers.NewSystemSettingHandler(systemSettingService)
 	rentPaymentHandler := handlers.NewRentPaymentHandler(rentPaymentService)
+	invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
 	pageHandler := handlers.NewPageHandler()
 
 	// Initialize middleware
@@ -59,7 +62,7 @@ func main() {
 	corsMiddleware := middleware.NewCORS(cfg)
 
 	// Create router
-	router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, pageHandler, authMiddleware)
+	router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, pageHandler, authMiddleware)
 
 	// Wrap router with CORS
 	handler := corsMiddleware(router)

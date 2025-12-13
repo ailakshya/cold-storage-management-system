@@ -17,19 +17,23 @@
             background: #f5f5f5;
         }
         .container {
-            max-width: 800px;
+            max-width: 100%;
             margin: 0 auto;
+            padding: 0 20px;
         }
         .invoice-wrapper {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             gap: 20px;
+            justify-content: center;
+            align-items: flex-start;
         }
         .invoice {
             background: white;
             border: 2px solid #000;
             padding: 20px;
-            page-break-after: always;
+            flex: 1;
+            max-width: 48%;
         }
         .header {
             text-align: center;
@@ -144,20 +148,51 @@
             font-size: 18px;
         }
         @media print {
+            @page {
+                size: landscape;
+                margin: 10mm;
+            }
             body {
                 background: white;
                 padding: 0;
+                margin: 0;
+            }
+            .container {
+                padding: 0;
+                max-width: 100%;
             }
             .buttons, .btn {
                 display: none;
             }
-            .invoice {
-                border: 1px solid #000;
-                padding: 15px;
-                margin-bottom: 0;
-            }
             .invoice-wrapper {
-                gap: 0;
+                display: flex;
+                flex-direction: row;
+                gap: 10px;
+                justify-content: space-between;
+                page-break-inside: avoid;
+            }
+            .invoice {
+                border: 2px solid #000;
+                padding: 10px;
+                margin-bottom: 0;
+                flex: 1;
+                max-width: 48%;
+                page-break-inside: avoid;
+            }
+            .header h1 {
+                font-size: 16px;
+            }
+            .header p {
+                font-size: 10px;
+            }
+            .info-row, .section-title, table {
+                font-size: 11px;
+            }
+            th, td {
+                padding: 4px;
+            }
+            .total-section .amount {
+                font-size: 22px;
             }
         }
     </style>
@@ -185,6 +220,9 @@
                     <div class="header">
                         <h1>COLD STORAGE INVOICE</h1>
                         <p>Payment Receipt</p>
+                        <p style="margin-top: 8px; font-size: 14px; font-weight: bold; color: #000;">
+                            Invoice #: <span id="invoiceNumber1">-</span>
+                        </p>
                     </div>
 
                     <div class="section">
@@ -249,6 +287,9 @@
                     <div class="header">
                         <h1>COLD STORAGE INVOICE</h1>
                         <p>Payment Receipt (Copy)</p>
+                        <p style="margin-top: 8px; font-size: 14px; font-weight: bold; color: #000;">
+                            Invoice #: <span id="invoiceNumber2">-</span>
+                        </p>
                     </div>
 
                     <div class="section">
@@ -386,9 +427,27 @@
                 // Format dates
                 const invoiceDate = new Date().toLocaleString('en-IN');
 
-                // Populate both invoices with same data
-                populateInvoice('1', entry, customerEntries, rentPerItem, invoiceDate, employeeName);
-                populateInvoice('2', entry, customerEntries, rentPerItem, invoiceDate, employeeName);
+                // Calculate total amount
+                let totalRent = 0;
+                const items = customerEntries.map(e => {
+                    const quantity = e.expected_quantity || 0;
+                    const amount = quantity * rentPerItem;
+                    totalRent += amount;
+                    return {
+                        entry_id: e.id,
+                        truck_number: e.truck_number,
+                        quantity: quantity,
+                        rate: rentPerItem,
+                        amount: amount
+                    };
+                });
+
+                // Save invoice to database
+                const invoice = await saveInvoice(entry.id, employee.user_id, totalRent, items);
+
+                // Populate both invoices with same data including invoice number
+                populateInvoice('1', entry, customerEntries, rentPerItem, invoiceDate, employeeName, invoice.invoice_number);
+                populateInvoice('2', entry, customerEntries, rentPerItem, invoiceDate, employeeName, invoice.invoice_number);
 
                 // Update status to "Ready for Exit" (2nd last step)
                 await updateEntryStatus(entryId, 'READY', 'Invoice generated - Ready for exit');
@@ -407,7 +466,39 @@
             }
         }
 
-        function populateInvoice(suffix, entry, customerEntries, rentPerItem, invoiceDate, employeeName) {
+        async function saveInvoice(customerId, employeeId, totalAmount, items) {
+            try {
+                const response = await fetch('/api/invoices', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customer_id: customerId,
+                        employee_id: employeeId,
+                        total_amount: totalAmount,
+                        notes: 'Invoice generated from loading invoice page',
+                        items: items
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save invoice');
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('Error saving invoice:', error);
+                // Return a fallback invoice object
+                return { invoice_number: 'TEMP-' + Date.now() };
+            }
+        }
+
+        function populateInvoice(suffix, entry, customerEntries, rentPerItem, invoiceDate, employeeName, invoiceNumber) {
+            // Populate invoice number
+            document.getElementById('invoiceNumber' + suffix).textContent = invoiceNumber;
+
             // Populate customer info
             document.getElementById('customerName' + suffix).textContent = entry.name;
             document.getElementById('customerPhone' + suffix).textContent = entry.phone;

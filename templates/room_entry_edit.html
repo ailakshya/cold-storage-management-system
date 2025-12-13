@@ -50,6 +50,14 @@
             box-shadow: 2px 2px 0 #000;
         }
         .hidden { display: none; }
+        .floor-btn.selected {
+            background-color: #3B82F6 !important;
+            color: white !important;
+        }
+        .room-btn.selected {
+            background-color: #10B981 !important;
+            color: white !important;
+        }
     </style>
 </head>
 <body class="bg-[#FFF9E6] min-h-screen p-8">
@@ -97,31 +105,69 @@
             </div>
 
             <form id="roomEntryForm" onsubmit="updateRoomEntry(event)">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <!-- Room and Floor Selection Side by Side -->
+                <div class="grid grid-cols-2 gap-6 mb-6">
+                    <!-- Left: Room Selection -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Room Number *
+                            Room No *
                         </label>
-                        <input
-                            type="text"
-                            id="roomNo"
-                            required
-                            class="w-full neu-input"
-                            placeholder="Enter room number"
-                        >
+                        <input type="hidden" id="roomNo" required>
+                        <div class="space-y-2">
+                            <!-- Row 1: Room 2 and Room 1 -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <button type="button" onclick="selectRoom('2')" class="room-btn neu-button bg-white hover:bg-green-100 py-4 text-lg font-bold">
+                                    Room 2
+                                </button>
+                                <button type="button" onclick="selectRoom('1')" class="room-btn neu-button bg-white hover:bg-green-100 py-4 text-lg font-bold">
+                                    Room 1
+                                </button>
+                            </div>
+                            <!-- Row 2: Gallery (centered) -->
+                            <div class="flex justify-center">
+                                <button type="button" onclick="selectRoom('G')" class="room-btn neu-button bg-white hover:bg-green-100 py-4 px-8 text-lg font-bold w-full">
+                                    Gallery
+                                </button>
+                            </div>
+                            <!-- Row 3: Room 3 and Room 4 -->
+                            <div class="grid grid-cols-2 gap-3">
+                                <button type="button" onclick="selectRoom('3')" class="room-btn neu-button bg-white hover:bg-green-100 py-4 text-lg font-bold">
+                                    Room 3
+                                </button>
+                                <button type="button" onclick="selectRoom('4')" class="room-btn neu-button bg-white hover:bg-green-100 py-4 text-lg font-bold">
+                                    Room 4
+                                </button>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Right: Floor Selection (As Building) -->
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Floor *
+                            Floor (As Building) *
                         </label>
-                        <input
-                            type="text"
-                            id="floor"
-                            required
-                            class="w-full neu-input"
-                            placeholder="Enter floor"
-                        >
+                        <input type="hidden" id="floor" required>
+                        <div class="grid grid-cols-1 gap-2">
+                            <button type="button" onclick="selectFloor(5)" class="floor-btn neu-button bg-white hover:bg-blue-100 py-4 text-xl font-bold">
+                                5
+                            </button>
+                            <button type="button" onclick="selectFloor(4)" class="floor-btn neu-button bg-white hover:bg-blue-100 py-4 text-xl font-bold">
+                                4
+                            </button>
+                            <button type="button" onclick="selectFloor(3)" class="floor-btn neu-button bg-white hover:bg-blue-100 py-4 text-xl font-bold">
+                                3
+                            </button>
+                            <button type="button" onclick="selectFloor(2)" class="floor-btn neu-button bg-white hover:bg-blue-100 py-4 text-xl font-bold">
+                                2
+                            </button>
+                            <button type="button" onclick="selectFloor(1)" class="floor-btn neu-button bg-white hover:bg-blue-100 py-4 text-xl font-bold">
+                                1
+                            </button>
+                        </div>
                     </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-6 mb-6">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Gate Number *
@@ -232,8 +278,26 @@
                 const truckElement = document.getElementById('truckNumber');
                 truckElement.textContent = roomEntryData.truck_number;
                 truckElement.className = 'text-2xl font-bold ' + getTruckColor(roomEntryData.truck_number);
+
+                // Set hidden input values
                 document.getElementById('roomNo').value = roomEntryData.room_no;
                 document.getElementById('floor').value = roomEntryData.floor;
+
+                // Highlight selected room button
+                document.querySelectorAll('.room-btn').forEach(btn => {
+                    if (btn.textContent.trim() === 'Room ' + roomEntryData.room_no ||
+                        (roomEntryData.room_no === 'G' && btn.textContent.trim() === 'Gallery')) {
+                        btn.classList.add('selected');
+                    }
+                });
+
+                // Highlight selected floor button
+                document.querySelectorAll('.floor-btn').forEach(btn => {
+                    if (btn.textContent.trim() === roomEntryData.floor.toString()) {
+                        btn.classList.add('selected');
+                    }
+                });
+
                 document.getElementById('gateNo').value = roomEntryData.gate_no;
                 document.getElementById('quantity').value = roomEntryData.quantity;
                 document.getElementById('remark').value = roomEntryData.remark || '';
@@ -310,6 +374,32 @@
                 return num < 600 ? 'text-green-600' : 'text-orange-600';
             }
             return 'text-gray-700';
+        }
+
+        function selectRoom(roomNumber) {
+            // Update hidden input
+            document.getElementById('roomNo').value = roomNumber;
+
+            // Remove selected class from all buttons
+            document.querySelectorAll('.room-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+
+            // Add selected class to clicked button
+            event.target.classList.add('selected');
+        }
+
+        function selectFloor(floorNumber) {
+            // Update hidden input
+            document.getElementById('floor').value = floorNumber;
+
+            // Remove selected class from all buttons
+            document.querySelectorAll('.floor-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+
+            // Add selected class to clicked button
+            event.target.classList.add('selected');
         }
 
         function goBack() {

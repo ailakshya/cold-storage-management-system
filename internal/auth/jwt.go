@@ -11,9 +11,10 @@ import (
 )
 
 type Claims struct {
-	UserID int    `json:"user_id"`
-	Email  string `json:"email"`
-	Role   string `json:"role"`
+	UserID              int    `json:"user_id"`
+	Email               string `json:"email"`
+	Role                string `json:"role"`
+	HasAccountantAccess bool   `json:"has_accountant_access"`
 	jwt.RegisteredClaims
 }
 
@@ -30,9 +31,10 @@ func (j *JWTManager) GenerateToken(user *models.User) (string, error) {
 	expirationTime := time.Now().Add(time.Duration(j.cfg.JWT.ExpirationHours) * time.Hour)
 
 	claims := &Claims{
-		UserID: user.ID,
-		Email:  user.Email,
-		Role:   user.Role,
+		UserID:              user.ID,
+		Email:               user.Email,
+		Role:                user.Role,
+		HasAccountantAccess: user.HasAccountantAccess,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

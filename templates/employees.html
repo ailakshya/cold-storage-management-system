@@ -116,6 +116,16 @@
                     </select>
                 </div>
 
+                <div>
+                    <label class="flex items-center gap-3 p-3 neu-brutal bg-blue-50 cursor-pointer">
+                        <input type="checkbox" id="hasAccountantAccess" class="w-5 h-5">
+                        <div>
+                            <span class="font-semibold">Grant Accountant Access</span>
+                            <p class="text-sm text-gray-600">Allow this employee to view balances and manage accounts</p>
+                        </div>
+                    </label>
+                </div>
+
                 <div class="flex gap-4 mt-6">
                     <button type="submit" class="flex-1 bg-[#2ecc71] text-white py-3 neu-brutal">
                         <i class="bi bi-check-circle"></i> Save
@@ -185,6 +195,7 @@
                         <span class="px-3 py-1 rounded text-white ${user.role === 'admin' ? 'bg-red-500' : 'bg-blue-500'}">
                             ${user.role.toUpperCase()}
                         </span>
+                        ${user.has_accountant_access && user.role !== 'admin' ? '<span class="ml-2 px-2 py-1 bg-green-500 text-white text-xs rounded">+Accountant</span>' : ''}
                     </td>
                     <td class="p-4">${new Date(user.created_at).toLocaleDateString()}</td>
                     <td class="p-4 text-right">
@@ -237,6 +248,7 @@
                 document.getElementById('userPassword').value = '';
                 document.getElementById('userPassword').required = false;
                 document.getElementById('userRole').value = user.role;
+                document.getElementById('hasAccountantAccess').checked = user.has_accountant_access || false;
                 document.getElementById('userModal').classList.add('show');
             } catch (error) {
                 alert('Error loading user: ' + error.message);
@@ -273,8 +285,9 @@
             const email = document.getElementById('userEmail').value;
             const password = document.getElementById('userPassword').value;
             const role = document.getElementById('userRole').value;
+            const hasAccountantAccess = document.getElementById('hasAccountantAccess').checked;
 
-            const userData = { name, email, role };
+            const userData = { name, email, role, has_accountant_access: hasAccountantAccess };
             if (password) userData.password = password;
 
             try {

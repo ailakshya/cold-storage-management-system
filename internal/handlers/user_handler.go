@@ -28,10 +28,11 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := &models.User{
-		Name:         req.Name,
-		Email:        req.Email,
-		PasswordHash: req.Password, // Will be hashed in service layer
-		Role:         req.Role,
+		Name:                req.Name,
+		Email:               req.Email,
+		PasswordHash:        req.Password, // Will be hashed in service layer
+		Role:                req.Role,
+		HasAccountantAccess: req.HasAccountantAccess,
 	}
 
 	if err := h.Service.CreateUser(context.Background(), user); err != nil {
@@ -79,11 +80,12 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := &models.User{
-		ID:           id,
-		Name:         req.Name,
-		Email:        req.Email,
-		PasswordHash: req.Password, // Will be hashed in service layer if provided
-		Role:         req.Role,
+		ID:                  id,
+		Name:                req.Name,
+		Email:               req.Email,
+		PasswordHash:        req.Password, // Will be hashed in service layer if provided
+		Role:                req.Role,
+		HasAccountantAccess: req.HasAccountantAccess,
 	}
 
 	if err := h.Service.UpdateUser(context.Background(), user); err != nil {

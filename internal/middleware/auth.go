@@ -13,6 +13,7 @@ type contextKey string
 const UserIDKey contextKey = "user_id"
 const EmailKey contextKey = "email"
 const RoleKey contextKey = "role"
+const HasAccountantAccessKey contextKey = "has_accountant_access"
 
 type AuthMiddleware struct {
 	jwtManager *auth.JWTManager
@@ -49,6 +50,7 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
 		ctx = context.WithValue(ctx, EmailKey, claims.Email)
 		ctx = context.WithValue(ctx, RoleKey, claims.Role)
+		ctx = context.WithValue(ctx, HasAccountantAccessKey, claims.HasAccountantAccess)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -132,10 +134,71 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) 
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
 			ctx = context.WithValue(ctx, EmailKey, claims.Email)
 			ctx = context.WithValue(ctx, RoleKey, claims.Role)
+			ctx = context.WithValue(ctx, HasAccountantAccessKey, claims.HasAccountantAccess)
 
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+// RequireAccountantAccess is a middleware that ensures the user has accountant permissions
+// This includes: admin role, accountant role, OR employee with has_accountant_access=true
+func (m *AuthMiddleware) RequireAccountantAccess(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// First authenticate
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			if strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+			return
+		}
+
+		// Extract token from "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			if strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+			http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
+			return
+		}
+
+		token := parts[1]
+		claims, err := m.jwtManager.ValidateToken(token)
+		if err != nil {
+			if strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/login", http.StatusFound)
+				return
+			}
+			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			return
+		}
+
+		// Check if user has accountant access
+		// Allow: admin, accountant role, OR employee with has_accountant_access=true
+		hasAccess := claims.Role == "admin" || claims.Role == "accountant" || claims.HasAccountantAccess
+
+		if !hasAccess {
+			if strings.Contains(r.Header.Get("Accept"), "text/html") {
+				http.Redirect(w, r, "/dashboard", http.StatusFound)
+				return
+			}
+			http.Error(w, "Forbidden: Accountant access required", http.StatusForbidden)
+			return
+		}
+
+		// Add user info to context
+		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
+		ctx = context.WithValue(ctx, EmailKey, claims.Email)
+		ctx = context.WithValue(ctx, RoleKey, claims.Role)
+		ctx = context.WithValue(ctx, HasAccountantAccessKey, claims.HasAccountantAccess)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 // RequireAdmin is a middleware that ensures the user has admin role
