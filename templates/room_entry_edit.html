@@ -170,7 +170,7 @@
                 <div class="grid grid-cols-2 gap-6 mb-6">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Gate Number *
+                            Gatar Number *
                         </label>
                         <input
                             type="text"
@@ -234,6 +234,24 @@
     </div>
 
     <script>
+        // Capitalize first letter function
+        function capitalizeFirstLetter(input) {
+            const value = input.value;
+            if (value.length > 0) {
+                input.value = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+        }
+
+        // Auto-apply capitalization to all text inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const textInputs = document.querySelectorAll('input[type="text"]:not([disabled]):not([type="email"]):not([type="tel"])');
+            textInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    capitalizeFirstLetter(this);
+                });
+            });
+        });
+
         const token = localStorage.getItem('token');
         let roomEntryId = null;
         let roomEntryData = null;

@@ -4,6 +4,7 @@ import "time"
 
 type RentPayment struct {
 	ID                 int       `json:"id"`
+	ReceiptNumber      string    `json:"receipt_number"`
 	EntryID            int       `json:"entry_id"`
 	CustomerName       string    `json:"customer_name"`
 	CustomerPhone      string    `json:"customer_phone"`

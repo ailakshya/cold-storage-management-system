@@ -50,6 +50,8 @@ func NewRouter(
 	r.HandleFunc("/rent", pageHandler.RentPage).Methods("GET")
 	r.HandleFunc("/rent-management", pageHandler.RentManagementPage).Methods("GET")
 	r.HandleFunc("/room-entry-edit", pageHandler.RoomEntryEditPage).Methods("GET")
+	r.HandleFunc("/payment-receipt", pageHandler.PaymentReceiptPage).Methods("GET")
+	r.HandleFunc("/verify-receipt", pageHandler.VerifyReceiptPage).Methods("GET")
 
 	// Employee management page (admin only)
 	r.HandleFunc("/employees", pageHandler.EmployeesPage).Methods("GET")
@@ -113,6 +115,7 @@ func NewRouter(
 	rentPaymentsAPI.HandleFunc("", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.ListPayments)).ServeHTTP).Methods("GET")
 	rentPaymentsAPI.HandleFunc("/entry/{entry_id}", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.GetPaymentsByEntry)).ServeHTTP).Methods("GET")
 	rentPaymentsAPI.HandleFunc("/phone", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.GetPaymentsByPhone)).ServeHTTP).Methods("GET")
+	rentPaymentsAPI.HandleFunc("/receipt/{receipt_number}", authMiddleware.RequireAccountantAccess(http.HandlerFunc(rentPaymentHandler.GetPaymentByReceiptNumber)).ServeHTTP).Methods("GET")
 
 	// Protected API routes - Invoices (employees and admins can create, all can view)
 	invoicesAPI := r.PathPrefix("/api/invoices").Subrouter()

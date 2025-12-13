@@ -139,6 +139,30 @@
     </div>
 
     <script>
+        // Capitalize first letter function
+        function capitalizeFirstLetter(input) {
+            const value = input.value;
+            if (value.length > 0) {
+                input.value = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+        }
+
+        // Capitalize first letter of text
+        function capitalizeText(text) {
+            if (!text || text.length === 0) return text;
+            return text.charAt(0).toUpperCase() + text.slice(1);
+        }
+
+        // Auto-apply capitalization to all text inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const textInputs = document.querySelectorAll('input[type="text"]:not([disabled]):not([type="email"]):not([type="tel"])');
+            textInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    capitalizeFirstLetter(this);
+                });
+            });
+        });
+
         // Check if user is admin
         (function() {
             const userStr = localStorage.getItem('user');

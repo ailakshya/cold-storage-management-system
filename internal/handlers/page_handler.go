@@ -109,3 +109,13 @@ func (h *PageHandler) RentManagementPage(w http.ResponseWriter, r *http.Request)
 func (h *PageHandler) RoomEntryEditPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "room_entry_edit.html", nil)
 }
+
+// PaymentReceiptPage serves payment receipt page
+func (h *PageHandler) PaymentReceiptPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "payment_receipt.html", nil)
+}
+
+// VerifyReceiptPage serves receipt verification page
+func (h *PageHandler) VerifyReceiptPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "verify_receipt.html", nil)
+}

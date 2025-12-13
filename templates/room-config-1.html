@@ -178,7 +178,7 @@
                         <div class="grid grid-cols-2 gap-6 mb-6">
                             <div>
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                    Gate No * <span class="text-gray-500">(gatar no)</span>
+                                    Gatar No *
                                 </label>
                                 <input
                                     type="text"
@@ -258,7 +258,7 @@
                                     <th class="text-left p-2 font-bold">Truck No</th>
                                     <th class="text-left p-2 font-bold">Room</th>
                                     <th class="text-left p-2 font-bold">Floor</th>
-                                    <th class="text-left p-2 font-bold">Gate</th>
+                                    <th class="text-left p-2 font-bold">Gatar</th>
                                     <th class="text-left p-2 font-bold">Remark</th>
                                     <th class="text-left p-2 font-bold">Qty</th>
                                     <th class="text-left p-2 font-bold">Date</th>
@@ -374,6 +374,24 @@
     </div>
 
     <script>
+        // Capitalize first letter function
+        function capitalizeFirstLetter(input) {
+            const value = input.value;
+            if (value.length > 0) {
+                input.value = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+        }
+
+        // Auto-apply capitalization to all text inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const textInputs = document.querySelectorAll('input[type="text"]:not([disabled]):not([type="email"]):not([type="tel"])');
+            textInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    capitalizeFirstLetter(this);
+                });
+            });
+        });
+
         const token = localStorage.getItem('token');
         let selectedEntry = null;
         let entriesRefreshInterval = null;
@@ -658,7 +676,7 @@
                 }
 
                 const result = await response.json();
-                alert(`Room entry created successfully!\nTruck: ${result.truck_number}\nLocation: Room ${result.room_no}, Floor ${result.floor}, Gate ${result.gate_no}`);
+                alert(`Room entry created successfully!\nTruck: ${result.truck_number}\nLocation: Room ${result.room_no}, Floor ${result.floor}, Gatar ${result.gate_no}`);
 
                 // Reload data
                 loadUnassignedEntries();

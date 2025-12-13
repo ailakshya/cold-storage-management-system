@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Receipt</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        .neu-brutal {
+            border: 3px solid #000;
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-brutal:hover {
+            box-shadow: 8px 8px 0 #000;
+        }
+        .verification-input {
+            font-family: monospace;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body class="bg-yellow-50">
+    <!-- Header -->
+    <div class="bg-black text-yellow-400 py-4 mb-6">
+        <div class="container mx-auto px-4">
+            <h1 class="text-2xl font-black">🔐 RECEIPT VERIFICATION</h1>
+            <p class="text-sm">Check the authenticity of payment receipts</p>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 max-w-2xl">
+        <!-- Verification Form -->
+        <div class="bg-white neu-brutal p-6 mb-6">
+            <h2 class="text-xl font-black mb-4 flex items-center gap-2">
+                <i class="bi bi-shield-check"></i>
+                Verify Payment Receipt
+            </h2>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-bold mb-2">Receipt Number:</label>
+                    <input
+                        type="text"
+                        id="receiptNumber"
+                        placeholder="RCP-20251214-0001"
+                        class="w-full px-4 py-3 border-3 border-black font-mono font-bold text-lg"
+                    >
+                </div>
+
+                <div>
+                    <label class="block text-sm font-bold mb-2">Verification Code (from receipt):</label>
+                    <textarea
+                        id="verificationCode"
+                        rows="3"
+                        placeholder="Paste the verification code from the printed receipt here..."
+                        class="w-full px-4 py-3 border-3 border-black font-mono text-sm verification-input"
+                    ></textarea>
+                    <p class="text-xs text-gray-600 mt-1">
+                        <i class="bi bi-info-circle"></i> The verification code is shown at the bottom of the receipt
+                    </p>
+                </div>
+
+                <button
+                    onclick="verifyReceipt()"
+                    class="w-full bg-blue-600 text-white px-6 py-3 font-black border-3 border-black neu-brutal hover:bg-blue-700 transition-all"
+                >
+                    <i class="bi bi-search"></i> VERIFY RECEIPT
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Display -->
+        <div id="resultSection" class="hidden">
+            <!-- Success Result -->
+            <div id="successResult" class="bg-green-100 border-4 border-green-600 p-6 mb-6 hidden">
+                <div class="flex items-start gap-4">
+                    <i class="bi bi-check-circle-fill text-5xl text-green-600"></i>
+                    <div class="flex-1">
+                        <h3 class="text-2xl font-black text-green-800 mb-2">✓ RECEIPT VERIFIED</h3>
+                        <p class="text-green-700 font-semibold mb-4">This receipt is authentic and valid.</p>
+
+                        <div class="bg-white border-2 border-green-600 p-4 rounded">
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div>
+                                    <p class="text-gray-600 font-semibold">Receipt No:</p>
+                                    <p id="successReceiptNo" class="font-black">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-600 font-semibold">Date:</p>
+                                    <p id="successDate" class="font-black">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-600 font-semibold">Customer:</p>
+                                    <p id="successCustomer" class="font-black">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-gray-600 font-semibold">Amount Paid:</p>
+                                    <p id="successAmount" class="font-black text-green-700">-</p>
+                                </div>
+                                <div class="col-span-2 border-t-2 border-green-200 pt-2 mt-1">
+                                    <p class="text-gray-600 font-semibold flex items-center gap-1">
+                                        <i class="bi bi-person-badge text-blue-600"></i>
+                                        Collected By:
+                                    </p>
+                                    <p id="successEmployee" class="font-black text-blue-700">-</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Failure Result -->
+            <div id="failureResult" class="bg-red-100 border-4 border-red-600 p-6 mb-6 hidden">
+                <div class="flex items-start gap-4">
+                    <i class="bi bi-x-circle-fill text-5xl text-red-600"></i>
+                    <div class="flex-1">
+                        <h3 class="text-2xl font-black text-red-800 mb-2">✗ VERIFICATION FAILED</h3>
+                        <p class="text-red-700 font-semibold mb-2">This receipt could not be verified.</p>
+                        <p class="text-sm text-red-600">
+                            The verification code does not match our records. This receipt may be invalid, tampered with, or the code was entered incorrectly.
+                        </p>
+
+                        <div class="mt-4 bg-white border-2 border-red-600 p-3 rounded">
+                            <p class="text-sm font-bold text-red-800">⚠️ Possible reasons:</p>
+                            <ul class="text-sm text-red-700 mt-2 space-y-1 ml-4 list-disc">
+                                <li>Verification code was copied incorrectly</li>
+                                <li>Receipt number is incorrect</li>
+                                <li>Receipt has been forged or altered</li>
+                                <li>Receipt does not exist in our system</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <button
+                onclick="resetForm()"
+                class="w-full bg-gray-600 text-white px-6 py-3 font-black border-3 border-black neu-brutal hover:bg-gray-700 transition-all"
+            >
+                <i class="bi bi-arrow-clockwise"></i> VERIFY ANOTHER RECEIPT
+            </button>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-blue-50 border-3 border-black neu-brutal p-6 mt-6">
+            <h3 class="font-black text-lg mb-3 flex items-center gap-2">
+                <i class="bi bi-info-circle-fill text-blue-600"></i>
+                How to Verify a Receipt
+            </h3>
+            <ol class="space-y-2 text-sm">
+                <li class="flex gap-2">
+                    <span class="font-black">1.</span>
+                    <span>Locate the <strong>Receipt Number</strong> at the top of the printed receipt (e.g., RCP-20251214-0001)</span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="font-black">2.</span>
+                    <span>Find the <strong>Verification Code</strong> at the bottom of the receipt (long hexadecimal string)</span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="font-black">3.</span>
+                    <span>Enter both values in the form above and click <strong>Verify Receipt</strong></span>
+                </li>
+                <li class="flex gap-2">
+                    <span class="font-black">4.</span>
+                    <span>The system will confirm if the receipt is authentic</span>
+                </li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        async function verifyReceipt() {
+            const receiptNumber = document.getElementById('receiptNumber').value.trim().toUpperCase();
+            const providedCode = document.getElementById('verificationCode').value.trim().toUpperCase().replace(/\s/g, '');
+
+            if (!receiptNumber || !providedCode) {
+                alert('Please enter both receipt number and verification code');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    alert('Not authenticated');
+                    window.location.href = '/login';
+                    return;
+                }
+
+                // Fetch receipt data
+                const response = await fetch(`/api/rent-payments/receipt/${receiptNumber}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Receipt not found');
+                }
+
+                const payment = await response.json();
+
+                // Generate verification code
+                const generatedCode = await generateVerificationCode(payment);
+
+                // Compare codes
+                if (generatedCode === providedCode) {
+                    showSuccess(payment);
+                } else {
+                    showFailure();
+                }
+
+            } catch (error) {
+                console.error('Error verifying receipt:', error);
+                showFailure();
+            }
+        }
+
+        async function generateVerificationCode(payment) {
+            // Create data string for hashing (must match receipt generation - including employee ID)
+            const dataString = `${payment.receipt_number}|${payment.amount_paid}|${payment.payment_date}|${payment.customer_phone}|${payment.processed_by_user_id}`;
+
+            // Use the same secret key as in receipt generation
+            const secretKey = 'COLD-STORAGE-2025-SECRET-KEY';
+
+            // Encode the data
+            const encoder = new TextEncoder();
+            const data = encoder.encode(dataString);
+            const key = encoder.encode(secretKey);
+
+            // Import the key for HMAC
+            const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                key,
+                { name: 'HMAC', hash: 'SHA-256' },
+                false,
+                ['sign']
+            );
+
+            // Generate HMAC
+            const signature = await crypto.subtle.sign('HMAC', cryptoKey, data);
+
+            // Convert to hex string
+            const hashArray = Array.from(new Uint8Array(signature));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+            return hashHex.toUpperCase();
+        }
+
+        async function showSuccess(payment) {
+            document.getElementById('successReceiptNo').textContent = payment.receipt_number;
+            document.getElementById('successDate').textContent = new Date(payment.payment_date).toLocaleString('en-IN');
+            document.getElementById('successCustomer').textContent = payment.customer_name;
+            document.getElementById('successAmount').textContent = '₹' + payment.amount_paid.toFixed(2);
+
+            // Fetch and display employee details
+            if (payment.processed_by_user_id) {
+                await fetchEmployeeForVerification(payment.processed_by_user_id);
+            } else {
+                document.getElementById('successEmployee').textContent = 'Unknown';
+            }
+
+            document.getElementById('successResult').classList.remove('hidden');
+            document.getElementById('failureResult').classList.add('hidden');
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
+
+        async function fetchEmployeeForVerification(userId) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/users/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('successEmployee').textContent = `${user.name} (${user.role})`;
+                } else {
+                    document.getElementById('successEmployee').textContent = 'Employee ID: ' + userId;
+                }
+            } catch (error) {
+                console.error('Error fetching employee details:', error);
+                document.getElementById('successEmployee').textContent = 'Employee ID: ' + userId;
+            }
+        }
+
+        function showFailure() {
+            document.getElementById('successResult').classList.add('hidden');
+            document.getElementById('failureResult').classList.remove('hidden');
+            document.getElementById('resultSection').classList.remove('hidden');
+        }
+
+        function resetForm() {
+            document.getElementById('receiptNumber').value = '';
+            document.getElementById('verificationCode').value = '';
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('successResult').classList.add('hidden');
+            document.getElementById('failureResult').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

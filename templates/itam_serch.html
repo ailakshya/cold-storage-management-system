@@ -62,7 +62,7 @@
                 <i class="bi bi-funnel"></i> Search Filters
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <input type="text" id="filterTruck" placeholder="Truck Number" class="neu-brutal-input">
+                <input type="text" id="filterTruck" placeholder="Thock Number" class="neu-brutal-input">
                 <input type="text" id="filterName" placeholder="Customer Name" class="neu-brutal-input">
                 <input type="text" id="filterVillage" placeholder="Village" class="neu-brutal-input">
                 <input type="text" id="filterPhone" placeholder="Phone Number" class="neu-brutal-input">
@@ -118,7 +118,7 @@
                             <th class="p-2 text-left">Village</th>
                             <th class="p-2 text-left">Room</th>
                             <th class="p-2 text-left">Floor</th>
-                            <th class="p-2 text-left">Gate No</th>
+                            <th class="p-2 text-left">Gatar No</th>
                             <th class="p-2 text-left">Qty</th>
                             <th class="p-2 text-left">Remark</th>
                             <th class="p-2 text-left">Date</th>
@@ -134,6 +134,12 @@
     </div>
 
     <script>
+        // Capitalize first letter of text
+        function capitalizeText(text) {
+            if (!text || text.length === 0) return text;
+            return text.charAt(0).toUpperCase() + text.slice(1);
+        }
+
         const token = localStorage.getItem('token');
         let allEntries = [];
         let allRoomEntries = [];
@@ -145,16 +151,40 @@
 
         async function loadAllData() {
             try {
+                // Check authentication
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
                 // Fetch all entries
                 const entriesResponse = await fetch('/api/entries', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                if (!entriesResponse.ok) {
+                    if (entriesResponse.status === 401 || entriesResponse.status === 403) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(`Failed to load entries: ${await entriesResponse.text()}`);
+                }
+
                 allEntries = await entriesResponse.json();
 
                 // Fetch all room entries
                 const roomEntriesResponse = await fetch('/api/room-entries', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                if (!roomEntriesResponse.ok) {
+                    if (roomEntriesResponse.status === 401 || roomEntriesResponse.status === 403) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(`Failed to load room entries: ${await roomEntriesResponse.text()}`);
+                }
+
                 allRoomEntries = await roomEntriesResponse.json();
 
                 // Combine data
@@ -192,8 +222,14 @@
             } catch (error) {
                 console.error('Error loading data:', error);
                 document.getElementById('loadingIndicator').innerHTML = `
-                    <i class="bi bi-exclamation-triangle text-4xl text-red-500"></i>
-                    <p class="mt-4 text-red-500">Error loading data: ${error.message}</p>
+                    <div class="neu-border bg-red-50 p-8">
+                        <i class="bi bi-exclamation-triangle text-6xl text-red-500"></i>
+                        <p class="mt-4 text-red-600 font-bold text-lg">Error loading data</p>
+                        <p class="mt-2 text-red-500 text-sm">${error.message}</p>
+                        <button onclick="window.location.href='/login'" class="mt-4 bg-red-500 text-white px-6 py-3 neu-border hover:bg-red-600">
+                            <i class="bi bi-box-arrow-in-right"></i> Login Again
+                        </button>
+                    </div>
                 `;
             }
         }
@@ -224,22 +260,19 @@
 
                 row.innerHTML = `
                     <td class="p-2 font-bold ${truckColor}">${entry.truckNumber}</td>
-                    <td class="p-2">${entry.name}</td>
+                    <td class="p-2">${capitalizeText(entry.name)}</td>
                     <td class="p-2">${entry.phone}</td>
-                    <td class="p-2">${entry.village}</td>
+                    <td class="p-2">${capitalizeText(entry.village)}</td>
                     <td class="p-2">${entry.room}</td>
                     <td class="p-2">${entry.floor}</td>
                     <td class="p-2">${entry.gateNo}</td>
                     <td class="p-2">${entry.quantity}</td>
-                    <td class="p-2">${entry.remark}</td>
+                    <td class="p-2">${capitalizeText(entry.remark)}</td>
                     <td class="p-2 text-sm">${entry.date}</td>
                     <td class="p-2">
                         <div class="flex gap-2">
                             <button onclick="editLocation(${entry.roomEntryId})" class="neu-brutal-button px-3 py-1 text-xs bg-blue-400">
                                 <i class="bi bi-pencil"></i> Edit
-                            </button>
-                            <button onclick="goToRent(${entry.entryId})" class="neu-brutal-button px-3 py-1 text-xs bg-green-400">
-                                <i class="bi bi-cash-coin"></i> Rent
                             </button>
                         </div>
                     </td>
@@ -261,35 +294,57 @@
             return 'text-gray-700'; // Default color
         }
 
+        // Fuzzy search function - allows typos and partial matches
+        function fuzzyMatch(searchTerm, targetText) {
+            if (!searchTerm) return true;
+            if (!targetText) return false;
+
+            searchTerm = searchTerm.toLowerCase();
+            targetText = targetText.toLowerCase();
+
+            // If exact substring match, return true immediately
+            if (targetText.includes(searchTerm)) return true;
+
+            // Fuzzy matching: check if all characters appear in order
+            let searchIndex = 0;
+            for (let i = 0; i < targetText.length && searchIndex < searchTerm.length; i++) {
+                if (targetText[i] === searchTerm[searchIndex]) {
+                    searchIndex++;
+                }
+            }
+
+            return searchIndex === searchTerm.length;
+        }
+
         function applyFilter() {
-            const truckFilter = document.getElementById('filterTruck').value.toLowerCase();
-            const nameFilter = document.getElementById('filterName').value.toLowerCase();
-            const villageFilter = document.getElementById('filterVillage').value.toLowerCase();
-            const phoneFilter = document.getElementById('filterPhone').value.toLowerCase();
-            const roomFilter = document.getElementById('filterRoom').value.toLowerCase();
-            const floorFilter = document.getElementById('filterFloor').value.toLowerCase();
+            const truckFilter = document.getElementById('filterTruck').value;
+            const nameFilter = document.getElementById('filterName').value;
+            const villageFilter = document.getElementById('filterVillage').value;
+            const phoneFilter = document.getElementById('filterPhone').value;
+            const roomFilter = document.getElementById('filterRoom').value;
+            const floorFilter = document.getElementById('filterFloor').value;
             const dateFrom = document.getElementById('filterDateFrom').value;
             const dateTo = document.getElementById('filterDateTo').value;
 
             filteredData = combinedData.filter(entry => {
                 let matches = true;
 
-                if (truckFilter && !entry.truckNumber.toLowerCase().includes(truckFilter)) {
+                if (!fuzzyMatch(truckFilter, entry.truckNumber)) {
                     matches = false;
                 }
-                if (nameFilter && !entry.name.toLowerCase().includes(nameFilter)) {
+                if (!fuzzyMatch(nameFilter, entry.name)) {
                     matches = false;
                 }
-                if (villageFilter && !entry.village.toLowerCase().includes(villageFilter)) {
+                if (!fuzzyMatch(villageFilter, entry.village)) {
                     matches = false;
                 }
-                if (phoneFilter && !entry.phone.toLowerCase().includes(phoneFilter)) {
+                if (!fuzzyMatch(phoneFilter, entry.phone)) {
                     matches = false;
                 }
-                if (roomFilter && !entry.room.toLowerCase().includes(roomFilter)) {
+                if (!fuzzyMatch(roomFilter, entry.room)) {
                     matches = false;
                 }
-                if (floorFilter && !entry.floor.toLowerCase().includes(floorFilter)) {
+                if (!fuzzyMatch(floorFilter, entry.floor)) {
                     matches = false;
                 }
 
@@ -350,7 +405,7 @@
                 'Village': entry.village,
                 'Room': entry.room,
                 'Floor': entry.floor,
-                'Gate Number': entry.gateNo,
+                'Gatar Number': entry.gateNo,
                 'Quantity': entry.quantity,
                 'Remark': entry.remark,
                 'Date': entry.date
@@ -377,9 +432,6 @@
             window.location.href = `/room-entry-edit?id=${roomEntryId}`;
         }
 
-        function goToRent(entryId) {
-            window.location.href = `/rent?entry_id=${entryId}`;
-        }
 
         function goBack() {
             window.history.back();

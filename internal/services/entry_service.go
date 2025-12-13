@@ -73,6 +73,7 @@ func (s *EntryService) CreateEntry(ctx context.Context, req *models.CreateEntryR
 		Phone:            req.Phone,
 		Name:             req.Name,
 		Village:          req.Village,
+		SO:               req.SO,
 		ExpectedQuantity: req.ExpectedQuantity,
 		TruckCategory:    req.TruckCategory,
 		CreatedByUserID:  userID,

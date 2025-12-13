@@ -58,6 +58,41 @@
         .spin-animation {
             animation: spin 1s linear infinite;
         }
+        .village-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            margin-top: 4px;
+        }
+        .village-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        .village-item {
+            padding: 0.75rem;
+            cursor: pointer;
+            border-bottom: 2px solid #eee;
+            transition: background 0.2s;
+        }
+        .village-item:hover {
+            background: #f0f0f0;
+            font-weight: 600;
+        }
+        .village-item:last-child {
+            border-bottom: none;
+        }
+        .village-item.highlighted {
+            background: #fbbf24;
+            font-weight: 600;
+        }
     </style>
 </head>
 <body class="bg-[#FFF9E6] min-h-screen p-8">
@@ -87,6 +122,30 @@
                 </h2>
 
                 <div class="grid grid-cols-1 gap-4 mb-6">
+                    <div class="relative">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Phone * <span class="text-sm text-gray-500">(Must be 10 digits)</span>
+                        </label>
+                        <input
+                            type="tel"
+                            id="userPhone"
+                            required
+                            class="w-full neu-input"
+                            placeholder="Search or enter 10-digit phone number"
+                            maxlength="10"
+                            minlength="10"
+                            pattern="[0-9]{10}"
+                            autocomplete="off"
+                            onfocus="showPhoneDropdown()"
+                            oninput="filterPhones()"
+                        >
+                        <div id="phoneDropdown" class="village-dropdown hidden">
+                            <div id="phoneList" class="village-list"></div>
+                        </div>
+                        <div id="searchStatus" class="hidden mt-2 p-2 border-2">
+                            <p class="text-sm font-semibold"></p>
+                        </div>
+                    </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
                             Name *
@@ -97,48 +156,40 @@
                             required
                             class="w-full neu-input"
                             placeholder="Enter name"
+                            oninput="capitalizeFirstLetter(this)"
                         >
                     </div>
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Village *
+                            S/O <span class="text-sm text-gray-500">(Son Of / Father's Name)</span>
                         </label>
                         <input
                             type="text"
-                            id="userVillage"
-                            required
+                            id="userSO"
                             class="w-full neu-input"
-                            placeholder="Enter village"
+                            placeholder="Enter father's name (optional)"
+                            oninput="capitalizeFirstLetter(this)"
                         >
                     </div>
-                    <div>
+                    <div class="relative">
                         <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Phone * <span class="text-sm text-gray-500">(Must be 10 digits)</span>
+                            Village *
                         </label>
-                        <input
-                            type="tel"
-                            id="userPhone"
-                            required
-                            class="w-full neu-input"
-                            placeholder="Enter 10-digit phone number"
-                            maxlength="10"
-                            minlength="10"
-                            pattern="[0-9]{10}"
-                        >
-                        <div id="searchStatus" class="hidden mt-2 p-2 border-2">
-                            <p class="text-sm font-semibold"></p>
+                        <div class="relative">
+                            <input
+                                type="text"
+                                id="userVillage"
+                                required
+                                class="w-full neu-input"
+                                placeholder="Search or select village"
+                                autocomplete="off"
+                                onfocus="showVillageDropdown()"
+                                oninput="capitalizeFirstLetter(this); filterVillages()"
+                            >
+                            <div id="villageDropdown" class="village-dropdown hidden">
+                                <div id="villageList" class="village-list"></div>
+                            </div>
                         </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-semibold text-gray-700 mb-2">
-                            Email
-                        </label>
-                        <input
-                            type="email"
-                            id="userEmail"
-                            class="w-full neu-input"
-                            placeholder="Enter email (optional)"
-                        >
                     </div>
                 </div>
 
@@ -239,7 +290,7 @@
                                 <th class="text-left p-2 font-bold">Truck No</th>
                                 <th class="text-left p-2 font-bold">Room</th>
                                 <th class="text-left p-2 font-bold">Floor</th>
-                                <th class="text-left p-2 font-bold">Gate</th>
+                                <th class="text-left p-2 font-bold">Gatar</th>
                                 <th class="text-left p-2 font-bold">Qty</th>
                                 <th class="text-left p-2 font-bold">Date</th>
                                 <th class="text-left p-2 font-bold">Action</th>
@@ -313,6 +364,209 @@
         let seedCount = 0;
         let sellCount = 0;
 
+        // Phone list from database - will be populated on load
+        let customerPhones = [];
+
+        // Village list for searchable dropdown
+        const villages = ["Jahangirabad","Anupshahr","Achalpur","Ahamad Nagar Urf Touli","Ahar Bangar","Ahar Khadar","Akbarpur Urf Bachchikhera Bang","Alampur Urf Torai Bangar","Amarpur","Amba","Ametha","Aniwas","Anjni","Badarkha","Badshahpur Pauta","Bagsara","Bamanpur","Banawaripur","Barhpura","Begampur Urf Jairampur","Bhailai","Bhaipur","Bhiroli","Bhopur","Bibiyana","Bichaula","Bidhipur","Birauli","Borha","Chacharai","Charaura","Chhaturiya","Dabka","Daraura","Daravar","Davkora","Devakaranpur Urf Bajhera","Dugrau","Dungara Jogi","Enchora","Faridpur Bariyan","Fatahpur","Gahana Govardhanpur","Gangabas Pahara","Garhara","Godhana","Harchandpur","Hasanpur Bangar","Hisavati","Hoshiyarpur Urf Adhiyar","Jafrabad Urf Gangabas Bangar","Jahangirabad Rural","Jairampur Kudena","Jalilpur","Jamrau","Jasar","Jatpura","Jatvai","Jugasana Kalan","Jugasana Khurd","Karanpur Kalan","Karanpur Urf Nurpur","Karonji","Katiyavali","Khadana","Khalaur","Khalikabad/Dungrajat","Khalikpur","Khanpura","Khaunada","Khijarabad","Khushalgarh","Kishanpur Urf Kishan Khera","Kubari","Lachchhampur","Lachhoi","Madagavan","Madhogarh","Malakpur","Man Karora","Mau","Mauharsa","Maujpur","Mohammadpur Bangar","Mohammadpur Khadar","Mubarikpur","Mubarikpur Bangar","Muradnagar","Nagala Nalu","Navabpur Urf Dharampur","Navi Nagar","Pachdevra","Pagauna","Paharpur","Parali","Patrampur","Pipehara","Pootha","Rajapur","Rajaur","Rajner Urf Sorla","Rajpur","Raura","Rohallapur/Kharva","Ronda","Roopvas","Rooth Bangar","Rootha","Sahibad Urf Kakarai","Salamatpur","Salgavan","Sankhani","Shahjahanpur","Shekupur Raura","Sherpur Bangar","Shikoi","Shyampuri","Shyaurampur Jinai","Sihlinagar","Siraura Bangar","Soharkhan","Sunai","Sunana","Suratgarh Urf Lodhai","Telia Nagla","Titota Urf Birgaon","Ugevan","Abhaypur","Akapur Riyana","Alampur Nagla","Alavas Baturi","Amargarh","Amarthal Urf Unchagaon","Aurangabad Tahapur Bager","Aurangabad Tahapur Khader","B B Nagar","Badshahpur Gadia","Badshahpur Talab","Bahainpur","Baharmpur Urf Pali","Bahedi Khera","Bainipur","Balipur","Bamanpur Talluka","Bansuri","Barauli Basdevpur","Barhana","Barkatpur","Basi Bangar","Basi Khadar","Bathada Vajidpur","Bhadaura","Bhadoi Asarfpur","Bhagawantpur","Bhainsaura","Bhamrauli","Bhansa Khur","Bharkau","Bharra","Bhatpura","Bhaupur","Bhirawti","Bhurawala","Bigraon","Biharipur","Bihata","Chandpur Poothi","Chandyana","Chasi","Chatehra","Chhanaura","Chhatamwala","Chigrawati","Chitsona Alipur","Darauli","Darveshpur","Daulatpur Kalan","Dehra","Dhakauli","Dhakka","Dhakrauli","Dhalna","Dhaniyawali","Dulkhara","Eklaidi","Emamabad","Farida Bager","Farida Khadar","Fatehpur","Fatehpur Gujar","Fulaira","Gasupur","Ghansoorpur","Ghunghraoli","Ginaura Nagli","Giraura","Gulab Nagar","Guraoli","Hajipur","Harwanpur Urf Bhagawanpur","Hasanpur Ujarra","Hingbara","Ilna","Imalia","Ishanpur","Jadaul","Jadauli","Jalalpur","Jaria Alampur","Jawasa","Kachraut","Kalyanpur","Kamalpur","Kanauna","Kapsaipur","Karaitha","Karauthi","Karethha","Kariyari","Kaura Shamshadbad","Kesorpur Sathla","Khad Mohan Nagar","Khandoi","Khanpur Guntu","Khanpur Majra","Kharkali","Kharpur","Khijarpur","Kisola","Kriyawali","Kuchesar","Kurena","Ladana","Lalgarhi","Launga","Madangarh","Madona Jafrabad","Maduhasan Garhi Bager","Maduhasan Garhi Khadar","Mahav","Mahiuddinpur Bukalana","Mahuddinpur","Makri","Mangalpur","Mania Tikri","Manpur","Mathura Nagal","Maua Khera","Mavai","Mirzapur Nagli","Modh Allipur Urf Nima Patty Al","Mohamadpurbarwala","Mullani","Nagaur","Nagla Madaripur","Narendrapur","Narsena","Nehchauli","Nikhob","Nirsukha","Nittyanandpur Nagli","Nizampur Bager","Nizampur Khadar","Pali","Pali Anandgarhi","Palipartapur","Parawana Mahmudpur","Pempur","Pilkhani","Pirpur","Pota Kabulpur","Pyana Kalan","Pyana Khurd","Raghunathpur","Rahmatpur Augna","Rampur Pitampur","Ranapur","Rasulpur","Ratanpur","Rausla","Ravani Katiri Bangar","Ravani Katiri Khadar","Sabdalpur","Sahanpur","Sahera","Saidpur","Salabad Dhamaira","Saujna Rani","Sega Jagatpur","Seorampur","Shadipur Banboi","Shafi Nagar","Shakarpur","Shekhupura","Sikri","Sinhali Jhaya","Siyana","Sojna Jhaya","Sulaila","Surajpur Tikri","Takrarpur Ladpor","Tehgora","Thalinayatpur","Thana Gajraula","Thauna","Tibra","Timarpur","Umarpur","Verafirojpur","Yunispur","Abdullapur Hulasan","Ahmad Baj","Ahmadgarh","Ajijabad","Akbarpur Bas Kaneni","Allipur","Allipura Mubarikpur","Amarpur","Anaouna","Anchar Kalan","Ancharu Khurd","Asawari","Ashrefpur Abdullapur","Asrauli","Aurangabad Chandok","Azampur Dariapur","Bad","Badarkha Sirbas","Badrampur","Bailonth","Bamanpur","Ban","Banaul","Barasau","Barauda","Barauli","Barkatpur","Barkhara Hasangarhi","Beram Nagar","Bhaipur","Bhalolpur","Bhansroli Nasirpur","Bhataula","Bhonpur","Bohich","Chakla","Chitsaun","Dargahpur Basauti","Derveshpur","Dhalna","Dhaurau","Dhooturi","Domla Hasangarh","Faizallapur Ajnara","Faridpur Haveli","Fatahabad","Fatehgarh","Fazilpur","Ganga Garh","Gangabaj","Ghungravali Banvaripur","Golabas","Halpura","Hatampur","Hauganpur","Hazaratpur","Hinnaut","Hurthala","Jagdishpur Aurangabad","Jainawai","Jakhauta","Jalalpur","Jalalpur Karira","Jalalpur Katora","Jalaluddinpur Ginauri","Jalphi","Jamalpur","Janipur Kalan","Janipur Khurd","Jatpura","Jeerajpur","Kadon","Kadrabad","Kailawali","Kaisawan","Kamauna","Kaneni Badrampur","Karaina","Karauda","Karira","Kastaba Dhadd","Kasumi","Keratpur","Khailia Kalyanpur","Khairpur","Khakuda","Khandar","Khandwama","Khassia","Kiryawali","Kondupur","Kutubpur","Kuwarpur","Lalgarhi","Lalner","Lohra","Ludhpura","Madanpur Mubarakpur","Mahmudpur","Mahuwa Khara","Mamau","Mandawali","Maudi","Meerapur","Mohammadpur Ginauri","Morauni","Mukeempur","Mukhara","Mustfabad Daduwa","Nagalia Lachhamanpur","Nagla Dalpatpur","Nagla Lutf Alipur","Nagla Naw","Nagla Sarangpur","Nagla Urf Fattapur","Narau","Nawada","Noorpur Nagalia","Padha","Paharpur Haveli","Paharpur Surjawali","Pahasu Dehat","Pandrawal","Pitampur","Poothri Khurd","Poroli","Ragsonth","Rahmapur","Rajpura","Rajupura","Rampur Manpur","Ranau Raham Alipur","Ranayach Narendrapur","Rangpur","Raniwala","Rasulgarhi","Rasulpur","Rasulpur Nagla Bichat","Risalu","Riwara","Runsi","Sahar","Sahatpur Khairi","Saidh Garhi","Salabad","Salbahanpur","Salempur","Samanpur","Samaspur","Sarawa","Sarbhanna","Sargaon","Shikarpur","Shikarpur Rural","Siddhpur","Sidgarhi","Soi","Sujapur Pootha","Sultanpur Khader","Sultanpur Mirgarhi","Surajpur Nisfi","Surjawali","Surkharu","Syarli","Tayabpur","Teyor Bujurag","Teyori","Tunda Khera","Turkipura Khas","Urdmi","Urf Dusari","Utrawali","Yakubpur"];
+
+        // Capitalize first letter of input field
+        function capitalizeFirstLetter(input) {
+            const value = input.value;
+            if (value.length > 0) {
+                input.value = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+        }
+
+        // Capitalize first letter of text content
+        function capitalizeText(text) {
+            if (!text || text.length === 0) return text;
+            return text.charAt(0).toUpperCase() + text.slice(1);
+        }
+
+        // Capitalize all text outputs in tables and display elements
+        function capitalizeOutputs() {
+            // Capitalize table cells (except headers and specific columns like phone, truck number)
+            document.querySelectorAll('tbody td').forEach(cell => {
+                const text = cell.textContent.trim();
+                // Skip if it's a number, phone, truck number, or empty
+                if (text && !/^\d+$/.test(text) && !/^[\d\/-]+$/.test(text) && text !== '-') {
+                    cell.textContent = capitalizeText(text);
+                }
+            });
+        }
+
+        // Fuzzy match function for village search
+        function fuzzyMatchVillage(searchTerm, targetText) {
+            if (!searchTerm) return true;
+            if (!targetText) return false;
+
+            searchTerm = searchTerm.toLowerCase();
+            targetText = targetText.toLowerCase();
+
+            // Exact substring match first (fast path)
+            if (targetText.includes(searchTerm)) return true;
+
+            // Fuzzy matching: all characters must appear in order
+            let searchIndex = 0;
+            for (let i = 0; i < targetText.length && searchIndex < searchTerm.length; i++) {
+                if (targetText[i] === searchTerm[searchIndex]) {
+                    searchIndex++;
+                }
+            }
+
+            return searchIndex === searchTerm.length;
+        }
+
+        // Show village dropdown
+        function showVillageDropdown() {
+            filterVillages();
+            document.getElementById('villageDropdown').classList.remove('hidden');
+        }
+
+        // Hide village dropdown
+        function hideVillageDropdown() {
+            setTimeout(() => {
+                document.getElementById('villageDropdown').classList.add('hidden');
+            }, 200);
+        }
+
+        // Filter and display villages
+        function filterVillages() {
+            const searchTerm = document.getElementById('userVillage').value;
+            const filtered = villages.filter(village => fuzzyMatchVillage(searchTerm, village));
+
+            // Limit to 50 results for performance
+            const displayVillages = filtered.slice(0, 50);
+
+            const villageList = document.getElementById('villageList');
+            villageList.innerHTML = displayVillages.map(village =>
+                `<div class="village-item" onclick="selectVillage('${village}')">${village}</div>`
+            ).join('');
+
+            if (displayVillages.length === 0) {
+                villageList.innerHTML = '<div class="village-item" style="color: #999;">No villages found</div>';
+            }
+        }
+
+        // Select a village
+        function selectVillage(village) {
+            document.getElementById('userVillage').value = village;
+            document.getElementById('villageDropdown').classList.add('hidden');
+        }
+
+        // Fuzzy match function for phone search
+        function fuzzyMatchPhone(searchTerm, phoneData) {
+            if (!searchTerm) return true;
+            searchTerm = searchTerm.toLowerCase();
+
+            const phone = phoneData.phone.toLowerCase();
+            const name = (phoneData.name || '').toLowerCase();
+            const village = (phoneData.village || '').toLowerCase();
+
+            // Check if search term matches phone, name, or village
+            if (phone.includes(searchTerm)) return true;
+            if (name.includes(searchTerm)) return true;
+            if (village.includes(searchTerm)) return true;
+
+            // Fuzzy matching on name
+            let searchIndex = 0;
+            for (let i = 0; i < name.length && searchIndex < searchTerm.length; i++) {
+                if (name[i] === searchTerm[searchIndex]) {
+                    searchIndex++;
+                }
+            }
+            return searchIndex === searchTerm.length;
+        }
+
+        // Load customer phones from database
+        async function loadCustomerPhones() {
+            try {
+                const response = await fetch('/api/entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) return;
+
+                const entries = await response.json();
+
+                // Extract unique customer data
+                const phoneMap = new Map();
+                entries.forEach(entry => {
+                    if (entry.phone && !phoneMap.has(entry.phone)) {
+                        phoneMap.set(entry.phone, {
+                            phone: entry.phone,
+                            name: entry.name || '',
+                            village: entry.village || '',
+                            so: entry.so || ''
+                        });
+                    }
+                });
+
+                customerPhones = Array.from(phoneMap.values());
+            } catch (error) {
+                console.error('Error loading customer phones:', error);
+            }
+        }
+
+        // Show phone dropdown
+        function showPhoneDropdown() {
+            filterPhones();
+            document.getElementById('phoneDropdown').classList.remove('hidden');
+        }
+
+        // Filter and display phones
+        function filterPhones() {
+            const searchTerm = document.getElementById('userPhone').value;
+            const filtered = customerPhones.filter(phoneData => fuzzyMatchPhone(searchTerm, phoneData));
+
+            // Limit to 50 results for performance
+            const displayPhones = filtered.slice(0, 50);
+
+            const phoneList = document.getElementById('phoneList');
+            phoneList.innerHTML = displayPhones.map(phoneData => {
+                const displayText = `${phoneData.phone} - ${phoneData.name}${phoneData.village ? ' (' + phoneData.village + ')' : ''}`;
+                return `<div class="village-item" onclick='selectPhone(${JSON.stringify(phoneData)})'>${displayText}</div>`;
+            }).join('');
+
+            if (displayPhones.length === 0 && searchTerm.length >= 3) {
+                phoneList.innerHTML = '<div class="village-item" style="color: #999;">No matching customers found</div>';
+            } else if (searchTerm.length === 0) {
+                phoneList.innerHTML = '<div class="village-item" style="color: #999;">Start typing to search...</div>';
+            }
+        }
+
+        // Select a phone and auto-fill customer data
+        function selectPhone(phoneData) {
+            document.getElementById('userPhone').value = phoneData.phone;
+            document.getElementById('userName').value = phoneData.name;
+            document.getElementById('userVillage').value = phoneData.village;
+            document.getElementById('userSO').value = phoneData.so || '';
+
+            // Capitalize first letter of auto-filled fields
+            capitalizeFirstLetter(document.getElementById('userName'));
+            capitalizeFirstLetter(document.getElementById('userSO'));
+            capitalizeFirstLetter(document.getElementById('userVillage'));
+
+            document.getElementById('phoneDropdown').classList.add('hidden');
+            showSearchStatus('Customer found! Details auto-filled.', 'success');
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            const villageInput = document.getElementById('userVillage');
+            const villageDropdown = document.getElementById('villageDropdown');
+            if (villageInput && villageDropdown && !villageInput.contains(e.target) && !villageDropdown.contains(e.target)) {
+                villageDropdown.classList.add('hidden');
+            }
+
+            const phoneInput = document.getElementById('userPhone');
+            const phoneDropdown = document.getElementById('phoneDropdown');
+            if (phoneInput && phoneDropdown && !phoneInput.contains(e.target) && !phoneDropdown.contains(e.target)) {
+                phoneDropdown.classList.add('hidden');
+            }
+        });
+
         // Auto-refresh intervals
         let roomEntriesRefreshInterval = null;
         let entriesRefreshInterval = null;
@@ -321,39 +575,10 @@
         window.addEventListener('load', function() {
             loadRecentEntries();
             loadRoomEntries();
+            loadCustomerPhones(); // Load customer phones for dropdown
 
             // Start auto-refresh for room entries (every 5 seconds)
             startAutoRefresh();
-
-            // Add auto-search on phone number input
-            const phoneInput = document.getElementById('userPhone');
-            if (phoneInput) {
-                phoneInput.addEventListener('input', function(e) {
-                    const phone = e.target.value.trim();
-
-                    // Clear previous timeout
-                    if (searchTimeout) {
-                        clearTimeout(searchTimeout);
-                    }
-
-                    // Clear status
-                    hideSearchStatus();
-
-                    // If phone is empty, clear other fields
-                    if (!phone) {
-                        clearCustomerFields();
-                        return;
-                    }
-
-                    // Only search if phone number looks valid (minimum 10 digits)
-                    if (phone.length >= 10) {
-                        // Debounce: wait 500ms after user stops typing
-                        searchTimeout = setTimeout(() => {
-                            autoSearchPhone(phone);
-                        }, 500);
-                    }
-                });
-            }
         });
 
         async function updateCategoryInfo() {
@@ -476,9 +701,9 @@
                 return `
                     <tr class="border-b border-gray-200 hover:bg-gray-50">
                         <td class="p-2 font-bold ${truckColor}">${entry.truck_number}</td>
-                        <td class="p-2">${entry.name}</td>
+                        <td class="p-2">${capitalizeText(entry.name)}</td>
                         <td class="p-2">${entry.phone}</td>
-                        <td class="p-2">${entry.village || '-'}</td>
+                        <td class="p-2">${capitalizeText(entry.village) || '-'}</td>
                         <td class="p-2">${entry.expected_quantity}</td>
                         <td class="p-2"><span class="px-2 py-1 rounded text-xs font-bold ${categoryColor}">${entry.truck_category.toUpperCase()}</span></td>
                         <td class="p-2 text-xs">${formattedDate}</td>
@@ -488,33 +713,10 @@
         }
 
 
-        async function autoSearchPhone(phone) {
-            try {
-                const response = await fetch(`/api/customers/search?phone=${phone}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (!response.ok) {
-                    // Customer not found - show message and clear fields
-                    showSearchStatus('New customer - please fill in details', 'info');
-                    clearCustomerFields();
-                    return;
-                }
-
-                currentUser = await response.json();
-                displayUserDetails(currentUser);
-                showSearchStatus('Customer found! Details auto-filled.', 'success');
-            } catch (error) {
-                console.error('Error searching customer:', error);
-                showSearchStatus('New customer - please fill in details', 'info');
-                clearCustomerFields();
-            }
-        }
-
         function clearCustomerFields() {
             document.getElementById('userName').value = '';
             document.getElementById('userVillage').value = '';
-            document.getElementById('userEmail').value = '';
+            document.getElementById('userSO').value = '';
             document.getElementById('userId').value = '';
             currentUser = null;
         }
@@ -543,8 +745,13 @@
         function displayUserDetails(user) {
             document.getElementById('userName').value = user.name || '';
             document.getElementById('userVillage').value = user.village || '';
-            document.getElementById('userEmail').value = user.email || '';
+            document.getElementById('userSO').value = user.so || '';
             document.getElementById('userId').value = user.id;
+
+            // Capitalize first letter of auto-filled fields
+            capitalizeFirstLetter(document.getElementById('userName'));
+            capitalizeFirstLetter(document.getElementById('userSO'));
+            capitalizeFirstLetter(document.getElementById('userVillage'));
         }
 
         async function submitEntry(event) {
@@ -562,7 +769,7 @@
             const name = document.getElementById('userName').value.trim();
             const phone = document.getElementById('userPhone').value.trim();
             const village = document.getElementById('userVillage').value.trim();
-            const email = document.getElementById('userEmail').value.trim();
+            const so = document.getElementById('userSO').value.trim();
 
             // Validate phone number (must be exactly 10 digits)
             if (phone.length !== 10 || !/^\d{10}$/.test(phone)) {
@@ -589,6 +796,7 @@
                 phone: phone,
                 name: name,
                 village: village,
+                so: so,
                 expected_quantity: quantity,
                 truck_category: category
             };
@@ -650,7 +858,7 @@
             document.getElementById('userName').value = '';
             document.getElementById('userVillage').value = '';
             document.getElementById('userPhone').value = '';
-            document.getElementById('userEmail').value = '';
+            document.getElementById('userSO').value = '';
             document.getElementById('entrySubmitForm').reset();
             document.getElementById('successMessage').classList.add('hidden');
             document.getElementById('truckPreview').classList.add('hidden');
@@ -739,18 +947,11 @@
                                 <button onclick="printReceipt(${entry.entry_id}, ${entry.id})" class="neu-button bg-blue-500 text-white text-xs px-2 py-1" title="Print Receipt">
                                     <i class="bi bi-printer"></i>
                                 </button>
-                                <button onclick="goToRent(${entry.entry_id})" class="neu-button bg-green-500 text-white text-xs px-2 py-1" title="Generate Rent">
-                                    <i class="bi bi-cash-coin"></i>
-                                </button>
                             </div>
                         </td>
                     </tr>
                 `;
             }).join('');
-        }
-
-        function goToRent(entryId) {
-            window.location.href = `/rent?entry_id=${entryId}`;
         }
 
         function goToInvoice(entryId, roomEntryId) {
@@ -853,7 +1054,7 @@
                             <div class="location-grid">
                                 <div><strong>Room:</strong> ${roomEntry.room_no}</div>
                                 <div><strong>Floor:</strong> ${roomEntry.floor}</div>
-                                <div><strong>Gate:</strong> ${roomEntry.gate_no}</div>
+                                <div><strong>Gatar:</strong> ${roomEntry.gate_no}</div>
                             </div>
                         </div>
 

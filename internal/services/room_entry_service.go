@@ -34,7 +34,7 @@ func (s *RoomEntryService) CreateRoomEntry(ctx context.Context, req *models.Crea
 		return nil, errors.New("floor is required")
 	}
 	if req.GateNo == "" {
-		return nil, errors.New("gate number is required")
+		return nil, errors.New("gatar number is required")
 	}
 	if req.Quantity < 1 {
 		return nil, errors.New("quantity must be at least 1")
@@ -73,7 +73,7 @@ func (s *RoomEntryService) CreateRoomEntry(ctx context.Context, req *models.Crea
 		EntryID:         entry.ID,
 		EventType:       models.EventTypeInStorage,
 		Status:          models.StatusInStorage,
-		Notes:           "Items stored in Room " + req.RoomNo + ", Floor " + req.Floor + ", Gate " + req.GateNo,
+		Notes:           "Items stored in Room " + req.RoomNo + ", Floor " + req.Floor + ", Gatar " + req.GateNo,
 		CreatedByUserID: userID,
 	}
 
@@ -110,7 +110,7 @@ func (s *RoomEntryService) UpdateRoomEntry(ctx context.Context, id int, req *mod
 		return nil, errors.New("floor is required")
 	}
 	if req.GateNo == "" {
-		return nil, errors.New("gate number is required")
+		return nil, errors.New("gatar number is required")
 	}
 	if req.Quantity < 1 {
 		return nil, errors.New("quantity must be at least 1")

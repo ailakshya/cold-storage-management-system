@@ -29,3 +29,7 @@ func (s *RentPaymentService) GetPaymentsByPhone(ctx context.Context, phone strin
 func (s *RentPaymentService) ListPayments(ctx context.Context) ([]*models.RentPayment, error) {
 	return s.Repo.List(ctx)
 }
+
+func (s *RentPaymentService) GetPaymentByReceiptNumber(ctx context.Context, receiptNumber string) (*models.RentPayment, error) {
+	return s.Repo.GetByReceiptNumber(ctx, receiptNumber)
+}

@@ -208,6 +208,24 @@
     </div>
 
     <script>
+        // Capitalize first letter function
+        function capitalizeFirstLetter(input) {
+            const value = input.value;
+            if (value.length > 0) {
+                input.value = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+        }
+
+        // Auto-apply capitalization to all text inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            const textInputs = document.querySelectorAll('input[type="text"]:not([disabled]):not([type="email"]):not([type="tel"])');
+            textInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    capitalizeFirstLetter(this);
+                });
+            });
+        });
+
         const token = localStorage.getItem('token');
         let allCustomerAccounts = [];
         let currentPaymentCustomer = null;
@@ -219,6 +237,11 @@
                 const response = await fetch('/api/settings/rent_per_item', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+                }
+
                 const setting = await response.json();
                 rentPerItem = parseFloat(setting.setting_value);
             } catch (error) {
@@ -230,6 +253,12 @@
         // Load all customer accounts with their entries
         async function loadCustomerAccounts() {
             try {
+                // Check authentication
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
+
                 // Load rent setting first
                 await loadRentSetting();
 
@@ -237,12 +266,30 @@
                 const entriesResponse = await fetch('/api/entries', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                if (!entriesResponse.ok) {
+                    if (entriesResponse.status === 401 || entriesResponse.status === 403) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(`Failed to load entries: ${await entriesResponse.text()}`);
+                }
+
                 const entries = await entriesResponse.json();
 
                 // Fetch all rent payments
                 const paymentsResponse = await fetch('/api/rent-payments', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                if (!paymentsResponse.ok) {
+                    if (paymentsResponse.status === 401 || paymentsResponse.status === 403) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(`Failed to load payments: ${await paymentsResponse.text()}`);
+                }
+
                 const allPayments = await paymentsResponse.json();
 
                 // Group entries by phone number (customer)
@@ -281,9 +328,9 @@
 
                 // Calculate total paid per customer and add payment history
                 allPayments.forEach(payment => {
-                    const customer = Array.from(customerMap.values()).find(c => c.phone === payment.phone);
+                    const customer = Array.from(customerMap.values()).find(c => c.phone === payment.customer_phone);
                     if (customer) {
-                        customer.totalPaid += payment.amount;
+                        customer.totalPaid += payment.amount_paid;
                         customer.payments.push(payment);
                     }
                 });
@@ -305,12 +352,19 @@
                 displayCustomerAccounts(allCustomerAccounts);
                 updateSummary();
 
+                // Fetch employee names for payment history
+                await loadEmployeeNames();
+
             } catch (error) {
                 console.error('Error loading customer accounts:', error);
                 document.getElementById('customersContainer').innerHTML = `
-                    <div class="text-center py-12">
+                    <div class="neu-border bg-red-50 p-12 text-center">
                         <i class="bi bi-exclamation-triangle text-6xl text-red-500"></i>
-                        <p class="text-red-600 mt-4">Error loading accounts: ${error.message}</p>
+                        <p class="text-red-600 mt-4 font-bold">Error loading accounts</p>
+                        <p class="text-red-500 text-sm mt-2">${error.message}</p>
+                        <button onclick="window.location.href='/login'" class="mt-4 neu-button bg-red-500 text-white">
+                            <i class="bi bi-box-arrow-in-right"></i> Login Again
+                        </button>
                     </div>
                 `;
             }
@@ -437,18 +491,22 @@
                                         Payment History
                                     </h4>
                                     <div id="paymentHistory${index}" class="space-y-2">
-                                        ${customer.payments && customer.payments.length > 0 ? customer.payments.map(payment => `
+                                        ${customer.payments && customer.payments.length > 0 ? customer.payments.map((payment, pIdx) => `
                                             <div class="p-3 bg-green-50 border-2 border-green-200">
                                                 <div class="flex justify-between items-start mb-2">
-                                                    <div>
-                                                        <p class="font-bold text-green-700">₹${payment.amount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
+                                                    <div class="flex-1">
+                                                        <p class="font-bold text-green-700">₹${payment.amount_paid.toLocaleString('en-IN', {minimumFractionDigits: 2})}</p>
                                                         <p class="text-xs text-gray-600">${new Date(payment.payment_date).toLocaleDateString('en-IN')} ${new Date(payment.payment_date).toLocaleTimeString('en-IN')}</p>
+                                                        <p class="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                                            <i class="bi bi-person-badge"></i>
+                                                            <span id="employee_${payment.id}" data-user-id="${payment.processed_by_user_id}">Loading...</span>
+                                                        </p>
                                                     </div>
                                                     <button onclick="viewReceipt('${payment.receipt_number}')" class="text-xs neu-button bg-blue-500 text-white py-1 px-2" style="padding: 0.25rem 0.5rem;">
                                                         <i class="bi bi-printer"></i> Receipt
                                                     </button>
                                                 </div>
-                                                ${payment.notes ? `<p class="text-xs text-gray-500">${payment.notes}</p>` : ''}
+                                                ${payment.notes ? `<p class="text-xs text-gray-500 mt-2">${payment.notes}</p>` : ''}
                                             </div>
                                         `).join('') : '<p class="text-gray-500 text-sm p-4 bg-gray-50 border-2 border-gray-200">No payments yet</p>'}
                                     </div>
@@ -511,6 +569,46 @@
             document.getElementById('totalCollected').textContent = '₹' + totalCollected.toLocaleString('en-IN', {minimumFractionDigits: 2});
         }
 
+        async function loadEmployeeNames() {
+            // Find all employee elements in payment history
+            const employeeElements = document.querySelectorAll('[id^="employee_"]');
+
+            // Get unique user IDs
+            const userIds = new Set();
+            employeeElements.forEach(el => {
+                const userId = el.getAttribute('data-user-id');
+                if (userId) userIds.add(userId);
+            });
+
+            // Fetch employee details for each unique user ID
+            const employeeCache = {};
+            for (const userId of userIds) {
+                try {
+                    const response = await fetch(`/api/users/${userId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (response.ok) {
+                        const user = await response.json();
+                        employeeCache[userId] = `${user.name}`;
+                    } else {
+                        employeeCache[userId] = `Employee #${userId}`;
+                    }
+                } catch (error) {
+                    console.error(`Error fetching employee ${userId}:`, error);
+                    employeeCache[userId] = `Employee #${userId}`;
+                }
+            }
+
+            // Update all employee elements
+            employeeElements.forEach(el => {
+                const userId = el.getAttribute('data-user-id');
+                if (userId && employeeCache[userId]) {
+                    el.textContent = employeeCache[userId];
+                }
+            });
+        }
+
         function openPaymentModal(index) {
             currentPaymentCustomer = allCustomerAccounts[index];
 
@@ -547,6 +645,9 @@
                 // Get first entry ID for this customer
                 const entryId = currentPaymentCustomer.trucks[0].id;
 
+                // Calculate new balance
+                const newBalance = currentPaymentCustomer.balance - amount;
+
                 const response = await fetch('/api/rent-payments', {
                     method: 'POST',
                     headers: {
@@ -555,15 +656,18 @@
                     },
                     body: JSON.stringify({
                         entry_id: entryId,
-                        phone: currentPaymentCustomer.phone,
-                        amount: amount,
-                        payment_method: 'cash',
+                        customer_name: currentPaymentCustomer.name,
+                        customer_phone: currentPaymentCustomer.phone,
+                        total_rent: currentPaymentCustomer.totalRent,
+                        amount_paid: amount,
+                        balance: newBalance < 0 ? 0 : newBalance,
                         notes: notes || `Payment for account - ${currentPaymentCustomer.name}`
                     })
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to process payment');
+                    const errorText = await response.text();
+                    throw new Error(`Failed to process payment: ${errorText}`);
                 }
 
                 const result = await response.json();

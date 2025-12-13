@@ -8,6 +8,7 @@ type Entry struct {
 	Phone            string    `json:"phone"`
 	Name             string    `json:"name"`
 	Village          string    `json:"village"`
+	SO               string    `json:"so"` // Son Of / Father's Name
 	ExpectedQuantity int       `json:"expected_quantity"`
 	TruckCategory    string    `json:"truck_category"` // 'seed' or 'sell'
 	TruckNumber      string    `json:"truck_number"`
@@ -22,6 +23,7 @@ type CreateEntryRequest struct {
 	Phone            string `json:"phone"`
 	Name             string `json:"name"`
 	Village          string `json:"village"`
+	SO               string `json:"so"`
 	ExpectedQuantity int    `json:"expected_quantity"`
 	TruckCategory    string `json:"truck_category"`
 }

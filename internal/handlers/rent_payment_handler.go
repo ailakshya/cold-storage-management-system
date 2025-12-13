@@ -97,3 +97,21 @@ func (h *RentPaymentHandler) ListPayments(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(payments)
 }
+
+func (h *RentPaymentHandler) GetPaymentByReceiptNumber(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	receiptNumber := vars["receipt_number"]
+	if receiptNumber == "" {
+		http.Error(w, "Receipt number required", http.StatusBadRequest)
+		return
+	}
+
+	payment, err := h.Service.GetPaymentByReceiptNumber(context.Background(), receiptNumber)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(payment)
+}

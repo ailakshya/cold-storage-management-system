@@ -88,16 +88,40 @@
     </div>
 
     <script>
+        // Capitalize first letter function
+        function capitalizeFirstLetter(input) {
+            const value = input.value;
+            if (value.length > 0) {
+                input.value = value.charAt(0).toUpperCase() + value.slice(1);
+            }
+        }
+
+        // Capitalize first letter of text
+        function capitalizeText(text) {
+            if (!text || text.length === 0) return text;
+            return text.charAt(0).toUpperCase() + text.slice(1);
+        }
+
+        // Auto-apply capitalization to all text inputs (except email, password, date)
+        document.addEventListener('DOMContentLoaded', function() {
+            const textInputs = document.querySelectorAll('input[type="text"]:not([disabled])');
+            textInputs.forEach(input => {
+                input.addEventListener('input', function() {
+                    capitalizeFirstLetter(this);
+                });
+            });
+        });
+
         document.getElementById('editEmployForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            
+
             // Collect form data
             const formData = new FormData(e.target);
             const EmployData = Object.fromEntries(formData.entries());
-            
+
             // Here you would typically send this data to your backend
             console.log('Employ data to be updated:', EmployData);
-            
+
             // Show success message
             alert('Employ updated successfully!');
         });
