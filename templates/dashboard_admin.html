@@ -63,7 +63,7 @@
                     </div>
                 </div>
                 <div class="mt-2 admin-badge inline-block">
-                    <i class="bi bi-person-badge"></i> {{.employee_name}} (Administrator)
+                    <i class="bi bi-person-badge"></i> <span id="adminName">Loading...</span> (Administrator)
                 </div>
             </div>
             <nav class="flex gap-4">
@@ -156,31 +156,54 @@
 
 
         <!-- Quick Stats (Admin View) -->
-        <div class="neu-border bg-white p-6">
+        <div class="neu-border bg-white p-6 mb-8">
             <h3 class="text-2xl font-bold mb-4">System Overview</h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div class="p-4 bg-blue-50 border-2 border-black">
-                    <p class="text-sm text-gray-600">Total Employees</p>
-                    <p class="text-3xl font-bold">-</p>
+                    <p class="text-sm text-gray-600">Total Users</p>
+                    <p id="totalUsers" class="text-3xl font-bold">...</p>
                 </div>
                 <div class="p-4 bg-green-50 border-2 border-black">
-                    <p class="text-sm text-gray-600">Active Rooms</p>
-                    <p class="text-3xl font-bold">-</p>
+                    <p class="text-sm text-gray-600">Total Customers</p>
+                    <p id="totalCustomers" class="text-3xl font-bold">...</p>
                 </div>
                 <div class="p-4 bg-purple-50 border-2 border-black">
-                    <p class="text-sm text-gray-600">Total Items</p>
-                    <p class="text-3xl font-bold">-</p>
+                    <p class="text-sm text-gray-600">Total Entries</p>
+                    <p id="totalEntries" class="text-3xl font-bold">...</p>
                 </div>
                 <div class="p-4 bg-red-50 border-2 border-black">
-                    <p class="text-sm text-gray-600">Today's Activity</p>
-                    <p class="text-3xl font-bold">-</p>
+                    <p class="text-sm text-gray-600">Room Entries</p>
+                    <p id="totalRoomEntries" class="text-3xl font-bold">...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Today's Summary -->
+        <div class="neu-border bg-white p-6">
+            <h3 class="text-2xl font-bold mb-4">Today's Summary</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="p-4 bg-blue-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">Today's Entries</p>
+                    <p id="todayEntries" class="text-3xl font-bold">...</p>
+                </div>
+                <div class="p-4 bg-green-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">Today's Room Entries</p>
+                    <p id="todayRoomEntries" class="text-3xl font-bold">...</p>
+                </div>
+                <div class="p-4 bg-purple-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">Active Users</p>
+                    <p id="activeUsers" class="text-3xl font-bold">...</p>
+                </div>
+                <div class="p-4 bg-orange-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">Total Bags</p>
+                    <p id="totalBags" class="text-3xl font-bold">...</p>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        // Check if user is admin
+        // Check if user is admin and display name
         (function() {
             const userStr = localStorage.getItem('user');
             if (!userStr) {
@@ -194,6 +217,12 @@
                 window.location.href = '/dashboard';
                 return;
             }
+
+            // Display admin name
+            const nameElement = document.getElementById('adminName');
+            if (nameElement) {
+                nameElement.textContent = user.name || user.email || 'Admin';
+            }
         })();
 
         function navigate(path) {
@@ -205,6 +234,67 @@
                 window.location.href = '/logout';
             }
         }
+
+        // Load dashboard statistics
+        const token = localStorage.getItem('token');
+
+        async function loadSystemOverview() {
+            try {
+                // Fetch all data in parallel
+                const [usersRes, customersRes, entriesRes, roomEntriesRes] = await Promise.all([
+                    fetch('/api/users', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/customers', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/entries', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/room-entries', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+
+                const users = await usersRes.json();
+                const customers = await customersRes.json();
+                const entries = await entriesRes.json();
+                const roomEntries = await roomEntriesRes.json();
+
+                // Update System Overview
+                document.getElementById('totalUsers').textContent = users.length || 0;
+                document.getElementById('totalCustomers').textContent = customers.length || 0;
+                document.getElementById('totalEntries').textContent = entries.length || 0;
+                document.getElementById('totalRoomEntries').textContent = roomEntries.length || 0;
+
+                // Calculate Today's Summary
+                const today = new Date().toISOString().split('T')[0];
+
+                const todayEntries = entries.filter(e => {
+                    const entryDate = new Date(e.created_at).toISOString().split('T')[0];
+                    return entryDate === today;
+                });
+
+                const todayRoomEntries = roomEntries.filter(r => {
+                    const roomDate = new Date(r.created_at).toISOString().split('T')[0];
+                    return roomDate === today;
+                });
+
+                const activeUsers = users.filter(u => u.is_active).length;
+
+                const totalBags = roomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0);
+
+                // Update Today's Summary
+                document.getElementById('todayEntries').textContent = todayEntries.length;
+                document.getElementById('todayRoomEntries').textContent = todayRoomEntries.length;
+                document.getElementById('activeUsers').textContent = activeUsers;
+                document.getElementById('totalBags').textContent = totalBags.toLocaleString();
+
+            } catch (error) {
+                console.error('Error loading dashboard data:', error);
+                // Set error state
+                ['totalUsers', 'totalCustomers', 'totalEntries', 'totalRoomEntries',
+                 'todayEntries', 'todayRoomEntries', 'activeUsers', 'totalBags'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = 'Error';
+                });
+            }
+        }
+
+        // Load data on page load
+        window.addEventListener('load', loadSystemOverview);
     </script>
 </body>
 </html>

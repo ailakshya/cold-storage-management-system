@@ -3,137 +3,288 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neubrutalist Management System</title>
+    <title>Events - Cold Storage Management</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <style>
-        body {
+        * {
             font-family: 'Space Grotesk', sans-serif;
-            background: #fff5e0;
         }
         .neu-border {
             border: 3px solid #000;
-            box-shadow: 5px 5px 0px #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
         }
-        .neu-button {
-            background: #4edcff;
-            border: 3px solid #000;
-            box-shadow: 3px 3px 0px #000;
-            transition: all 0.2s;
-        }
-        .neu-button:hover {
+        .neu-border:hover {
             transform: translate(-2px, -2px);
-            box-shadow: 5px 5px 0px #000;
-        }
-        .neu-button:active {
-            transform: translate(1px, 1px);
-            box-shadow: 2px 2px 0px #000;
+            box-shadow: 6px 6px 0 #000;
         }
         .table-header {
             background: #a8e0ff;
         }
     </style>
 </head>
-<body class="min-h-screen p-4">
-    <!-- Navigatio n -->
-    <nav class="neu-border bg-[#a8e0ff] rounded-md p-4 mb-6">
-        <div class="flex flex-wrap justify-between items-center gap-4">
-            <h1 class="text-2xl font-bold">Storage Management</h1>
-            <div class="flex gap-4 flex-wrap">
-                <button class="neu-button px-4 py-2 rounded-md">Main Room</button>
-                <button class="neu-button px-4 py-2 rounded-md">Room Entry</button>
-                <button class="neu-button px-4 py-2 rounded-md bg-[#a8e0ff]">Dashboard</button>
+<body class="bg-[#DFCCFB] min-h-screen p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="mb-8 neu-border bg-white p-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-4xl font-bold flex items-center gap-3">
+                        <i class="bi bi-calendar-event text-purple-600"></i>
+                        Events & Activity
+                    </h1>
+                    <p class="text-gray-600 mt-2">Recent entries and system activity</p>
+                </div>
+                <nav class="flex gap-4">
+                    <button class="neu-border bg-[#98EECC] px-6 py-2" onclick="window.location.href='/dashboard'">
+                        <i class="bi bi-grid"></i> Dashboard
+                    </button>
+                    <button id="viewToggle" class="neu-border bg-[#FFD93D] px-6 py-2" onclick="toggleView()">
+                        <i class="bi bi-clock-history"></i> <span id="viewToggleText">Show All Events</span>
+                    </button>
+                    <button class="neu-border bg-[#4edcff] px-6 py-2" onclick="refreshData()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </nav>
+            </div>
+            <div class="mt-4 inline-block bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 border-2 border-black shadow-[3px_3px_0_#000]">
+                <i class="bi bi-person-circle"></i> <span id="userName">Loading...</span>
+            </div>
+        </header>
+
+        <!-- Entry Status Section -->
+        <div class="neu-border bg-white p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">
+                <i class="bi bi-graph-up text-green-600"></i> Entry Status Overview
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="p-4 bg-green-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">Total Entries</p>
+                    <p id="totalEntries" class="text-3xl font-bold">...</p>
+                </div>
+                <div class="p-4 bg-blue-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">Room Entries</p>
+                    <p id="totalRoomEntries" class="text-3xl font-bold">...</p>
+                </div>
+                <div class="p-4 bg-purple-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">SEED Category</p>
+                    <p id="seedEntries" class="text-3xl font-bold">...</p>
+                </div>
+                <div class="p-4 bg-orange-50 border-2 border-black">
+                    <p class="text-sm text-gray-600">SELL Category</p>
+                    <p id="sellEntries" class="text-3xl font-bold">...</p>
+                </div>
             </div>
         </div>
-    </nav>
 
-    <!-- Current Tokens Section -->
-    <div class="neu-border bg-white rounded-md p-4 mb-6">
-        <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-bold">Current Tokens</h2>
-            <button class="neu-button px-4 py-2 rounded-md" onclick="refreshData()">
-                <i class="bi bi-arrow-clockwise mr-2"></i>Refresh
-            </button>
+        <!-- Recent Main Entries Section -->
+        <div class="neu-border bg-white p-6 mb-8">
+            <h2 class="text-2xl font-bold mb-4">
+                <i class="bi bi-box-arrow-in-down text-blue-600"></i> Recent Main Entries
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="table-header">
+                        <tr>
+                            <th class="p-3 text-left border-2 border-black">ID</th>
+                            <th class="p-3 text-left border-2 border-black">Truck Number</th>
+                            <th class="p-3 text-left border-2 border-black">Customer Name</th>
+                            <th class="p-3 text-left border-2 border-black">Phone</th>
+                            <th class="p-3 text-left border-2 border-black">Village</th>
+                            <th class="p-3 text-left border-2 border-black">Category</th>
+                            <th class="p-3 text-left border-2 border-black">Expected Qty</th>
+                            <th class="p-3 text-left border-2 border-black">Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="mainEntriesBody">
+                        <tr><td colspan="8" class="text-center p-4">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="table-header">
-                    <tr>
-                        <th class="p-3 text-left border-2 border-black">Token</th>
-                        <th class="p-3 text-left border-2 border-black">Name</th>
-                        <th class="p-3 text-left border-2 border-black">Village</th>
-                        <th class="p-3 text-left border-2 border-black">Status</th>
-                        <th class="p-3 text-left border-2 border-black">Created At</th>
-                        <th class="p-3 text-left border-2 border-black">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="currentTokensBody"></tbody>
-            </table>
-        </div>
-    </div>
 
-    <!-- Completed Tokens Section -->
-    <div class="neu-border bg-white rounded-md p-4">
-        <h2 class="text-xl font-bold mb-4">Completed Tokens</h2>
-        <div class="overflow-x-auto">
-            <table class="w-full">
-                <thead class="table-header">
-                    <tr>
-                        <th class="p-3 text-left border-2 border-black">Token</th>
-                        <th class="p-3 text-left border-2 border-black">Name</th>
-                        <th class="p-3 text-left border-2 border-black">Village</th>
-                        <th class="p-3 text-left border-2 border-black">Completed At</th>
-                    </tr>
-                </thead>
-                <tbody id="completedTokensBody"></tbody>
-            </table>
+        <!-- Recent Room Entries Section -->
+        <div class="neu-border bg-white p-6">
+            <h2 class="text-2xl font-bold mb-4">
+                <i class="bi bi-door-open text-purple-600"></i> Recent Room Entries
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="table-header">
+                        <tr>
+                            <th class="p-3 text-left border-2 border-black">ID</th>
+                            <th class="p-3 text-left border-2 border-black">Truck Number</th>
+                            <th class="p-3 text-left border-2 border-black">Room</th>
+                            <th class="p-3 text-left border-2 border-black">Floor</th>
+                            <th class="p-3 text-left border-2 border-black">Gate</th>
+                            <th class="p-3 text-left border-2 border-black">Quantity (Bags)</th>
+                            <th class="p-3 text-left border-2 border-black">Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="roomEntriesBody">
+                        <tr><td colspan="7" class="text-center p-4">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
-        const currentTokens = [
-            { token: "1/20",  name: "Alex Smith", village: "Green Valley", status: "Processing", createdAt: "2023-11-15 14:30" },
-            { token: "2/34",  name: "Jamie Wilson", village: "Blue Hills", status: "Pending", createdAt: "2023-11-15 15:45" }
-        ];
+        const token = localStorage.getItem('token');
+        let showAllEvents = false; // Track view mode: false = recent (10), true = all
 
-        const completedTokens = [
-            { token: "800/34",  name: "Sam Taylor", village: "Khadana", completedAt: "2023-11-15 12:00" }
-        ];
+        // Load and display user name
+        (function() {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    document.getElementById('userName').textContent = user.name || user.email || 'User';
+                } catch (error) {
+                    console.error('Error parsing user data:', error);
+                    document.getElementById('userName').textContent = 'User';
+                }
+            } else {
+                document.getElementById('userName').textContent = 'User';
+            }
+        })();
 
-        function renderCurrentTokens() {
-            const tbody = document.getElementById('currentTokensBody');
-            tbody.innerHTML = currentTokens.map(token => `
-                <tr>
-                    <td class="p-3 border-2 border-black">${token.token}</td>
-                    <td class="p-3 border-2 border-black">${token.name}</td>
-                    <td class="p-3 border-2 border-black">${token.village}</td>
-                    <td class="p-3 border-2 border-black">${token.status}</td>
-                    <td class="p-3 border-2 border-black">${token.createdAt}</td>
-                    <td class="p-3 border-2 border-black">
-                        <button class="neu-button px-3 py-1 rounded-md text-sm">
-                            <i class="bi bi-check-circle mr-1"></i>Complete
-                        </button>
-                    </td>
-                </tr>
-            `).join('');
+        function formatDateTime(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('en-IN', {
+                year: 'numeric',
+                month: 'short',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
         }
 
-        function renderCompletedTokens() {
-            const tbody = document.getElementById('completedTokensBody');
-            tbody.innerHTML = completedTokens.map(token => `
-                <tr>
-                    <td class="p-3 border-2 border-black">${token.token}</td>
-                    <td class="p-3 border-2 border-black">${token.name}</td>
-                    <td class="p-3 border-2 border-black">${token.village}</td>
-                    <td class="p-3 border-2 border-black">${token.completedAt}</td>
-                </tr>
-            `).join('');
+        function getCategory(truckNumber) {
+            if (!truckNumber) return '-';
+            const num = parseInt(truckNumber);
+            if (num >= 1 && num <= 1500) return 'SEED';
+            if (num >= 1501 && num <= 3000) return 'SELL';
+            return '-';
         }
 
-        function refreshData() {
-            renderCurrentTokens();
-            renderCompletedTokens();
+        async function loadMainEntries() {
+            try {
+                const response = await fetch('/api/entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const entries = await response.json();
+
+                // Get entries based on view mode
+                const recentEntries = showAllEvents ? entries : entries.slice(0, 10);
+
+                const tbody = document.getElementById('mainEntriesBody');
+                if (recentEntries.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center p-4">No entries found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = recentEntries.map(entry => `
+                    <tr>
+                        <td class="p-3 border-2 border-black">${entry.id || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.truck_number || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.name || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.phone || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.village || '-'}</td>
+                        <td class="p-3 border-2 border-black">${getCategory(entry.truck_number)}</td>
+                        <td class="p-3 border-2 border-black">${entry.expected_quantity || 0}</td>
+                        <td class="p-3 border-2 border-black">${formatDateTime(entry.created_at)}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading main entries:', error);
+                document.getElementById('mainEntriesBody').innerHTML =
+                    '<tr><td colspan="8" class="text-center p-4 text-red-600">Error loading data</td></tr>';
+            }
+        }
+
+        async function loadRoomEntries() {
+            try {
+                const response = await fetch('/api/room-entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const roomEntries = await response.json();
+
+                // Get room entries based on view mode
+                const recentRoomEntries = showAllEvents ? roomEntries : roomEntries.slice(0, 10);
+
+                const tbody = document.getElementById('roomEntriesBody');
+                if (recentRoomEntries.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4">No room entries found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = recentRoomEntries.map(entry => `
+                    <tr>
+                        <td class="p-3 border-2 border-black">${entry.id || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.truck_number || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.room_no || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.floor || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.gate_no || '-'}</td>
+                        <td class="p-3 border-2 border-black">${entry.quantity || 0}</td>
+                        <td class="p-3 border-2 border-black">${formatDateTime(entry.created_at)}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading room entries:', error);
+                document.getElementById('roomEntriesBody').innerHTML =
+                    '<tr><td colspan="7" class="text-center p-4 text-red-600">Error loading data</td></tr>';
+            }
+        }
+
+        async function loadEntryStatus() {
+            try {
+                const [entriesRes, roomEntriesRes] = await Promise.all([
+                    fetch('/api/entries', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/room-entries', { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+
+                const entries = await entriesRes.json();
+                const roomEntries = await roomEntriesRes.json();
+
+                // Count SEED and SELL categories based on truck number
+                const seedEntries = entries.filter(e => {
+                    const num = parseInt(e.truck_number);
+                    return num >= 1 && num <= 1500;
+                }).length;
+
+                const sellEntries = entries.filter(e => {
+                    const num = parseInt(e.truck_number);
+                    return num >= 1501 && num <= 3000;
+                }).length;
+
+                // Update UI
+                document.getElementById('totalEntries').textContent = entries.length || 0;
+                document.getElementById('totalRoomEntries').textContent = roomEntries.length || 0;
+                document.getElementById('seedEntries').textContent = seedEntries || 0;
+                document.getElementById('sellEntries').textContent = sellEntries || 0;
+
+            } catch (error) {
+                console.error('Error loading entry status:', error);
+                ['totalEntries', 'totalRoomEntries', 'seedEntries', 'sellEntries'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = 'Error';
+                });
+            }
+        }
+
+        async function refreshData() {
+            // Load all data in parallel
+            await Promise.all([
+                loadMainEntries(),
+                loadRoomEntries(),
+                loadEntryStatus()
+            ]);
+
+            // Show notification
             const notification = document.createElement('div');
             notification.className = 'fixed top-4 right-4 bg-[#a8e0ff] neu-border p-4 rounded-md';
             notification.textContent = 'Data refreshed successfully!';
@@ -141,8 +292,34 @@
             setTimeout(() => notification.remove(), 3000);
         }
 
-        renderCurrentTokens();
-        renderCompletedTokens();
+        // Load data on page load
+        window.addEventListener('load', refreshData);
+
+        // Toggle between recent and all events view
+        function toggleView() {
+            showAllEvents = !showAllEvents;
+            const toggleText = document.getElementById('viewToggleText');
+            const toggleBtn = document.getElementById('viewToggle');
+
+            if (showAllEvents) {
+                toggleText.textContent = 'Show Recent Events';
+                toggleBtn.classList.remove('bg-[#FFD93D]');
+                toggleBtn.classList.add('bg-[#FF6B9D]');
+            } else {
+                toggleText.textContent = 'Show All Events';
+                toggleBtn.classList.remove('bg-[#FF6B9D]');
+                toggleBtn.classList.add('bg-[#FFD93D]');
+            }
+
+            // Reload data with new view mode
+            refreshData();
+        }
+
+        // Auto-refresh data every 30 seconds
+        setInterval(() => {
+            console.log('Auto-refreshing events data...');
+            refreshData();
+        }, 30000);
     </script>
 </body>
 </html>

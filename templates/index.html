@@ -55,7 +55,7 @@
     <main class="container mx-auto px-4 py-8">
         <!-- Welcome Section -->
         <div class="neu-brutal bg-white p-8 mb-8">
-            <h2 class="text-4xl font-bold mb-4">Welcome, {{.employee_name}}!</h2>
+            <h2 class="text-4xl font-bold mb-4">Welcome, <span id="employeeName">User</span>!</h2>
             <p class="text-xl text-gray-600">Cold Storage Management System - Your central hub for inventory and operations</p>
         </div>
 
@@ -143,6 +143,22 @@
     </main>
 
     <script>
+        // Load and display user name
+        (function() {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                try {
+                    const user = JSON.parse(userStr);
+                    const nameElement = document.getElementById('employeeName');
+                    if (nameElement) {
+                        nameElement.textContent = user.name || user.email || 'User';
+                    }
+                } catch (error) {
+                    console.error('Error parsing user data:', error);
+                }
+            }
+        })();
+
         function logout() {
             if (confirm('Are you sure you want to logout?')) {
                 window.location.href = '/logout';

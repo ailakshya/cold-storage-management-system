@@ -45,6 +45,10 @@
             margin-bottom: 1rem;
             background: white;
         }
+        .customer-card.paid {
+            border: 3px solid #22c55e;
+            box-shadow: 4px 4px 0 #22c55e;
+        }
         .truck-list {
             max-height: 0;
             overflow: hidden;
@@ -413,8 +417,24 @@
                 return;
             }
 
-            container.innerHTML = accounts.map((customer, index) => `
-                <div class="customer-card">
+            container.innerHTML = accounts.map((customer, index) => {
+                // Calculate SEED and SELL totals
+                const seedTrucks = customer.trucks.filter(t => {
+                    const num = parseInt(t.truck_number);
+                    return num >= 1 && num <= 1500;
+                });
+                const sellTrucks = customer.trucks.filter(t => {
+                    const num = parseInt(t.truck_number);
+                    return num >= 1501 && num <= 3000;
+                });
+
+                const seedQuantity = seedTrucks.reduce((sum, t) => sum + t.quantity, 0);
+                const seedRent = seedTrucks.reduce((sum, t) => sum + t.rent, 0);
+                const sellQuantity = sellTrucks.reduce((sum, t) => sum + t.quantity, 0);
+                const sellRent = sellTrucks.reduce((sum, t) => sum + t.rent, 0);
+
+                return `
+                <div class="customer-card ${customer.balance <= 0 ? 'paid' : ''}">
                     <div class="p-6">
                         <div class="flex justify-between items-start">
                             <div class="flex-1">
@@ -504,8 +524,24 @@
                                                     <td class="p-3 text-sm">${truck.date}</td>
                                                 </tr>
                                             `).join('')}
-                                            <tr class="bg-gray-100 font-bold">
-                                                <td class="p-3">TOTAL</td>
+                                            ${seedQuantity > 0 ? `
+                                            <tr class="bg-green-50 font-bold border-t-2 border-green-400">
+                                                <td class="p-3 text-green-700">SEED TOTAL</td>
+                                                <td class="p-3 text-green-700">${seedQuantity}</td>
+                                                <td class="p-3 text-green-700">₹${seedRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                <td class="p-3">-</td>
+                                            </tr>
+                                            ` : ''}
+                                            ${sellQuantity > 0 ? `
+                                            <tr class="bg-orange-50 font-bold border-t-2 border-orange-400">
+                                                <td class="p-3 text-orange-700">SELL TOTAL</td>
+                                                <td class="p-3 text-orange-700">${sellQuantity}</td>
+                                                <td class="p-3 text-orange-700">₹${sellRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                <td class="p-3">-</td>
+                                            </tr>
+                                            ` : ''}
+                                            <tr class="bg-gray-800 text-white font-bold border-t-4 border-black">
+                                                <td class="p-3">GRAND TOTAL</td>
                                                 <td class="p-3">${customer.totalQuantity}</td>
                                                 <td class="p-3">₹${customer.totalRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
                                                 <td class="p-3">-</td>
@@ -545,7 +581,8 @@
                         </div>
                     </div>
                 </div>
-            `).join('');
+            `;
+            }).join('');
         }
 
         function toggleTruckList(index) {
