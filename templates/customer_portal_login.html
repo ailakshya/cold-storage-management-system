@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Portal - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .neu-card {
+            background: #ffffff;
+            border-radius: 20px;
+            box-shadow: 20px 20px 60px #d1d1d1, -20px -20px 60px #ffffff;
+        }
+        .neu-input {
+            background: #f0f0f0;
+            border-radius: 10px;
+            box-shadow: inset 5px 5px 10px #d1d1d1, inset -5px -5px 10px #ffffff;
+            border: none;
+            padding: 12px 16px;
+            width: 100%;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .neu-input:focus {
+            outline: none;
+            box-shadow: inset 3px 3px 6px #d1d1d1, inset -3px -3px 6px #ffffff;
+        }
+        .neu-button {
+            background: linear-gradient(145deg, #667eea, #764ba2);
+            border-radius: 10px;
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.2), -5px -5px 15px rgba(255,255,255,0.1);
+            border: none;
+            padding: 14px 28px;
+            color: white;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        .neu-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 7px 7px 20px rgba(0,0,0,0.25), -7px -7px 20px rgba(255,255,255,0.15);
+        }
+        .neu-button:active {
+            transform: translateY(0px);
+            box-shadow: 3px 3px 10px rgba(0,0,0,0.2);
+        }
+        .neu-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .error-message {
+            background: #fee;
+            border-left: 4px solid #f44;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .success-message {
+            background: #efe;
+            border-left: 4px solid #4f4;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: none;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div class="neu-card w-full max-w-md p-8">
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Customer Portal</h1>
+            <p class="text-gray-600">Welcome! Please login to continue</p>
+        </div>
+
+        <div id="errorMessage" class="error-message"></div>
+        <div id="successMessage" class="success-message"></div>
+
+        <form id="loginForm" onsubmit="handleLogin(event)">
+            <div class="mb-6">
+                <label class="block text-gray-700 font-semibold mb-2">Phone Number</label>
+                <input
+                    type="tel"
+                    id="phone"
+                    class="neu-input"
+                    placeholder="Enter your phone number"
+                    pattern="[0-9]{10}"
+                    maxlength="10"
+                    required
+                />
+                <p class="text-sm text-gray-500 mt-1">Enter 10-digit mobile number</p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-gray-700 font-semibold mb-2">Truck Number</label>
+                <input
+                    type="text"
+                    id="truckNumber"
+                    class="neu-input"
+                    placeholder="e.g., 609/200 or SEED-001"
+                    required
+                />
+                <p class="text-sm text-gray-500 mt-1">Enter any of your truck numbers</p>
+            </div>
+
+            <div class="mb-6">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="rememberMe" class="mr-2 w-4 h-4">
+                    <span class="text-gray-700">Remember me for 30 days</span>
+                </label>
+            </div>
+
+            <button type="submit" class="neu-button" id="loginBtn">
+                Login
+            </button>
+        </form>
+
+        <div class="mt-6 text-center text-sm text-gray-600">
+            <p>Having trouble? Contact support</p>
+            <p class="mt-2 text-xs text-gray-500">
+                Note: OTP authentication will be available soon
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Check if already logged in (via session cookie)
+        window.addEventListener('load', async function() {
+            try {
+                const response = await fetch('/auth/validate-session', {
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.valid) {
+                        // Already logged in, redirect to dashboard
+                        localStorage.setItem('customer_token', data.token);
+                        localStorage.setItem('customer_info', JSON.stringify(data.customer));
+                        window.location.href = '/dashboard';
+                    }
+                }
+            } catch (error) {
+                // Not logged in, continue with login page
+                console.log('No active session');
+            }
+        });
+
+        async function handleLogin(event) {
+            event.preventDefault();
+
+            const phone = document.getElementById('phone').value;
+            const truckNumber = document.getElementById('truckNumber').value;
+            const rememberMe = document.getElementById('rememberMe').checked;
+            const loginBtn = document.getElementById('loginBtn');
+            const errorMessage = document.getElementById('errorMessage');
+            const successMessage = document.getElementById('successMessage');
+
+            // Hide previous messages
+            errorMessage.style.display = 'none';
+            successMessage.style.display = 'none';
+
+            // Disable button
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        phone: phone,
+                        truck_number: truckNumber,
+                        remember_me: rememberMe
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    // Store token and customer info
+                    localStorage.setItem('customer_token', data.token);
+                    localStorage.setItem('customer_info', JSON.stringify(data.customer));
+                    localStorage.setItem('customer_trucks', JSON.stringify(data.trucks));
+
+                    // Show success message
+                    successMessage.textContent = 'Login successful! Redirecting...';
+                    successMessage.style.display = 'block';
+
+                    // Redirect to dashboard
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1000);
+                } else {
+                    // Show error message
+                    errorMessage.textContent = data.message || 'Login failed. Please check your credentials.';
+                    errorMessage.style.display = 'block';
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = 'Login';
+                }
+            } catch (error) {
+                errorMessage.textContent = 'Network error. Please try again.';
+                errorMessage.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        }
+    </script>
+</body>
+</html>

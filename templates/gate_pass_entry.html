@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gate Pass Entry - Cold Storage</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-input {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem;
+            font-size: 1rem;
+            transition: all 0.2s ease;
+        }
+        .neu-input:focus {
+            outline: none;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-button {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        .hidden { display: none; }
+        .cursor-pointer { cursor: pointer; }
+        .search-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            margin-top: 4px;
+        }
+        .search-item {
+            padding: 0.75rem;
+            cursor: pointer;
+            border-bottom: 2px solid #eee;
+            transition: background 0.2s;
+        }
+        .search-item:hover {
+            background: #FEF3C7;
+            font-weight: 600;
+        }
+        .search-item:last-child {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body class="bg-[#FFF9E6] min-h-screen p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="flex justify-between items-center mb-8 neu-border bg-white p-6">
+            <div>
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-box-arrow-right text-4xl text-red-600"></i>
+                    <div>
+                        <h1 class="text-3xl font-bold">Gate Pass Entry</h1>
+                        <p class="text-gray-600">Issue gate pass for item withdrawal</p>
+                    </div>
+                </div>
+            </div>
+            <button onclick="goBack()" class="neu-button bg-gray-200">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+        </header>
+
+        <!-- Main Content Grid: Form (Left) + Recent Gate Passes (Right) -->
+        <div class="grid grid-cols-2 gap-8 mb-8">
+            <!-- Gate Pass Form (Left) -->
+            <div class="neu-border bg-white p-6">
+                <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                    <i class="bi bi-card-checklist"></i>
+                    Gate Pass Details
+                </h2>
+
+                <form id="gatePassForm" onsubmit="submitGatePass(event)">
+                    <div class="grid grid-cols-1 gap-4 mb-6">
+                        <div class="relative">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Search Customer * <span class="text-sm text-gray-500">(Phone / Name / Truck)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="customerSearch"
+                                required
+                                class="w-full neu-input"
+                                placeholder="Search by phone, name, or truck number"
+                                autocomplete="off"
+                                onfocus="showCustomerDropdown()"
+                                oninput="filterCustomers()"
+                            >
+                            <div id="customerDropdown" class="search-dropdown hidden">
+                                <div id="customerList"></div>
+                            </div>
+                            <input type="hidden" id="customerId">
+                            <input type="hidden" id="customerPhone">
+                        </div>
+
+                        <div id="customerInfo" class="hidden p-4 bg-blue-50 neu-border">
+                            <p class="text-sm font-semibold text-gray-700 mb-2">Selected Customer:</p>
+                            <p class="text-lg font-bold" id="customerName"></p>
+                            <p class="text-sm text-gray-600">Phone: <span id="customerPhoneDisplay"></span></p>
+                            <p class="text-sm text-gray-600">Village: <span id="customerVillage"></span></p>
+                        </div>
+
+                        <div class="relative">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Thock NO *
+                            </label>
+                            <input
+                                type="text"
+                                id="truckNumber"
+                                required
+                                class="w-full neu-input"
+                                placeholder="Enter truck number or select from customer's entries"
+                                autocomplete="off"
+                                onfocus="showTruckDropdown()"
+                                oninput="filterTruckNumbers()"
+                                onchange="checkTruckNumber()"
+                            >
+                            <div id="truckDropdown" class="search-dropdown hidden">
+                                <div id="truckList"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Recipient Name <span class="text-sm text-gray-500">(Who will receive items)</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="recipientName"
+                                class="w-full neu-input"
+                                placeholder="Name of person receiving items"
+                            >
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Requested Quantity *
+                            </label>
+                            <input
+                                type="number"
+                                id="requestedQuantity"
+                                required
+                                min="1"
+                                class="w-full neu-input"
+                                placeholder="Enter quantity"
+                                oninput="validateQuantityAndPayment()"
+                            >
+                            <div class="mt-2 space-y-1">
+                                <p class="text-xs text-gray-600">
+                                    📦 Available in inventory: <span id="availableQuantity" class="font-bold text-blue-600">-</span> items
+                                </p>
+                                <p class="text-xs text-gray-600">
+                                    💰 Can take out (based on payment): <span id="paymentAllowedQuantity" class="font-bold text-green-600">-</span> items
+                                </p>
+                            </div>
+                        </div>
+
+                        <div id="validationMessage" class="hidden p-4 neu-border">
+                            <p class="font-semibold flex items-center gap-2">
+                                <i class="bi bi-info-circle"></i>
+                                <span id="validationText"></span>
+                            </p>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                Remarks (Optional)
+                            </label>
+                            <textarea
+                                id="remarks"
+                                class="w-full neu-input"
+                                rows="3"
+                                placeholder="Enter any remarks"
+                            ></textarea>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <button type="submit" class="neu-button bg-red-500 text-white flex-1">
+                            <i class="bi bi-check-circle"></i> Issue Gate Pass
+                        </button>
+                        <button type="button" onclick="resetForm()" class="neu-button bg-gray-300">
+                            <i class="bi bi-x-circle"></i> Reset
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Recent Gate Passes (Right) -->
+            <div class="neu-border bg-white p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-2">
+                        <i class="bi bi-clock-history text-red-600"></i>
+                        Recent Gate Passes
+                    </h2>
+                </div>
+                <div id="recentGatePasses" class="overflow-auto" style="max-height: 700px;">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-white">
+                            <tr class="border-b-2 border-black">
+                                <th class="text-left p-2 font-bold">Thock NO</th>
+                                <th class="text-left p-2 font-bold">Customer</th>
+                                <th class="text-left p-2 font-bold">Qty</th>
+                                <th class="text-left p-2 font-bold">Status</th>
+                                <th class="text-left p-2 font-bold">Expires In</th>
+                                <th class="text-left p-2 font-bold">Date</th>
+                                <th class="text-left p-2 font-bold">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gatePassesTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center p-4 text-gray-500">Loading gate passes...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Customer Requests Pending Approval -->
+        <div class="mt-8 neu-border bg-white p-6" id="customerRequestsSection">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <i class="bi bi-person-check text-blue-600"></i>
+                Customer Requests Pending Approval
+            </h2>
+            <div id="customerRequestsContainer" class="overflow-auto" style="max-height: 500px;">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white">
+                        <tr class="border-b-2 border-black">
+                            <th class="text-left p-2 font-bold">Date</th>
+                            <th class="text-left p-2 font-bold">Customer</th>
+                            <th class="text-left p-2 font-bold">Phone</th>
+                            <th class="text-left p-2 font-bold">Thock NO</th>
+                            <th class="text-left p-2 font-bold">Qty Requested</th>
+                            <th class="text-left p-2 font-bold">Remarks</th>
+                            <th class="text-left p-2 font-bold">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customerRequestsTableBody">
+                        <tr>
+                            <td colspan="7" class="text-center p-4 text-gray-500">Loading customer requests...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Approval Modal -->
+        <div id="approvalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div class="neu-border bg-white p-8 max-w-md w-full mx-4">
+                <h3 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                    <i class="bi bi-check-circle text-green-600"></i>
+                    Approve Customer Request
+                </h3>
+                <form id="approvalForm" onsubmit="submitApproval(event)">
+                    <input type="hidden" id="approvalGatePassId">
+
+                    <div class="mb-4 p-4 bg-blue-50 neu-border">
+                        <p class="text-sm text-gray-600">Customer:</p>
+                        <p class="font-bold" id="approvalCustomerName"></p>
+                        <p class="text-sm text-gray-600 mt-2">Truck:</p>
+                        <p class="font-bold" id="approvalTruckNumber"></p>
+                        <p class="text-sm text-gray-600 mt-2">Requested:</p>
+                        <p class="font-bold text-xl" id="approvalRequestedQty"></p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Approved Quantity *
+                        </label>
+                        <input
+                            type="number"
+                            id="approvalApprovedQty"
+                            required
+                            min="1"
+                            class="w-full neu-input"
+                            placeholder="Enter approved quantity"
+                        >
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Gate Number (optional)
+                        </label>
+                        <input
+                            type="text"
+                            id="approvalGateNo"
+                            class="w-full neu-input"
+                            placeholder="Enter gate number (optional)"
+                        >
+                    </div>
+
+                    <div class="mb-6">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Remarks (optional)
+                        </label>
+                        <textarea
+                            id="approvalRemarks"
+                            class="w-full neu-input"
+                            rows="3"
+                            placeholder="Add any remarks"
+                        ></textarea>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button type="submit" class="neu-button bg-green-500 text-white flex-1">
+                            <i class="bi bi-check-circle"></i> Approve
+                        </button>
+                        <button type="button" onclick="closeApprovalModal()" class="neu-button bg-gray-300">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Success Message -->
+        <div id="successMessage" class="hidden mt-6 neu-border bg-green-100 p-8">
+            <h3 class="text-2xl font-bold text-green-700 mb-4 flex items-center gap-2">
+                <i class="bi bi-check-circle-fill"></i>
+                Gate Pass Issued Successfully!
+            </h3>
+            <div class="p-6 bg-white neu-border mb-4">
+                <p class="text-lg text-gray-700 mb-2">Gate Pass ID:</p>
+                <p class="text-4xl font-bold text-green-700" id="issuedGatePassId"></p>
+            </div>
+            <button onclick="resetForm()" class="neu-button bg-green-500 text-white w-full">
+                <i class="bi bi-plus-circle"></i> Issue Another Gate Pass
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let allCustomers = [];
+        let allEntries = [];
+        let customerPayments = [];
+        let customerRentRate = 10; // Default ₹10 per item, will be loaded from system settings
+        let totalRentOwed = 0;
+        let totalPaid = 0;
+        let balanceDue = 0;
+        let selectedTruckEntry = null; // Track the selected truck's entry
+
+        // Fuzzy match function
+        function fuzzyMatch(searchTerm, targetText) {
+            if (!searchTerm) return true;
+            if (!targetText) return false;
+
+            searchTerm = searchTerm.toLowerCase();
+            targetText = targetText.toLowerCase();
+
+            // Exact substring match first (fast path)
+            if (targetText.includes(searchTerm)) return true;
+
+            // Fuzzy matching: all characters must appear in order
+            let searchIndex = 0;
+            for (let i = 0; i < targetText.length && searchIndex < searchTerm.length; i++) {
+                if (targetText[i] === searchTerm[searchIndex]) {
+                    searchIndex++;
+                }
+            }
+
+            return searchIndex === searchTerm.length;
+        }
+
+        // Load rent rate from system settings
+        async function loadRentRate() {
+            try {
+                const response = await fetch('/api/settings/rent_per_item', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    console.error('Failed to load rent rate, using default');
+                    return;
+                }
+
+                const setting = await response.json();
+                const rate = parseFloat(setting.setting_value);
+
+                if (!isNaN(rate) && rate > 0) {
+                    customerRentRate = rate;
+                    console.log('Rent rate loaded from settings: ₹' + rate + '/item');
+                }
+            } catch (error) {
+                console.error('Error loading rent rate:', error);
+            }
+        }
+
+        // Load all customers on page load
+        async function loadAllCustomers() {
+            try {
+                const response = await fetch('/api/customers', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) return;
+
+                allCustomers = await response.json();
+            } catch (error) {
+                console.error('Error loading customers:', error);
+            }
+        }
+
+        // Load all entries on page load
+        async function loadAllEntries() {
+            try {
+                const response = await fetch('/api/entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) return;
+
+                allEntries = await response.json();
+            } catch (error) {
+                console.error('Error loading entries:', error);
+            }
+        }
+
+        // Show customer dropdown
+        function showCustomerDropdown() {
+            filterCustomers();
+            document.getElementById('customerDropdown').classList.remove('hidden');
+        }
+
+        // Filter and display customers
+        function filterCustomers() {
+            const searchTerm = document.getElementById('customerSearch').value;
+
+            const filtered = allCustomers.filter(customer => {
+                return fuzzyMatch(searchTerm, customer.phone) ||
+                       fuzzyMatch(searchTerm, customer.name) ||
+                       fuzzyMatch(searchTerm, customer.village);
+            });
+
+            // Also search in entries by truck number to find customers
+            const entriesFiltered = allEntries.filter(entry =>
+                fuzzyMatch(searchTerm, entry.truck_number)
+            );
+
+            // Merge customer IDs from entries
+            entriesFiltered.forEach(entry => {
+                const customer = allCustomers.find(c => c.phone === entry.phone);
+                if (customer && !filtered.find(c => c.id === customer.id)) {
+                    filtered.push(customer);
+                }
+            });
+
+            // Limit to 50 results
+            const displayCustomers = filtered.slice(0, 50);
+
+            const customerList = document.getElementById('customerList');
+            customerList.innerHTML = displayCustomers.map(customer => {
+                const displayText = `${customer.name} - ${customer.phone}${customer.village ? ' (' + customer.village + ')' : ''}`;
+                return `<div class="search-item" onclick='selectCustomer(${JSON.stringify(customer)})'>${displayText}</div>`;
+            }).join('');
+
+            if (displayCustomers.length === 0 && searchTerm.length >= 2) {
+                customerList.innerHTML = '<div class="search-item" style="color: #999;">No customers found</div>';
+            } else if (searchTerm.length === 0) {
+                customerList.innerHTML = '<div class="search-item" style="color: #999;">Start typing to search...</div>';
+            }
+        }
+
+        // Select a customer
+        async function selectCustomer(customer) {
+            document.getElementById('customerId').value = customer.id;
+            document.getElementById('customerPhone').value = customer.phone;
+            document.getElementById('customerName').textContent = customer.name;
+            document.getElementById('customerPhoneDisplay').textContent = customer.phone;
+            document.getElementById('customerVillage').textContent = customer.village || 'N/A';
+            document.getElementById('customerSearch').value = `${customer.name} - ${customer.phone}`;
+
+            document.getElementById('customerDropdown').classList.add('hidden');
+            document.getElementById('customerInfo').classList.remove('hidden');
+
+            // Clear truck number to show new dropdown
+            document.getElementById('truckNumber').value = '';
+
+            // Calculate available inventory for this customer
+            calculateAvailableInventory(customer.id);
+
+            // Load customer payments to calculate payment-based availability
+            await loadCustomerPayments(customer.phone);
+        }
+
+        // Calculate available inventory for customer (from current room_entries)
+        async function calculateAvailableInventory(customerId) {
+            // Get all entries for this customer
+            const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+
+            // Get truck numbers for this customer
+            const truckNumbers = customerEntries.map(entry => entry.truck_number);
+
+            // Fetch current room entries to get ACTUAL inventory (reduced after pickups)
+            try {
+                const response = await fetch('/api/room-entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const allRoomEntries = await response.json();
+
+                    // Filter room entries for this customer's trucks
+                    const customerRoomEntries = allRoomEntries.filter(re =>
+                        truckNumbers.includes(re.truck_number)
+                    );
+
+                    // Sum up CURRENT quantities (already reduced after pickups)
+                    const totalInInventory = customerRoomEntries.reduce((sum, re) => {
+                        return sum + (re.quantity || 0);
+                    }, 0);
+
+                    // Update the display
+                    const availableSpan = document.getElementById('availableQuantity');
+                    if (totalInInventory > 0) {
+                        availableSpan.textContent = totalInInventory;
+                        availableSpan.classList.remove('text-red-600');
+                        availableSpan.classList.add('text-blue-600');
+                    } else {
+                        availableSpan.textContent = '0';
+                        availableSpan.classList.remove('text-blue-600');
+                        availableSpan.classList.add('text-red-600');
+                    }
+                } else {
+                    // Fallback to expected_quantity if API fails
+                    const totalInInventory = customerEntries.reduce((sum, entry) => {
+                        return sum + (entry.expected_quantity || 0);
+                    }, 0);
+                    document.getElementById('availableQuantity').textContent = totalInInventory;
+                }
+            } catch (error) {
+                console.error('Error fetching room entries:', error);
+                // Fallback to expected_quantity
+                const totalInInventory = customerEntries.reduce((sum, entry) => {
+                    return sum + (entry.expected_quantity || 0);
+                }, 0);
+                document.getElementById('availableQuantity').textContent = totalInInventory;
+            }
+        }
+
+        // Load customer payments to calculate balance
+        async function loadCustomerPayments(phone) {
+            try {
+                const response = await fetch(`/api/rent-payments/phone?phone=${phone}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    customerPayments = await response.json();
+                } else {
+                    customerPayments = [];
+                }
+
+                // Calculate payment-based availability
+                calculatePaymentBasedAvailability();
+
+            } catch (error) {
+                console.error('Error loading customer payments:', error);
+                customerPayments = [];
+                document.getElementById('paymentAllowedQuantity').textContent = 'N/A';
+            }
+        }
+
+        // Calculate how much customer can take based on payments and balance
+        function calculatePaymentBasedAvailability() {
+            const customerId = document.getElementById('customerId').value;
+            if (!customerId) return 0;
+
+            // Get all customer entries to calculate total rent owed
+            const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+
+            // Calculate total rent based on entries
+            totalRentOwed = customerEntries.reduce((sum, entry) => {
+                // If entry has rent_amount, use it; otherwise calculate based on quantity
+                const entryRent = entry.rent_amount || (entry.expected_quantity * customerRentRate);
+                return sum + entryRent;
+            }, 0);
+
+            // Calculate total paid
+            totalPaid = customerPayments.reduce((sum, payment) => {
+                return sum + (payment.amount_paid || 0);
+            }, 0);
+
+            // Calculate balance due
+            balanceDue = totalRentOwed - totalPaid;
+
+            // Update availability display (considers selected truck if any)
+            updateAvailabilityDisplay();
+
+            // Return payment-based allowance
+            return Math.floor(totalPaid / customerRentRate);
+        }
+
+        // Validate quantity and payment in real-time
+        function validateQuantityAndPayment() {
+            const requestedQty = parseInt(document.getElementById('requestedQuantity').value) || 0;
+            const paymentAmount = 0; // Payment field removed - always 0
+            const customerId = document.getElementById('customerId').value;
+
+            if (!customerId || requestedQty === 0) {
+                hideValidationMessage();
+                return;
+            }
+
+            // Get available inventory based on selected truck
+            let totalInInventory;
+            if (selectedTruckEntry) {
+                // Specific truck selected - use only that truck's inventory
+                totalInInventory = selectedTruckEntry.expected_quantity || 0;
+            } else {
+                // No truck selected - use total inventory
+                const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+                totalInInventory = customerEntries.reduce((sum, entry) => sum + (entry.expected_quantity || 0), 0);
+            }
+
+            // Calculate total payment available (existing + current)
+            const totalPaymentAvailable = totalPaid + paymentAmount;
+
+            // Calculate how many items customer can take with total payment
+            const allowedItems = Math.floor(totalPaymentAvailable / customerRentRate);
+
+            // Actual allowance is minimum of inventory and payment allowance
+            const actualAllowance = Math.min(totalInInventory, allowedItems);
+
+            // Calculate new balance after this withdrawal and payment
+            const rentForRequest = requestedQty * customerRentRate;
+            const newBalance = balanceDue - paymentAmount + rentForRequest;
+
+            // Validation checks
+            if (requestedQty > totalInInventory) {
+                if (selectedTruckEntry) {
+                    showValidationMessage(
+                        `⚠️ Truck ${selectedTruckEntry.truck_number} has only ${totalInInventory} items!`,
+                        'bg-red-100',
+                        'text-red-700'
+                    );
+                } else {
+                    showValidationMessage('⚠️ Requested quantity exceeds available inventory!', 'bg-red-100', 'text-red-700');
+                }
+            } else if (requestedQty > allowedItems) {
+                // Not enough payment - customer needs to pay more before withdrawal
+                const shortfall = requestedQty - allowedItems;
+                const neededPayment = shortfall * customerRentRate;
+                showValidationMessage(
+                    `⚠️ Insufficient balance! Customer needs to pay ₹${neededPayment.toFixed(0)} more to withdraw ${requestedQty} items (₹${customerRentRate}/item).`,
+                    'bg-red-100',
+                    'text-red-700'
+                );
+            } else {
+                // Approved - show new balance after withdrawal
+                if (newBalance > 0) {
+                    showValidationMessage(
+                        `✓ Approved! New balance due after withdrawal: ₹${newBalance.toFixed(0)}`,
+                        'bg-green-100',
+                        'text-green-700'
+                    );
+                } else if (newBalance < 0) {
+                    showValidationMessage(
+                        `✓ Approved! Remaining advance after withdrawal: ₹${Math.abs(newBalance).toFixed(0)}`,
+                        'bg-green-100',
+                        'text-green-700'
+                    );
+                } else {
+                    showValidationMessage(
+                        `✓ Approved! Balance will be cleared after withdrawal.`,
+                        'bg-green-100',
+                        'text-green-700'
+                    );
+                }
+            }
+        }
+
+        function showValidationMessage(message, bgClass, textClass) {
+            const validationMsg = document.getElementById('validationMessage');
+            const validationText = document.getElementById('validationText');
+
+            validationMsg.className = `p-4 neu-border ${bgClass}`;
+            validationText.className = `font-semibold ${textClass}`;
+            validationText.textContent = message;
+            validationMsg.classList.remove('hidden');
+        }
+
+        function hideValidationMessage() {
+            document.getElementById('validationMessage').classList.add('hidden');
+        }
+
+
+        // Show truck number dropdown
+        function showTruckDropdown() {
+            filterTruckNumbers();
+            document.getElementById('truckDropdown').classList.remove('hidden');
+        }
+
+        // Filter and display truck numbers from customer's entries
+        function filterTruckNumbers() {
+            const searchTerm = document.getElementById('truckNumber').value;
+            const customerId = document.getElementById('customerId').value;
+
+            if (!customerId) {
+                document.getElementById('truckList').innerHTML =
+                    '<div class="search-item" style="color: #999;">Please select a customer first</div>';
+                return;
+            }
+
+            // Filter entries by selected customer
+            const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+
+            // Further filter by search term if provided
+            const filtered = customerEntries.filter(entry =>
+                fuzzyMatch(searchTerm, entry.truck_number)
+            );
+
+            // Limit to 50 results
+            const displayTrucks = filtered.slice(0, 50);
+
+            const truckList = document.getElementById('truckList');
+
+            if (displayTrucks.length === 0 && customerEntries.length === 0) {
+                truckList.innerHTML = '<div class="search-item" style="color: #999;">No entries found for this customer</div>';
+            } else if (displayTrucks.length === 0 && searchTerm) {
+                truckList.innerHTML = '<div class="search-item" style="color: #999;">No matching truck numbers</div>';
+            } else {
+                truckList.innerHTML = displayTrucks.map(entry => {
+                    const displayText = `${entry.truck_number} - ${entry.expected_quantity} items`;
+                    return `<div class="search-item" onclick='selectTruckNumber("${entry.truck_number}")'>${displayText}</div>`;
+                }).join('');
+
+                if (!searchTerm && displayTrucks.length > 0) {
+                    truckList.innerHTML = '<div class="search-item" style="color: #666; font-weight: 600;">Customer\'s Truck Numbers:</div>' + truckList.innerHTML;
+                }
+            }
+        }
+
+        // Select a truck number
+        function selectTruckNumber(truckNumber) {
+            document.getElementById('truckNumber').value = truckNumber;
+            document.getElementById('truckDropdown').classList.add('hidden');
+
+            // Find the entry for this truck
+            const customerId = document.getElementById('customerId').value;
+            if (customerId) {
+                selectedTruckEntry = allEntries.find(entry =>
+                    entry.customer_id == customerId && entry.truck_number === truckNumber
+                );
+
+                // Update availability displays
+                updateAvailabilityDisplay();
+            }
+        }
+
+        // Check truck number when manually typed
+        function checkTruckNumber() {
+            const truckNumber = document.getElementById('truckNumber').value.trim();
+            const customerId = document.getElementById('customerId').value;
+
+            if (!customerId || !truckNumber) {
+                selectedTruckEntry = null;
+                updateAvailabilityDisplay();
+                return;
+            }
+
+            // Try to find matching entry for this truck number
+            selectedTruckEntry = allEntries.find(entry =>
+                entry.customer_id == customerId && entry.truck_number === truckNumber
+            );
+
+            // Update availability displays
+            updateAvailabilityDisplay();
+        }
+
+        // Update availability displays based on selected truck (using current room_entries)
+        async function updateAvailabilityDisplay() {
+            const customerId = document.getElementById('customerId').value;
+            if (!customerId) return;
+
+            // Get customer entries
+            const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+
+            // Fetch current room entries to get ACTUAL inventory
+            try {
+                const response = await fetch('/api/room-entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                let availableInventory;
+                if (response.ok) {
+                    const allRoomEntries = await response.json();
+
+                    if (selectedTruckEntry) {
+                        // Specific truck selected - sum room entries for this truck only
+                        const truckRoomEntries = allRoomEntries.filter(re =>
+                            re.truck_number === selectedTruckEntry.truck_number
+                        );
+                        availableInventory = truckRoomEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
+                    } else {
+                        // No truck selected - sum all room entries for customer's trucks
+                        const truckNumbers = customerEntries.map(e => e.truck_number);
+                        const customerRoomEntries = allRoomEntries.filter(re =>
+                            truckNumbers.includes(re.truck_number)
+                        );
+                        availableInventory = customerRoomEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
+                    }
+                } else {
+                    // Fallback to expected_quantity if API fails
+                    if (selectedTruckEntry) {
+                        availableInventory = selectedTruckEntry.expected_quantity || 0;
+                    } else {
+                        availableInventory = customerEntries.reduce((sum, entry) => sum + (entry.expected_quantity || 0), 0);
+                    }
+                }
+
+                // Update inventory display
+                document.getElementById('availableQuantity').textContent = availableInventory;
+
+                // Calculate payment-based availability
+                const paymentBasedAllowance = Math.floor(totalPaid / customerRentRate);
+
+                // Can take out is minimum of inventory and payment allowance
+                const canTakeOut = Math.min(availableInventory, paymentBasedAllowance);
+
+                // Update display
+                const paymentSpan = document.getElementById('paymentAllowedQuantity');
+                if (balanceDue > 0) {
+                    paymentSpan.textContent = `${canTakeOut} (₹${balanceDue.toFixed(0)} due)`;
+                    paymentSpan.classList.remove('text-green-600');
+                    paymentSpan.classList.add('text-yellow-600');
+                } else if (balanceDue < 0) {
+                    paymentSpan.textContent = `${canTakeOut} (₹${Math.abs(balanceDue).toFixed(0)} advance)`;
+                    paymentSpan.classList.remove('text-yellow-600');
+                    paymentSpan.classList.add('text-green-600');
+                } else {
+                    paymentSpan.textContent = canTakeOut;
+                    paymentSpan.classList.remove('text-yellow-600', 'text-red-600');
+                    paymentSpan.classList.add('text-green-600');
+                }
+            } catch (error) {
+                console.error('Error fetching room entries:', error);
+                // Use expected_quantity as fallback
+                const availableInventory = selectedTruckEntry
+                    ? selectedTruckEntry.expected_quantity || 0
+                    : customerEntries.reduce((sum, entry) => sum + (entry.expected_quantity || 0), 0);
+                document.getElementById('availableQuantity').textContent = availableInventory;
+            }
+        }
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', function(e) {
+            const customerInput = document.getElementById('customerSearch');
+            const customerDropdown = document.getElementById('customerDropdown');
+            if (customerInput && customerDropdown &&
+                !customerInput.contains(e.target) && !customerDropdown.contains(e.target)) {
+                customerDropdown.classList.add('hidden');
+            }
+
+            const truckInput = document.getElementById('truckNumber');
+            const truckDropdown = document.getElementById('truckDropdown');
+            if (truckInput && truckDropdown &&
+                !truckInput.contains(e.target) && !truckDropdown.contains(e.target)) {
+                truckDropdown.classList.add('hidden');
+            }
+        });
+
+        async function submitGatePass(event) {
+            event.preventDefault();
+
+            const customerId = parseInt(document.getElementById('customerId').value);
+            if (!customerId) {
+                alert('Please search and select a valid customer first');
+                return;
+            }
+
+            const requestedQty = parseInt(document.getElementById('requestedQuantity').value);
+            const paymentAmount = 0; // Payment field removed - always 0
+
+            // Get available inventory based on selected truck
+            let totalInInventory;
+            if (selectedTruckEntry) {
+                // Specific truck selected - use only that truck's inventory
+                totalInInventory = selectedTruckEntry.expected_quantity || 0;
+            } else {
+                // No truck selected - use total inventory
+                const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+                totalInInventory = customerEntries.reduce((sum, entry) => sum + (entry.expected_quantity || 0), 0);
+            }
+
+            // Calculate total payment available (existing + current)
+            const totalPaymentAvailable = totalPaid + paymentAmount;
+
+            // Calculate how many items customer can take with total payment
+            const allowedItems = Math.floor(totalPaymentAvailable / customerRentRate);
+
+            if (requestedQty > totalInInventory) {
+                if (selectedTruckEntry) {
+                    alert(`Error: Truck ${selectedTruckEntry.truck_number} has only ${totalInInventory} items!`);
+                } else {
+                    alert('Error: Requested quantity exceeds available inventory!');
+                }
+                return;
+            }
+
+            if (requestedQty > allowedItems) {
+                const shortfall = requestedQty - allowedItems;
+                const neededPayment = shortfall * customerRentRate;
+                alert(`Error: Insufficient balance! Customer can withdraw up to ${allowedItems} items based on current payment (₹${totalPaymentAvailable.toFixed(0)}). Customer needs to pay ₹${neededPayment.toFixed(0)} more to withdraw ${requestedQty} items.`);
+                return;
+            }
+
+            const recipientName = document.getElementById('recipientName').value.trim();
+            const remarks = document.getElementById('remarks').value.trim();
+
+            // Combine recipient name and remarks
+            let finalRemarks = '';
+            if (recipientName) {
+                finalRemarks = `Recipient: ${recipientName}`;
+            }
+            if (paymentAmount === 0) {
+                finalRemarks += (finalRemarks ? ' | ' : '') + 'Payment: On Account / Credit';
+            }
+            if (remarks) {
+                finalRemarks += (finalRemarks ? ' | ' : '') + remarks;
+            }
+
+            const gatePassData = {
+                customer_id: customerId,
+                truck_number: document.getElementById('truckNumber').value.trim(),
+                entry_id: null,
+                requested_quantity: requestedQty,
+                payment_verified: true, // Always true now
+                payment_amount: paymentAmount,
+                remarks: finalRemarks
+            };
+
+            try {
+                const response = await fetch('/api/gate-passes', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(gatePassData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const result = await response.json();
+                showSuccess(result.id);
+                loadRecentGatePasses();
+
+            } catch (error) {
+                alert('Error issuing gate pass: ' + error.message);
+            }
+        }
+
+        function showSuccess(gatePassId) {
+            document.getElementById('issuedGatePassId').textContent = '#' + gatePassId;
+            document.getElementById('successMessage').classList.remove('hidden');
+            document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function resetForm() {
+            document.getElementById('gatePassForm').reset();
+            document.getElementById('successMessage').classList.add('hidden');
+            document.getElementById('customerInfo').classList.add('hidden');
+            document.getElementById('customerDropdown').classList.add('hidden');
+            document.getElementById('truckDropdown').classList.add('hidden');
+            document.getElementById('validationMessage').classList.add('hidden');
+            document.getElementById('availableQuantity').textContent = '-';
+            document.getElementById('paymentAllowedQuantity').textContent = '-';
+            customerPayments = [];
+            selectedTruckEntry = null; // Clear selected truck
+            loadRecentGatePasses();
+        }
+
+        async function loadRecentGatePasses() {
+            try {
+                const response = await fetch('/api/gate-passes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load gate passes');
+                }
+
+                const gatePasses = await response.json();
+                displayRecentGatePasses(gatePasses || []);
+
+            } catch (error) {
+                console.error('Error loading gate passes:', error);
+                document.getElementById('gatePassesTableBody').innerHTML =
+                    '<tr><td colspan="6" class="text-center p-4 text-red-500">Failed to load gate passes</td></tr>';
+            }
+        }
+
+        // Calculate remaining time until expiration
+        function getRemainingTime(expiresAt) {
+            if (!expiresAt) return { text: 'N/A', color: 'text-gray-500' };
+
+            const now = new Date();
+            const expires = new Date(expiresAt);
+            const diff = expires - now;
+
+            if (diff <= 0) {
+                return { text: 'EXPIRED', color: 'text-red-600 font-bold' };
+            }
+
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+
+            let color = 'text-green-600'; // >24h
+            if (hours < 6) {
+                color = 'text-red-600 font-bold'; // <6h critical
+            } else if (hours < 12) {
+                color = 'text-orange-600 font-bold'; // <12h warning
+            } else if (hours < 24) {
+                color = 'text-yellow-600'; // <24h caution
+            }
+
+            return {
+                text: `${hours}h ${minutes}m`,
+                color: color
+            };
+        }
+
+        function displayRecentGatePasses(gatePasses) {
+            const tbody = document.getElementById('gatePassesTableBody');
+
+            if (gatePasses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-gray-500">No gate passes yet</td></tr>';
+                return;
+            }
+
+            const recentPasses = gatePasses.slice(0, 15);
+
+            tbody.innerHTML = recentPasses.map(gp => {
+                const statusColors = {
+                    'pending': 'bg-yellow-100 text-yellow-700',
+                    'approved': 'bg-blue-100 text-blue-700',
+                    'completed': 'bg-green-100 text-green-700',
+                    'expired': 'bg-red-100 text-red-700',
+                    'rejected': 'bg-red-200 text-red-900',
+                    'cancelled': 'bg-gray-100 text-gray-700',
+                    'partially_completed': 'bg-orange-100 text-orange-700'
+                };
+
+                const statusColor = statusColors[gp.status] || 'bg-gray-100 text-gray-700';
+
+                const date = new Date(gp.issued_at);
+                const formattedDate = date.toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                // Calculate remaining time for pending gate passes
+                const remaining = gp.status === 'pending' ? getRemainingTime(gp.expires_at) : { text: '-', color: 'text-gray-400' };
+
+                // Color code truck number based on expiration time
+                const truckColor = gp.status === 'pending' ? remaining.color : 'text-gray-700';
+
+                // Action buttons for pending gate passes
+                let actionButtons = '-';
+                if (gp.status === 'pending') {
+                    actionButtons = `
+                        <div class="flex gap-1">
+                            <button onclick='acceptGatePass(${gp.id}, "${gp.truck_number}", ${gp.requested_quantity})'
+                                    class="neu-button bg-green-500 text-white text-xs px-2 py-1"
+                                    title="Accept">
+                                <i class="bi bi-check-circle"></i>
+                            </button>
+                            <button onclick='declineGatePass(${gp.id}, "${gp.truck_number}")'
+                                    class="neu-button bg-red-500 text-white text-xs px-2 py-1"
+                                    title="Decline">
+                                <i class="bi bi-x-circle"></i>
+                            </button>
+                        </div>
+                    `;
+                }
+
+                return `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                        <td class="p-2 font-bold ${truckColor}">${gp.truck_number}</td>
+                        <td class="p-2">${gp.customer_name}</td>
+                        <td class="p-2 font-bold">${gp.requested_quantity}</td>
+                        <td class="p-2"><span class="px-2 py-1 rounded text-xs font-bold ${statusColor}">${gp.status.toUpperCase()}</span></td>
+                        <td class="p-2 text-xs ${remaining.color}">${remaining.text}</td>
+                        <td class="p-2 text-xs">${formattedDate}</td>
+                        <td class="p-2">${actionButtons}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Load customer requests pending approval
+        async function loadCustomerRequests() {
+            try {
+                const response = await fetch('/api/gate-passes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load customer requests');
+                }
+
+                const gatePasses = await response.json();
+
+                // Filter only pending customer requests
+                const customerRequests = gatePasses.filter(gp =>
+                    gp.status === 'pending' && gp.request_source === 'customer_portal'
+                );
+
+                displayCustomerRequests(customerRequests || []);
+
+            } catch (error) {
+                console.error('Error loading customer requests:', error);
+                document.getElementById('customerRequestsTableBody').innerHTML =
+                    '<tr><td colspan="7" class="text-center p-4 text-red-500">Failed to load customer requests</td></tr>';
+            }
+        }
+
+        function displayCustomerRequests(requests) {
+            const tbody = document.getElementById('customerRequestsTableBody');
+            const section = document.getElementById('customerRequestsSection');
+
+            if (requests.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" class="text-center p-4 text-gray-500">No customer requests pending approval</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = requests.map(req => {
+                const date = new Date(req.issued_at);
+                const formattedDate = date.toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return `
+                    <tr class="border-b border-gray-200 hover:bg-blue-50">
+                        <td class="p-2 text-xs">${formattedDate}</td>
+                        <td class="p-2 font-bold">${req.customer_name}</td>
+                        <td class="p-2 text-sm">${req.customer_phone}</td>
+                        <td class="p-2 font-bold text-blue-600">${req.truck_number}</td>
+                        <td class="p-2 font-bold text-lg">${req.requested_quantity}</td>
+                        <td class="p-2 text-sm">${req.remarks || '-'}</td>
+                        <td class="p-2">
+                            <button onclick='openApprovalModal(${JSON.stringify(req)})'
+                                    class="neu-button bg-green-500 text-white text-xs px-3 py-1">
+                                <i class="bi bi-check-circle"></i> Approve
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function openApprovalModal(request) {
+            document.getElementById('approvalGatePassId').value = request.id;
+            document.getElementById('approvalCustomerName').textContent = request.customer_name;
+            document.getElementById('approvalTruckNumber').textContent = request.truck_number;
+            document.getElementById('approvalRequestedQty').textContent = request.requested_quantity + ' items';
+            document.getElementById('approvalApprovedQty').value = request.requested_quantity;
+            document.getElementById('approvalGateNo').value = '';
+            document.getElementById('approvalRemarks').value = '';
+            document.getElementById('approvalModal').classList.remove('hidden');
+        }
+
+        function closeApprovalModal() {
+            document.getElementById('approvalModal').classList.add('hidden');
+            document.getElementById('approvalForm').reset();
+        }
+
+        async function submitApproval(event) {
+            event.preventDefault();
+
+            const gatePassId = document.getElementById('approvalGatePassId').value;
+            const approvedQty = parseInt(document.getElementById('approvalApprovedQty').value);
+            const gateNo = document.getElementById('approvalGateNo').value.trim() || 'APPROVED';
+            const remarks = document.getElementById('approvalRemarks').value;
+
+            try {
+                const response = await fetch(`/api/gate-passes/${gatePassId}/approve`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        approved_quantity: approvedQty,
+                        gate_no: gateNo,
+                        status: 'pending',
+                        request_source: 'employee',
+                        remarks: remarks
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert('Customer request accepted! It will now appear in Recent Gate Passes.');
+                closeApprovalModal();
+                loadCustomerRequests(); // Reload customer requests
+                loadRecentGatePasses(); // Reload recent passes
+
+            } catch (error) {
+                alert('Error approving request: ' + error.message);
+            }
+        }
+
+        // Accept gate pass directly (for Recent Gate Passes section)
+        async function acceptGatePass(gatePassId, truckNumber, requestedQty) {
+            if (!confirm(`Accept gate pass for truck ${truckNumber} (${requestedQty} items)?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/gate-passes/${gatePassId}/approve`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        approved_quantity: requestedQty,
+                        gate_no: 'APPROVED',
+                        status: 'approved',
+                        remarks: 'Approved by employee'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert(`Gate pass for truck ${truckNumber} approved successfully!`);
+                loadRecentGatePasses();
+            } catch (error) {
+                alert('Error approving gate pass: ' + error.message);
+            }
+        }
+
+        async function declineGatePass(gatePassId, truckNumber) {
+            if (!confirm(`Are you sure you want to reject gate pass for truck ${truckNumber}?`)) {
+                return;
+            }
+
+            try {
+                // Update gate pass status to 'rejected'
+                const response = await fetch(`/api/gate-passes/${gatePassId}/approve`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        approved_quantity: 0,
+                        gate_no: 'REJECTED',
+                        status: 'rejected',
+                        remarks: 'Rejected by employee'
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert('Gate pass rejected successfully.');
+                loadCustomerRequests(); // Reload customer requests
+                loadRecentGatePasses(); // Reload recent passes
+
+            } catch (error) {
+                alert('Error rejecting gate pass: ' + error.message);
+            }
+        }
+
+        function goBack() {
+            window.history.back();
+        }
+
+        // Load on page load
+        window.addEventListener('load', function() {
+            loadRentRate();
+            loadAllCustomers();
+            loadAllEntries();
+            loadRecentGatePasses();
+            loadCustomerRequests(); // Load customer requests
+        });
+    </script>
+
+</body>
+</html>

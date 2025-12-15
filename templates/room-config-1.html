@@ -397,6 +397,27 @@
         let entriesRefreshInterval = null;
         let quantityValues = [];
 
+        // Check operation mode on page load and redirect if needed
+        async function checkOperationMode() {
+            try {
+                const response = await fetch('/api/settings/operation_mode', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const setting = await response.json();
+                    if (setting.setting_value === 'unloading') {
+                        // Redirect to unloading tickets page in unloading mode
+                        window.location.href = '/unloading-tickets';
+                        return false;
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking operation mode:', error);
+            }
+            return true;
+        }
+
         // Quantity Calculator Functions
         function addQuantity(value) {
             if (value && value > 0) {
@@ -471,7 +492,11 @@
         }
 
         // Load data on page load
-        window.addEventListener('load', function() {
+        window.addEventListener('load', async function() {
+            // Check operation mode first - redirect if in unloading mode
+            const shouldContinue = await checkOperationMode();
+            if (!shouldContinue) return;
+
             loadUnassignedEntries();
             loadRoomEntries();
             startAutoRefresh();

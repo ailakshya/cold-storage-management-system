@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .neu-card {
+            background: #ffffff;
+            border-radius: 15px;
+            box-shadow: 10px 10px 30px rgba(0,0,0,0.1), -10px -10px 30px rgba(255,255,255,0.5);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .neu-button {
+            background: linear-gradient(145deg, #667eea, #764ba2);
+            border-radius: 8px;
+            box-shadow: 3px 3px 10px rgba(0,0,0,0.2);
+            border: none;
+            padding: 10px 20px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .neu-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 5px 5px 15px rgba(0,0,0,0.25);
+        }
+        .neu-input {
+            background: #f0f0f0;
+            border-radius: 8px;
+            box-shadow: inset 3px 3px 6px #d1d1d1, inset -3px -3px 6px #ffffff;
+            border: none;
+            padding: 10px 14px;
+            width: 100%;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .status-pending { background: #fef3c7; color: #92400e; }
+        .status-approved { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-expired { background: #fee2e2; color: #991b1b; }
+        .status-partially_completed { background: #fed7aa; color: #9a3412; }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <div class="neu-card mb-6">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-800">Welcome, <span id="customerName"></span></h1>
+                    <p class="text-gray-600">Phone: <span id="customerPhone"></span></p>
+                </div>
+                <button onclick="logout()" class="neu-button bg-red-500">Logout</button>
+            </div>
+        </div>
+
+        <!-- Payment Summary -->
+        <div class="neu-card">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Payment Summary</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="p-4 bg-blue-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Total Rent</p>
+                    <p class="text-2xl font-bold text-blue-600">₹<span id="totalRent">0</span></p>
+                </div>
+                <div class="p-4 bg-green-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Total Paid</p>
+                    <p class="text-2xl font-bold text-green-600">₹<span id="totalPaid">0</span></p>
+                </div>
+                <div class="p-4 bg-orange-50 rounded-lg">
+                    <p class="text-sm text-gray-600">Balance</p>
+                    <p class="text-2xl font-bold" id="balanceAmount">₹<span id="totalBalance">0</span></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trucks List -->
+        <div class="neu-card">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Your Trucks</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b-2">
+                            <th class="text-left p-2">Truck Number</th>
+                            <th class="text-left p-2">Expected Qty</th>
+                            <th class="text-left p-2">Current Stock</th>
+                            <th class="text-left p-2">Can Take Out</th>
+                            <th class="text-left p-2">Balance</th>
+                            <th class="text-left p-2">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="trucksTable">
+                        <!-- Trucks will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Gate Pass Request Form -->
+        <div class="neu-card">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Request Gate Pass</h2>
+            <form id="gatePassForm" onsubmit="submitGatePassRequest(event)" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block font-semibold mb-2">Select Truck</label>
+                    <select id="truckSelect" class="neu-input" required>
+                        <option value="">-- Select Truck --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Quantity</label>
+                    <input type="number" id="quantity" class="neu-input" min="1" required>
+                    <p class="text-xs text-gray-500 mt-1">Max: <span id="maxQuantity">0</span></p>
+                </div>
+                <div>
+                    <label class="block font-semibold mb-2">Remarks (optional)</label>
+                    <input type="text" id="remarks" class="neu-input" placeholder="Add any notes">
+                </div>
+                <div class="md:col-span-3">
+                    <button type="submit" class="neu-button w-full md:w-auto">Submit Request</button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Gate Pass History -->
+        <div class="neu-card">
+            <h2 class="text-xl font-bold mb-4 text-gray-800">Gate Pass History</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead>
+                        <tr class="border-b-2">
+                            <th class="text-left p-2">Date</th>
+                            <th class="text-left p-2">Truck</th>
+                            <th class="text-left p-2">Requested</th>
+                            <th class="text-left p-2">Approved</th>
+                            <th class="text-left p-2">Picked Up</th>
+                            <th class="text-left p-2">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="gatePassHistory">
+                        <!-- History will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let dashboardData = null;
+        let selectedTruckData = null;
+
+        // Check authentication
+        window.addEventListener('load', checkAuth);
+
+        async function checkAuth() {
+            const token = localStorage.getItem('customer_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            await loadDashboard();
+        }
+
+        async function loadDashboard() {
+            try {
+                const token = localStorage.getItem('customer_token');
+                const response = await fetch('/api/dashboard', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        localStorage.clear();
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error('Failed to load dashboard');
+                }
+
+                dashboardData = await response.json();
+                renderDashboard();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to load dashboard data');
+            }
+        }
+
+        function renderDashboard() {
+            // Customer info
+            document.getElementById('customerName').textContent = dashboardData.customer.name;
+            document.getElementById('customerPhone').textContent = dashboardData.customer.phone;
+
+            // Payment summary
+            document.getElementById('totalRent').textContent = dashboardData.total_rent.toFixed(2);
+            document.getElementById('totalPaid').textContent = dashboardData.total_paid.toFixed(2);
+            document.getElementById('totalBalance').textContent = Math.abs(dashboardData.total_balance).toFixed(2);
+
+            const balanceEl = document.getElementById('balanceAmount');
+            if (dashboardData.total_balance > 0) {
+                balanceEl.className = 'text-2xl font-bold text-red-600';
+                balanceEl.innerHTML = '₹' + dashboardData.total_balance.toFixed(2) + ' (Due)';
+            } else if (dashboardData.total_balance < 0) {
+                balanceEl.className = 'text-2xl font-bold text-green-600';
+                balanceEl.innerHTML = '₹' + Math.abs(dashboardData.total_balance).toFixed(2) + ' (Advance)';
+            }
+
+            // Trucks table
+            const trucksTable = document.getElementById('trucksTable');
+            const truckSelect = document.getElementById('truckSelect');
+            trucksTable.innerHTML = '';
+            truckSelect.innerHTML = '<option value="">-- Select Truck --</option>';
+
+            dashboardData.trucks.forEach(truck => {
+                const row = `
+                    <tr class="border-b">
+                        <td class="p-2 font-semibold">${truck.truck_number}</td>
+                        <td class="p-2">${truck.expected_quantity}</td>
+                        <td class="p-2">${truck.current_inventory}</td>
+                        <td class="p-2 font-bold text-green-600">${truck.can_take_out}</td>
+                        <td class="p-2 ${truck.balance > 0 ? 'text-red-600' : 'text-green-600'}">
+                            ₹${Math.abs(truck.balance).toFixed(2)}
+                        </td>
+                        <td class="p-2">
+                            <button onclick="selectTruck('${truck.truck_number}', ${truck.can_take_out})"
+                                    class="text-blue-600 hover:underline text-sm">
+                                Request Pass
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                trucksTable.innerHTML += row;
+
+                // Add to select dropdown
+                truckSelect.innerHTML += `<option value="${truck.truck_number}" data-max="${truck.can_take_out}">
+                    ${truck.truck_number} (Max: ${truck.can_take_out})
+                </option>`;
+            });
+
+            // Gate pass history
+            const historyTable = document.getElementById('gatePassHistory');
+            historyTable.innerHTML = '';
+
+            dashboardData.gate_passes.forEach(gp => {
+                const date = new Date(gp.issued_at).toLocaleDateString('en-IN');
+                const statusClass = `status-${gp.status.replace(/ /g, '_')}`;
+
+                const row = `
+                    <tr class="border-b">
+                        <td class="p-2">${date}</td>
+                        <td class="p-2">${gp.truck_number}</td>
+                        <td class="p-2">${gp.requested_quantity}</td>
+                        <td class="p-2">${gp.approved_quantity || '-'}</td>
+                        <td class="p-2">${gp.total_picked_up || 0}</td>
+                        <td class="p-2"><span class="status-badge ${statusClass}">${gp.status}</span></td>
+                    </tr>
+                `;
+                historyTable.innerHTML += row;
+            });
+
+            if (dashboardData.gate_passes.length === 0) {
+                historyTable.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No gate pass requests yet</td></tr>';
+            }
+        }
+
+        function selectTruck(truckNumber, maxQty) {
+            document.getElementById('truckSelect').value = truckNumber;
+            document.getElementById('maxQuantity').textContent = maxQty;
+            document.getElementById('quantity').max = maxQty;
+            document.getElementById('quantity').focus();
+        }
+
+        // Update max quantity when truck is selected
+        document.addEventListener('DOMContentLoaded', () => {
+            const truckSelect = document.getElementById('truckSelect');
+            truckSelect.addEventListener('change', (e) => {
+                const selected = e.target.selectedOptions[0];
+                const maxQty = selected.getAttribute('data-max') || 0;
+                document.getElementById('maxQuantity').textContent = maxQty;
+                document.getElementById('quantity').max = maxQty;
+            });
+        });
+
+        async function submitGatePassRequest(event) {
+            event.preventDefault();
+
+            const truck = document.getElementById('truckSelect').value;
+            const quantity = parseInt(document.getElementById('quantity').value);
+            const remarks = document.getElementById('remarks').value;
+
+            if (!truck) {
+                alert('Please select a truck');
+                return;
+            }
+
+            try {
+                const token = localStorage.getItem('customer_token');
+                const response = await fetch('/api/gate-pass-requests', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        truck_number: truck,
+                        requested_quantity: quantity,
+                        remarks: remarks
+                    })
+                });
+
+                if (response.ok) {
+                    alert('Gate pass request submitted successfully!');
+                    document.getElementById('gatePassForm').reset();
+                    await loadDashboard(); // Reload dashboard
+                } else {
+                    const error = await response.text();
+                    alert('Failed to submit request: ' + error);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Network error. Please try again.');
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            fetch('/auth/logout', {
+                method: 'POST',
+                credentials: 'include'
+            }).then(() => {
+                window.location.href = '/login';
+            });
+        }
+    </script>
+</body>
+</html>

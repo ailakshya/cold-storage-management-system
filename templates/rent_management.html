@@ -415,9 +415,26 @@
                     });
                 }
 
+                // Fetch all completed gate passes (outgoing entries)
+                const gatePassesResponse = await fetch('/api/gate-passes?_=' + Date.now(), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                });
+
+                let allGatePasses = [];
+                if (gatePassesResponse.ok) {
+                    const gatePasses = await gatePassesResponse.json();
+                    // Filter only completed gate passes
+                    allGatePasses = gatePasses.filter(gp => gp.status === 'completed');
+                    console.log('Completed gate passes loaded:', allGatePasses.length);
+                }
+
                 // Group entries by phone number (customer)
                 const customerMap = new Map();
 
+                // Add incoming entries
                 entries.forEach(entry => {
                     const phone = entry.phone;
                     if (!customerMap.has(phone)) {
@@ -429,7 +446,9 @@
                             payments: [],
                             totalQuantity: 0,
                             totalRent: 0,
-                            totalPaid: 0
+                            totalPaid: 0,
+                            totalOutgoing: 0,
+                            outgoingRent: 0
                         });
                     }
 
@@ -442,11 +461,35 @@
                         truck_number: entry.truck_number,
                         quantity: quantity,
                         rent: rent,
-                        date: new Date(entry.created_at).toLocaleDateString('en-IN')
+                        date: new Date(entry.created_at).toLocaleDateString('en-IN'),
+                        type: 'incoming'  // Mark as incoming entry
                     });
 
                     customer.totalQuantity += quantity;
                     customer.totalRent += rent;
+                });
+
+                // Add outgoing entries (completed gate passes)
+                allGatePasses.forEach(gatePass => {
+                    const phone = gatePass.customer_phone;
+                    const customer = customerMap.get(phone);
+
+                    if (customer) {
+                        const quantity = gatePass.total_picked_up || gatePass.requested_quantity || 0;
+                        const rent = quantity * rentPerItem;
+
+                        customer.trucks.push({
+                            id: gatePass.id,
+                            truck_number: gatePass.truck_number,
+                            quantity: -quantity,  // Negative for outgoing
+                            rent: -rent,          // Negative for outgoing
+                            date: new Date(gatePass.completed_at || gatePass.updated_at).toLocaleDateString('en-IN'),
+                            type: 'outgoing'      // Mark as outgoing entry
+                        });
+
+                        customer.totalOutgoing += quantity;
+                        customer.outgoingRent += rent;
+                    }
                 });
 
                 // Calculate total paid per customer and add payment history
@@ -526,6 +569,39 @@
                 const sellQuantity = sellTrucks.reduce((sum, t) => sum + t.quantity, 0);
                 const sellRent = sellTrucks.reduce((sum, t) => sum + t.rent, 0);
 
+                // Calculate per-truck inventory (incoming vs outgoing)
+                const truckInventory = new Map();
+                customer.trucks.forEach(truck => {
+                    if (!truckInventory.has(truck.truck_number)) {
+                        truckInventory.set(truck.truck_number, {
+                            truck_number: truck.truck_number,
+                            incoming: 0,
+                            outgoing: 0,
+                            incomingRent: 0,
+                            outgoingRent: 0
+                        });
+                    }
+                    const inv = truckInventory.get(truck.truck_number);
+                    if (truck.type === 'incoming') {
+                        inv.incoming += truck.quantity;
+                        inv.incomingRent += truck.rent;
+                    } else {
+                        inv.outgoing += Math.abs(truck.quantity);
+                        inv.outgoingRent += Math.abs(truck.rent);
+                    }
+                });
+                const inventoryArray = Array.from(truckInventory.values());
+                const hasOutgoing = inventoryArray.some(inv => inv.outgoing > 0);
+
+                // Debug logging
+                if (customer.name.toLowerCase().includes('rakesh')) {
+                    console.log('=== RAKESH DEBUG ===');
+                    console.log('Total trucks:', customer.trucks.length);
+                    console.log('Trucks:', customer.trucks);
+                    console.log('Has outgoing:', hasOutgoing);
+                    console.log('Inventory array:', inventoryArray);
+                }
+
                 return `
                 <div class="customer-card ${customer.balance <= 0 ? 'paid' : ''}">
                     <div class="p-6">
@@ -592,6 +668,46 @@
 
                         <!-- Truck List and Payment History (Hidden by default) -->
                         <div id="truckList${index}" class="truck-list mt-4">
+                            <!-- Current Inventory Per Truck Section -->
+                            ${hasOutgoing ? `
+                                <div class="mb-6 pb-6 border-b-4 border-blue-300">
+                                    <h4 class="font-bold mb-3 flex items-center gap-2 text-blue-700">
+                                        <i class="bi bi-box-seam"></i>
+                                        Current Inventory Per Truck (After Outgoing)
+                                    </h4>
+                                    <div class="overflow-auto" style="max-height: 400px;">
+                                    <table class="w-full">
+                                        <thead class="bg-blue-100 border-2 border-blue-500 sticky top-0">
+                                            <tr>
+                                                <th class="text-left p-3 font-bold">Truck Number</th>
+                                                <th class="text-left p-3 font-bold">Entered Qty</th>
+                                                <th class="text-left p-3 font-bold">Outgoing</th>
+                                                <th class="text-left p-3 font-bold">Inventory Qty</th>
+                                                <th class="text-left p-3 font-bold">Current Rent</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${inventoryArray.map(inv => {
+                                                const current = inv.incoming - inv.outgoing;
+                                                const currentRent = inv.incomingRent - inv.outgoingRent;
+                                                const truckColorClass = getTruckColor(inv.truck_number);
+                                                const currentClass = current === 0 ? 'text-gray-500 line-through' : (current < inv.incoming ? 'text-blue-700 font-bold' : '');
+
+                                                return `
+                                                <tr class="border-b border-blue-200 ${current === 0 ? 'bg-gray-50' : 'bg-white'}">
+                                                    <td class="p-3 font-bold ${truckColorClass}">${inv.truck_number}</td>
+                                                    <td class="p-3">${inv.incoming}</td>
+                                                    <td class="p-3 text-red-600 font-bold">${inv.outgoing}</td>
+                                                    <td class="p-3 ${currentClass}">${current} ${current === 0 ? '(Empty)' : ''}</td>
+                                                    <td class="p-3 ${currentClass}">₹${currentRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                </tr>
+                                            `}).join('')}
+                                        </tbody>
+                                    </table>
+                                    </div>
+                                </div>
+                            ` : ''}
+
                             <div class="grid grid-cols-2 gap-6">
                                 <!-- Trucks -->
                                 <div>
@@ -599,8 +715,9 @@
                                         <i class="bi bi-truck"></i>
                                         All Trucks for ${capitalizeText(customer.name)}
                                     </h4>
+                                    <div class="overflow-auto" style="max-height: 400px;">
                                     <table class="w-full">
-                                        <thead class="bg-gray-100 border-2 border-black">
+                                        <thead class="bg-gray-100 border-2 border-black sticky top-0">
                                             <tr>
                                                 <th class="text-left p-3 font-bold">Truck Number</th>
                                                 <th class="text-left p-3 font-bold">Quantity</th>
@@ -609,14 +726,22 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${customer.trucks.map(truck => `
-                                                <tr class="border-b border-gray-200">
-                                                    <td class="p-3 font-bold ${getTruckColor(truck.truck_number)}">${truck.truck_number}</td>
-                                                    <td class="p-3">${truck.quantity}</td>
-                                                    <td class="p-3 font-bold">₹${truck.rent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                            ${customer.trucks.map(truck => {
+                                                const isOutgoing = truck.type === 'outgoing';
+                                                const rowClass = isOutgoing ? 'bg-red-50 border-l-4 border-red-500' : '';
+                                                const truckColorClass = isOutgoing ? 'text-red-700' : getTruckColor(truck.truck_number);
+                                                const quantityClass = isOutgoing ? 'text-red-700 font-bold' : '';
+                                                const rentClass = isOutgoing ? 'text-red-700' : '';
+                                                const typeLabel = isOutgoing ? ' ⬅️ OUT' : ' ➡️ IN';
+
+                                                return `
+                                                <tr class="border-b border-gray-200 ${rowClass}">
+                                                    <td class="p-3 font-bold ${truckColorClass}">${truck.truck_number}${typeLabel}</td>
+                                                    <td class="p-3 ${quantityClass}">${Math.abs(truck.quantity)}</td>
+                                                    <td class="p-3 font-bold ${rentClass}">₹${Math.abs(truck.rent).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
                                                     <td class="p-3 text-sm">${truck.date}</td>
                                                 </tr>
-                                            `).join('')}
+                                            `}).join('')}
                                             ${seedQuantity > 0 ? `
                                             <tr class="bg-green-50 font-bold border-t-2 border-green-400">
                                                 <td class="p-3 text-green-700">SEED TOTAL</td>
@@ -633,14 +758,23 @@
                                                 <td class="p-3">-</td>
                                             </tr>
                                             ` : ''}
+                                            ${customer.totalOutgoing > 0 ? `
+                                            <tr class="bg-red-100 font-bold border-t-2 border-red-500">
+                                                <td class="p-3 text-red-700">⬅️ OUTGOING TOTAL</td>
+                                                <td class="p-3 text-red-700">${customer.totalOutgoing}</td>
+                                                <td class="p-3 text-red-700">₹${customer.outgoingRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                <td class="p-3">-</td>
+                                            </tr>
+                                            ` : ''}
                                             <tr class="bg-gray-800 text-white font-bold border-t-4 border-black">
-                                                <td class="p-3">GRAND TOTAL</td>
-                                                <td class="p-3">${customer.totalQuantity}</td>
-                                                <td class="p-3">₹${customer.totalRent.toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
+                                                <td class="p-3">NET TOTAL (IN - OUT)</td>
+                                                <td class="p-3">${customer.totalQuantity - customer.totalOutgoing}</td>
+                                                <td class="p-3">₹${(customer.totalRent - customer.outgoingRent).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
                                                 <td class="p-3">-</td>
                                             </tr>
                                         </tbody>
                                     </table>
+                                    </div>
                                 </div>
 
                                 <!-- Payment History -->

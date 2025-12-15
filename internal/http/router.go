@@ -20,6 +20,7 @@ func NewRouter(
 	loginLogHandler *handlers.LoginLogHandler,
 	roomEntryEditLogHandler *handlers.RoomEntryEditLogHandler,
 	adminActionLogHandler *handlers.AdminActionLogHandler,
+	gatePassHandler *handlers.GatePassHandler,
 	pageHandler *handlers.PageHandler,
 	authMiddleware *middleware.AuthMiddleware,
 ) *mux.Router {
@@ -55,6 +56,10 @@ func NewRouter(
 	r.HandleFunc("/room-entry-edit", pageHandler.RoomEntryEditPage).Methods("GET")
 	r.HandleFunc("/payment-receipt", pageHandler.PaymentReceiptPage).Methods("GET")
 	r.HandleFunc("/verify-receipt", pageHandler.VerifyReceiptPage).Methods("GET")
+
+	// Unloading mode pages (for gate pass system)
+	r.HandleFunc("/gate-pass-entry", pageHandler.GatePassEntryPage).Methods("GET")
+	r.HandleFunc("/unloading-tickets", pageHandler.UnloadingTicketsPage).Methods("GET")
 
 	// Employee management page (admin only)
 	r.HandleFunc("/employees", pageHandler.EmployeesPage).Methods("GET")
@@ -152,6 +157,53 @@ func NewRouter(
 	adminActionLogsAPI := r.PathPrefix("/api/admin-action-logs").Subrouter()
 	adminActionLogsAPI.Use(authMiddleware.Authenticate)
 	adminActionLogsAPI.HandleFunc("", authMiddleware.RequireRole("admin")(http.HandlerFunc(adminActionLogHandler.ListActionLogs)).ServeHTTP).Methods("GET")
+
+	// Protected API routes - Gate Passes (for unloading mode)
+	gatePassAPI := r.PathPrefix("/api/gate-passes").Subrouter()
+	gatePassAPI.Use(authMiddleware.Authenticate)
+	gatePassAPI.HandleFunc("", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CreateGatePass)).ServeHTTP).Methods("POST")
+	gatePassAPI.HandleFunc("", gatePassHandler.ListAllGatePasses).Methods("GET")
+	gatePassAPI.HandleFunc("/pending", gatePassHandler.ListPendingGatePasses).Methods("GET")
+	gatePassAPI.HandleFunc("/approved", gatePassHandler.ListApprovedGatePasses).Methods("GET")
+	gatePassAPI.HandleFunc("/expired", gatePassHandler.GetExpiredGatePasses).Methods("GET")
+	gatePassAPI.HandleFunc("/{id}/approve", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.ApproveGatePass)).ServeHTTP).Methods("PUT")
+	gatePassAPI.HandleFunc("/{id}/complete", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CompleteGatePass)).ServeHTTP).Methods("POST")
+	gatePassAPI.HandleFunc("/{id}/pickups", gatePassHandler.GetPickupHistory).Methods("GET")
+	gatePassAPI.HandleFunc("/pickup", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.RecordPickup)).ServeHTTP).Methods("POST")
+
+	return r
+}
+
+// NewCustomerRouter creates a router for customer portal (port 8081)
+func NewCustomerRouter(
+	customerPortalHandler *handlers.CustomerPortalHandler,
+	pageHandler *handlers.PageHandler,
+	authMiddleware *middleware.AuthMiddleware,
+) *mux.Router {
+	r := mux.NewRouter()
+
+	// Serve static files
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+
+	// Public routes - Customer portal login
+	r.HandleFunc("/", pageHandler.CustomerPortalLoginPage).Methods("GET")
+	r.HandleFunc("/login", pageHandler.CustomerPortalLoginPage).Methods("GET")
+	r.HandleFunc("/dashboard", pageHandler.CustomerPortalDashboardPage).Methods("GET")
+
+	// Public API - Simple authentication (phone + truck number)
+	r.HandleFunc("/auth/login", customerPortalHandler.SimpleLogin).Methods("POST")
+
+	// Public API - OTP authentication (for future use when SMS is ready)
+	r.HandleFunc("/auth/send-otp", customerPortalHandler.SendOTP).Methods("POST")
+	r.HandleFunc("/auth/verify-otp", customerPortalHandler.VerifyOTP).Methods("POST")
+	r.HandleFunc("/auth/validate-session", customerPortalHandler.ValidateSession).Methods("GET")
+	r.HandleFunc("/auth/logout", customerPortalHandler.Logout).Methods("POST")
+
+	// Protected API routes - Customer portal (requires customer JWT)
+	customerAPI := r.PathPrefix("/api").Subrouter()
+	customerAPI.Use(authMiddleware.AuthenticateCustomer)
+	customerAPI.HandleFunc("/dashboard", customerPortalHandler.GetDashboard).Methods("GET")
+	customerAPI.HandleFunc("/gate-pass-requests", customerPortalHandler.CreateGatePassRequest).Methods("POST")
 
 	return r
 }

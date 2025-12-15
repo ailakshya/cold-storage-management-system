@@ -140,3 +140,16 @@ func (r *EntryRepository) ListUnassigned(ctx context.Context) ([]*models.Entry, 
 	}
 	return entries, nil
 }
+
+// GetByTruckNumber retrieves an entry by truck number
+func (r *EntryRepository) GetByTruckNumber(ctx context.Context, truckNumber string) (*models.Entry, error) {
+	row := r.DB.QueryRow(ctx,
+		`SELECT id, customer_id, phone, name, village, so, expected_quantity, truck_category, truck_number, created_by_user_id, created_at, updated_at
+         FROM entries WHERE truck_number=$1`, truckNumber)
+
+	var entry models.Entry
+	err := row.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
+		&entry.ExpectedQuantity, &entry.TruckCategory, &entry.TruckNumber, &entry.CreatedByUserID,
+		&entry.CreatedAt, &entry.UpdatedAt)
+	return &entry, err
+}

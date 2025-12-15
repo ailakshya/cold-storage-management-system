@@ -356,6 +356,27 @@
         const token = localStorage.getItem('token');
         let currentUser = null;
 
+        // Check operation mode on page load and redirect if needed
+        async function checkOperationMode() {
+            try {
+                const response = await fetch('/api/settings/operation_mode', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (response.ok) {
+                    const setting = await response.json();
+                    if (setting.setting_value === 'unloading') {
+                        // Redirect to gate pass entry page in unloading mode
+                        window.location.href = '/gate-pass-entry';
+                        return false;
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking operation mode:', error);
+            }
+            return true;
+        }
+
         // Auto-search timeout
         let searchTimeout = null;
         let entriesLimit = 10; // Default to show 10 entries
@@ -572,7 +593,11 @@
         let entriesRefreshInterval = null;
 
         // Load recent entries on page load
-        window.addEventListener('load', function() {
+        window.addEventListener('load', async function() {
+            // Check operation mode first - redirect if in unloading mode
+            const shouldContinue = await checkOperationMode();
+            if (!shouldContinue) return;
+
             loadRecentEntries();
             loadRoomEntries();
             loadCustomerPhones(); // Load customer phones for dropdown

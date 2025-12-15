@@ -265,3 +265,47 @@ func (m *AuthMiddleware) RequireAccountantAccess(next http.Handler) http.Handler
 func (m *AuthMiddleware) RequireAdmin(next http.Handler) http.Handler {
 	return m.RequireRole("admin")(next)
 }
+
+// Customer authentication middleware
+
+const CustomerIDKey contextKey = "customer_id"
+const CustomerPhoneKey contextKey = "customer_phone"
+const CustomerNameKey contextKey = "customer_name"
+
+// AuthenticateCustomer is a middleware that validates customer JWT tokens
+func (m *AuthMiddleware) AuthenticateCustomer(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+			return
+		}
+
+		// Extract token from "Bearer <token>"
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
+			return
+		}
+
+		token := parts[1]
+		claims, err := m.jwtManager.ValidateCustomerToken(token)
+		if err != nil {
+			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+			return
+		}
+
+		// Add customer info to context
+		ctx := context.WithValue(r.Context(), CustomerIDKey, claims.CustomerID)
+		ctx = context.WithValue(ctx, CustomerPhoneKey, claims.Phone)
+		ctx = context.WithValue(ctx, CustomerNameKey, claims.Name)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+// GetCustomerIDFromContext extracts customer ID from request context
+func GetCustomerIDFromContext(ctx context.Context) (int, bool) {
+	customerID, ok := ctx.Value(CustomerIDKey).(int)
+	return customerID, ok
+}

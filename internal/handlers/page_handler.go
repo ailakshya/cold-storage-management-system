@@ -124,3 +124,23 @@ func (h *PageHandler) VerifyReceiptPage(w http.ResponseWriter, r *http.Request) 
 func (h *PageHandler) AdminReportPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "admin_report.html", nil)
 }
+
+// GatePassEntryPage serves gate pass entry page (unloading mode)
+func (h *PageHandler) GatePassEntryPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "gate_pass_entry.html", nil)
+}
+
+// UnloadingTicketsPage serves unloading tickets page (unloading mode)
+func (h *PageHandler) UnloadingTicketsPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "unloading_tickets.html", nil)
+}
+
+// CustomerPortalLoginPage serves customer portal login page
+func (h *PageHandler) CustomerPortalLoginPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "customer_portal_login.html", nil)
+}
+
+// CustomerPortalDashboardPage serves customer portal dashboard page
+func (h *PageHandler) CustomerPortalDashboardPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "customer_portal_dashboard.html", nil)
+}

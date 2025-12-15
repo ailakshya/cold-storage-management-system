@@ -104,6 +104,92 @@ func RunMigrations(pool *pgxpool.Pool) error {
 		return fmt.Errorf("failed to create admin_action_logs table: %w", err)
 	}
 
+	// Create gate_passes table
+	gatePassesTable := `
+		CREATE TABLE IF NOT EXISTS gate_passes (
+			id SERIAL PRIMARY KEY,
+			customer_id INTEGER NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+			truck_number VARCHAR(20) NOT NULL,
+			entry_id INTEGER REFERENCES entries(id) ON DELETE SET NULL,
+			requested_quantity INTEGER NOT NULL,
+			approved_quantity INTEGER,
+			gate_no VARCHAR(50),
+			status VARCHAR(20) DEFAULT 'pending',
+			payment_verified BOOLEAN DEFAULT false,
+			payment_amount DECIMAL(10,2),
+			issued_by_user_id INTEGER REFERENCES users(id),
+			approved_by_user_id INTEGER REFERENCES users(id),
+			issued_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			expires_at TIMESTAMP,
+			completed_at TIMESTAMP,
+			remarks TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_gate_passes_customer_id ON gate_passes(customer_id);
+		CREATE INDEX IF NOT EXISTS idx_gate_passes_entry_id ON gate_passes(entry_id);
+		CREATE INDEX IF NOT EXISTS idx_gate_passes_status ON gate_passes(status);
+		CREATE INDEX IF NOT EXISTS idx_gate_passes_issued_at ON gate_passes(issued_at);
+	`
+
+	if _, err := pool.Exec(ctx, gatePassesTable); err != nil {
+		return fmt.Errorf("failed to create gate_passes table: %w", err)
+	}
+
+	// Add expires_at column if it doesn't exist (for existing databases)
+	alterGatePassesTable := `
+		ALTER TABLE gate_passes ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP;
+		CREATE INDEX IF NOT EXISTS idx_gate_passes_expires_at ON gate_passes(expires_at);
+	`
+
+	if _, err := pool.Exec(ctx, alterGatePassesTable); err != nil {
+		return fmt.Errorf("failed to alter gate_passes table: %w", err)
+	}
+
+	// Backfill expires_at for existing gate passes
+	backfillExpiresAt := `
+		UPDATE gate_passes
+		SET expires_at = issued_at + INTERVAL '30 hours'
+		WHERE expires_at IS NULL;
+	`
+
+	if _, err := pool.Exec(ctx, backfillExpiresAt); err != nil {
+		return fmt.Errorf("failed to backfill expires_at: %w", err)
+	}
+
+	// Add new columns to gate_passes for partial completion tracking
+	alterGatePassesForPickup := `
+		ALTER TABLE gate_passes
+		ADD COLUMN IF NOT EXISTS total_picked_up INTEGER DEFAULT 0,
+		ADD COLUMN IF NOT EXISTS approval_expires_at TIMESTAMP,
+		ADD COLUMN IF NOT EXISTS final_approved_quantity INTEGER;
+	`
+
+	if _, err := pool.Exec(ctx, alterGatePassesForPickup); err != nil {
+		return fmt.Errorf("failed to alter gate_passes for pickup tracking: %w", err)
+	}
+
+	// Create gate_pass_pickups table
+	gatePassPickupsTable := `
+		CREATE TABLE IF NOT EXISTS gate_pass_pickups (
+			id SERIAL PRIMARY KEY,
+			gate_pass_id INTEGER NOT NULL REFERENCES gate_passes(id) ON DELETE CASCADE,
+			pickup_quantity INTEGER NOT NULL,
+			picked_up_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			pickup_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			room_no VARCHAR(10),
+			floor VARCHAR(10),
+			remarks TEXT,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_gate_pass_pickups_gate_pass_id ON gate_pass_pickups(gate_pass_id);
+		CREATE INDEX IF NOT EXISTS idx_gate_pass_pickups_pickup_time ON gate_pass_pickups(pickup_time);
+	`
+
+	if _, err := pool.Exec(ctx, gatePassPickupsTable); err != nil {
+		return fmt.Errorf("failed to create gate_pass_pickups table: %w", err)
+	}
+
 	log.Println("Migrations completed successfully")
 	return nil
 }
