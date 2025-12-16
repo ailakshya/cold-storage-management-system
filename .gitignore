@@ -1,8 +1,14 @@
 # Environment variables
 .env
+.env.local
+.env.*.local
 
 # Go build artifacts
 cold-backend
+cold-backend-*
+server
+main
+bin/
 *.exe
 *.exe~
 *.dll
@@ -17,3 +23,27 @@ cold-backend
 
 # Dependency directories
 vendor/
+
+# Docker artifacts
+*.tar
+*.tar.gz
+
+# Log files
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Systemd service files (generated)
+*.service
+
+# Temporary files
+tmp/
+temp/

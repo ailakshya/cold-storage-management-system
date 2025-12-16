@@ -1,18 +1,21 @@
 # Cold Storage Management System
 
-A comprehensive web-based management system for cold storage facilities with role-based access control, inventory tracking, payment management, and reporting features.
+A comprehensive web-based management system for cold storage facilities with role-based access control, inventory tracking, payment management, and reporting features. Deployed on a highly available Kubernetes cluster with automatic failover and self-healing capabilities.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Go](https://img.shields.io/badge/Go-1.22-00ADD8?logo=go)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-316192?logo=postgresql)
-![License](https://img.shields.io/badge/license-MIT-green)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-316192?logo=postgresql)
+![Kubernetes](https://img.shields.io/badge/K3s-1.33-326CE5?logo=kubernetes)
+![License](https://img.shields.io/badge/license-Proprietary-red)
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
-- [Architecture](#architecture)
+- [System Architecture](#system-architecture)
+- [Application Architecture](#application-architecture)
 - [Technology Stack](#technology-stack)
+- [Infrastructure Components](#infrastructure-components)
 - [Getting Started](#getting-started)
   - [Prerequisites](#prerequisites)
   - [Installation](#installation)
@@ -24,9 +27,9 @@ A comprehensive web-based management system for cold storage facilities with rol
 - [Database Schema](#database-schema)
 - [Development Guide](#development-guide)
 - [Testing](#testing)
-- [Deployment](#deployment)
+- [Production Deployment](#production-deployment)
+- [Auto-Recovery System](#auto-recovery-system)
 - [Troubleshooting](#troubleshooting)
-- [Contributing](#contributing)
 
 ---
 
@@ -93,7 +96,90 @@ The Cold Storage Management System is a full-stack web application designed to m
 
 ---
 
-## Architecture
+## System Architecture
+
+### High Availability Infrastructure
+
+```
+                                    ┌─────────────────────────────────────────────────────────────┐
+                                    │                    PRODUCTION CLUSTER                        │
+                                    └─────────────────────────────────────────────────────────────┘
+
+                                              ┌─────────────────────┐
+                                              │   Virtual IP (VIP)  │
+                                              │   192.168.15.200    │
+                                              │      MetalLB        │
+                                              └──────────┬──────────┘
+                                                         │
+                    ┌────────────────────────────────────┼────────────────────────────────────┐
+                    │                                    │                                    │
+           ┌────────▼────────┐                 ┌────────▼────────┐                 ┌────────▼────────┐
+           │   K3s Node 1    │                 │   K3s Node 2    │                 │   K3s Node 3    │
+           │  Control Plane  │                 │  Control Plane  │                 │  Control Plane  │
+           │ 192.168.15.110  │                 │ 192.168.15.111  │                 │ 192.168.15.112  │
+           └────────┬────────┘                 └────────┬────────┘                 └────────┬────────┘
+                    │                                    │                                    │
+           ┌────────▼────────┐                 ┌────────▼────────┐                           │
+           │   K3s Node 4    │                 │   K3s Node 5    │                           │
+           │     Worker      │                 │     Worker      │                           │
+           │ 192.168.15.113  │                 │ 192.168.15.114  │                           │
+           └─────────────────┘                 └─────────────────┘                           │
+                                                                                             │
+┌───────────────────────────────────────────────────────────────────────────────────────────┼───────┐
+│                                     STORAGE LAYER                                          │       │
+│  ┌─────────────────────────────────────────────────────────────────────────────────────┐  │       │
+│  │                           Longhorn Distributed Storage                               │  │       │
+│  │   - 3 replicas per volume for data redundancy                                       │  │       │
+│  │   - Auto-healing and rebalancing                                                    │  │       │
+│  │   - Snapshot and backup support                                                     │  │       │
+│  └─────────────────────────────────────────────────────────────────────────────────────┘  │       │
+└───────────────────────────────────────────────────────────────────────────────────────────┴───────┘
+
+┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                     DATABASE LAYER                                                 │
+│  ┌──────────────────────┐    ┌──────────────────────┐    ┌──────────────────────┐                │
+│  │   PostgreSQL Pod 1   │    │   PostgreSQL Pod 2   │    │   PostgreSQL Pod 3   │                │
+│  │      (Primary)       │◄──►│     (Replica)        │◄──►│     (Replica)        │                │
+│  │   Streaming Repl.    │    │   Streaming Repl.    │    │   Streaming Repl.    │                │
+│  └──────────────────────┘    └──────────────────────┘    └──────────────────────┘                │
+│                              CloudNative-PG Operator (Auto-failover)                              │
+└───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   APPLICATION LAYER                                               │
+│  ┌─────────────────────────────────────┐    ┌─────────────────────────────────────┐              │
+│  │     Employee API Deployment         │    │     Customer API Deployment         │              │
+│  │        (2-5 replicas)               │    │        (2-5 replicas)               │              │
+│  │        Port: 8080                   │    │        Port: 8081                   │              │
+│  └─────────────────────────────────────┘    └─────────────────────────────────────┘              │
+└───────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌───────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                                   BACKUP & MONITORING                                             │
+│  ┌─────────────────────┐    ┌─────────────────────┐    ┌─────────────────────┐                   │
+│  │   NAS Backup        │    │   Metrics Server    │    │   Auto-Recovery     │                   │
+│  │  192.168.15.52      │    │    Port: 9100       │    │      Daemon         │                   │
+│  │  Daily Snapshots    │    │  System Metrics     │    │  Self-Healing       │                   │
+│  └─────────────────────┘    └─────────────────────┘    └─────────────────────┘                   │
+└───────────────────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+### Cluster Specifications
+
+| Component | Specification |
+|-----------|---------------|
+| **Cluster Type** | K3s v1.33.6 (Lightweight Kubernetes) |
+| **Control Plane** | 3 nodes (HA with embedded etcd) |
+| **Worker Nodes** | 2 nodes |
+| **Total Nodes** | 5 |
+| **Storage** | Longhorn CSI (distributed block storage) |
+| **Load Balancer** | MetalLB (Layer 2 mode) |
+| **Database** | CloudNative-PG PostgreSQL 17 (3 replicas) |
+| **VIP** | 192.168.15.200 |
+
+---
+
+## Application Architecture
 
 ### Project Structure
 
@@ -232,9 +318,41 @@ cold-backend/
 - **PostgreSQL 15** - Primary database
 - **Docker** - Database containerization
 
-### DevOps
+### DevOps & Infrastructure
+- **K3s** - Lightweight Kubernetes distribution
+- **Longhorn** - Distributed block storage
+- **CloudNative-PG** - PostgreSQL operator for Kubernetes
+- **MetalLB** - Bare metal load balancer
 - **Docker** - Container runtime
 - **Git** - Version control
+
+---
+
+## Infrastructure Components
+
+### Kubernetes Resources
+
+| Resource | Purpose | Location |
+|----------|---------|----------|
+| `01-secret.yaml` | Database credentials | `k8s/` |
+| `02-configmap.yaml` | Application configuration | `k8s/` |
+| `03-deployment-employee.yaml` | Employee API pods | `k8s/` |
+| `04-deployment-customer.yaml` | Customer API pods | `k8s/` |
+| `05-service.yaml` | ClusterIP services | `k8s/` |
+| `metallb-config.yaml` | Load balancer pool | `k8s/` |
+| `web-loadbalancer.yaml` | VIP service | `k8s/` |
+| `postgres-loadbalancer.yaml` | Database VIP | `k8s/` |
+
+### Infrastructure Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `cold_auto_recovery.py` | Auto-recovery daemon for all components |
+| `power_recovery.sh` | Boot-time recovery after power loss |
+| `metrics_server.py` | System metrics API (port 9100) |
+| `get_system_metrics.sh` | Metrics collection |
+| `backup_postgres.sh` | Database backup to NAS |
+| `fix_longhorn_after_reboot.sh` | Storage recovery |
 
 ---
 
@@ -954,65 +1072,104 @@ curl -X POST http://localhost:8080/auth/login \
 
 ---
 
-## Deployment
+## Production Deployment
 
-### Production Build
+### Kubernetes Deployment (Recommended)
+
+```bash
+# Build and push Docker image
+docker build -t cold-backend:v2.0.0 .
+docker save cold-backend:v2.0.0 -o cold-backend-v2.0.0.tar
+
+# Import on all K3s nodes
+for node in 192.168.15.110 192.168.15.111 192.168.15.112 192.168.15.113 192.168.15.114; do
+    scp cold-backend-v2.0.0.tar root@$node:/tmp/
+    ssh root@$node "ctr images import /tmp/cold-backend-v2.0.0.tar"
+done
+
+# Apply Kubernetes manifests
+kubectl apply -f k8s/01-secret.yaml
+kubectl apply -f k8s/02-configmap.yaml
+kubectl apply -f k8s/03-deployment-employee.yaml
+kubectl apply -f k8s/04-deployment-customer.yaml
+kubectl apply -f k8s/05-service.yaml
+kubectl apply -f k8s/web-loadbalancer.yaml
+
+# Verify deployment
+kubectl get pods -l app=cold-backend
+kubectl get svc
+```
+
+### Access Points
+
+| Service | URL | Port |
+|---------|-----|------|
+| Employee Portal | http://192.168.15.200:8080 | 8080 |
+| Customer Portal | http://192.168.15.200:8081 | 8081 |
+| PostgreSQL | 192.168.15.200 | 5432 |
+| Metrics API | http://localhost:9100 | 9100 |
+
+### Production Build (Standalone)
 
 ```bash
 # Build for Linux
 GOOS=linux GOARCH=amd64 go build -o cold-backend cmd/server/main.go
 
-# Build for Windows
-GOOS=windows GOARCH=amd64 go build -o cold-backend.exe cmd/server/main.go
+# Build Docker image
+docker build -t cold-backend:v2.0.0 .
 ```
 
-### Running in Production
+---
+
+## Auto-Recovery System
+
+The system includes a comprehensive auto-recovery daemon that monitors and automatically fixes all failure scenarios.
+
+### Components Monitored
+
+| Component | Check Interval | Auto-Fix |
+|-----------|---------------|----------|
+| K3s Nodes | 30s | Restart k3s service |
+| iSCSId Service | 30s | Enable on all nodes |
+| Pod Health | 30s | Delete stuck/crashed pods |
+| PostgreSQL Cluster | 30s | Trigger CNPG failover |
+| Longhorn Volumes | 30s | Salvage faulted volumes |
+| Docker Containers | 30s | Start stopped containers |
+| Service Endpoints | 30s | Restart deployments |
+| MetalLB VIP | 30s | Restart controller |
+| NAS Mount | 30s | Remount shares |
+
+### Installation
 
 ```bash
-# Set production environment variables
-export JWT_SECRET="strong-secret-key-for-production"
-export DB_PASSWORD="strong-database-password"
+# Install auto-recovery system
+sudo ./scripts/infrastructure/install_auto_recovery.sh
 
-# Run the application
-./cold-backend > /tmp/cold-backend.log 2>&1 &
+# Verify services
+systemctl status cold-auto-recovery
+systemctl status cold-metrics
+systemctl status cold-power-recovery
 ```
 
-### Using Docker
+### Systemd Services
 
-```dockerfile
-# Dockerfile example
-FROM golang:1.22-alpine AS builder
-WORKDIR /app
-COPY . .
-RUN go build -o cold-backend cmd/server/main.go
+| Service | Description |
+|---------|-------------|
+| `cold-auto-recovery.service` | Continuous monitoring daemon |
+| `cold-metrics.service` | System metrics server |
+| `cold-power-recovery.service` | Boot-time recovery (oneshot) |
 
-FROM alpine:latest
-WORKDIR /app
-COPY --from=builder /app/cold-backend .
-COPY templates ./templates
-COPY static ./static
-EXPOSE 8080
-CMD ["./cold-backend"]
-```
+### Logs
 
-### Systemd Service
+```bash
+# View auto-recovery logs
+journalctl -fu cold-auto-recovery
 
-```ini
-[Unit]
-Description=Cold Storage Management System
-After=network.target postgresql.service
+# View recovery actions
+tail -f /var/log/cold-auto-recovery.log
 
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/cold-backend
-ExecStart=/opt/cold-backend/cold-backend
-Restart=on-failure
-Environment="JWT_SECRET=your-secret"
-Environment="DB_HOST=localhost"
-
-[Install]
-WantedBy=multi-user.target
+# Manual health check
+python3 scripts/infrastructure/cold_auto_recovery.py --once
 ```
 
 ---
@@ -1053,6 +1210,14 @@ chmod -R 755 templates/ static/
 
 ## Project Highlights
 
+### High Availability Features
+- ✅ 5-node K3s cluster with 3 control planes
+- ✅ PostgreSQL HA with automatic failover (CloudNative-PG)
+- ✅ Distributed storage with Longhorn (3 replicas)
+- ✅ Virtual IP with MetalLB load balancer
+- ✅ Auto-recovery daemon for self-healing
+- ✅ Automatic power-loss recovery
+
 ### Security Features
 - ✅ JWT-based authentication
 - ✅ Password hashing with bcrypt
@@ -1062,6 +1227,7 @@ chmod -R 755 templates/ static/
 
 ### Performance Features
 - ✅ Connection pooling (pgx)
+- ✅ Horizontal pod autoscaling (2-5 replicas)
 - ✅ Efficient database queries
 - ✅ Minimal frontend dependencies
 
@@ -1070,22 +1236,26 @@ chmod -R 755 templates/ static/
 - ✅ Automatic category assignment based on quantity
 - ✅ Cumulative payment balance calculation
 - ✅ Entry tracking with user attribution
+- ✅ Gate pass management with partial pickup
+- ✅ Hindi receipt format support
 
 ---
 
 ## License
 
-This project is proprietary software. All rights reserved.
+Copyright (c) 2025. All rights reserved.
+
+This is proprietary software. Unauthorized copying, modification, distribution, or use of this software, via any medium, is strictly prohibited without explicit written permission from the copyright holder.
 
 ---
 
-## Support
+## Version History
 
-For issues and questions:
-- Review documentation in `/docs`
-- Check test results in `TEST_RESULTS.md`
-- Review role-based access tests in `ROLE_BASED_ACCESS_TEST.md`
+| Version | Date | Changes |
+|---------|------|---------|
+| v2.0.0 | Dec 2025 | K3s HA cluster, auto-recovery system, PostgreSQL HA |
+| v1.4.0 | Dec 2025 | Gate pass management, partial pickup feature |
+| v1.3.0 | Dec 2025 | Kubernetes deployment, monitoring dashboard |
+| v1.0.0 | Dec 2025 | Initial release |
 
 ---
-
-**Built with ❤️ for efficient cold storage management**
