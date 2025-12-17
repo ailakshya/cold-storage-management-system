@@ -32,13 +32,6 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// CRITICAL FIX: Validate balance calculation to prevent fraud
-	calculatedBalance := req.TotalRent - req.AmountPaid
-	if req.Balance != calculatedBalance {
-		http.Error(w, "Invalid balance calculation - fraud attempt detected", http.StatusBadRequest)
-		return
-	}
-
 	// Additional validations
 	if req.TotalRent < 0 {
 		http.Error(w, "Total rent cannot be negative", http.StatusBadRequest)
@@ -59,7 +52,7 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		CustomerPhone:     req.CustomerPhone,
 		TotalRent:         req.TotalRent,
 		AmountPaid:        req.AmountPaid,
-		Balance:           calculatedBalance, // Use server-calculated balance
+		Balance:           req.Balance, // Use client-provided cumulative balance
 		ProcessedByUserID: userID,
 		Notes:             req.Notes,
 	}
