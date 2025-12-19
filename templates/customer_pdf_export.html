@@ -232,18 +232,18 @@
                 const customer = customerMap[entry.phone];
                 customer.thock_count++;
 
-                // Get room entries for this thock
-                const thockRoomEntries = roomEntries.filter(re => re.thock_number === entry.thock_number);
-                const totalQty = thockRoomEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
+                // Use expected_quantity from entry (what customer brought) for rent calculation
+                const quantity = entry.expected_quantity || 0;
+                const rent = quantity * rentRate;
 
-                customer.total_quantity += totalQty;
-                customer.total_rent += totalQty * rentRate;
+                customer.total_quantity += quantity;
+                customer.total_rent += rent;
 
                 customer.thocks.push({
                     thock_number: entry.thock_number,
                     category: entry.thock_category,
-                    quantity: totalQty,
-                    rent: totalQty * rentRate,
+                    quantity: quantity,
+                    rent: rent,
                     is_outgoing: false,
                     date: entry.created_at
                 });
