@@ -27,66 +27,68 @@ jobs:
         id: version
         run: |
           if [ -n "${{ inputs.version }}" ]; then
-            # Manual trigger with version
             VERSION=$(echo "${{ inputs.version }}" | xargs)
           else
-            # Auto-generate version: v1.5.{run_number}
             VERSION="v1.5.${{ github.run_number }}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "=== Deploying version: ${VERSION} ==="
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.23'
-
       - name: Build Go binary
         run: |
+          # Use system Go if available, skip setup-go action
+          export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
           CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
-          echo "Go binary built successfully"
+          echo "✓ Go binary built"
 
       - name: Build Docker image
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          docker build -t ${{ env.IMAGE_NAME }}:${VERSION} .
-          echo "Docker image built: ${{ env.IMAGE_NAME }}:${VERSION}"
+          # Use Docker BuildKit for faster builds with caching
+          DOCKER_BUILDKIT=1 docker build \
+            --build-arg BUILDKIT_INLINE_CACHE=1 \
+            -t ${{ env.IMAGE_NAME }}:${VERSION} .
+          echo "✓ Docker image built: ${VERSION}"
 
-      - name: Save Docker image
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          docker save ${{ env.IMAGE_NAME }}:${VERSION} -o /tmp/cold-backend-${VERSION}.tar
-          ls -lh /tmp/cold-backend-${VERSION}.tar
-
-      - name: Deploy to K3s nodes
+      - name: Save and deploy to all nodes (parallel)
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           TAR_FILE="/tmp/cold-backend-${VERSION}.tar"
 
-          echo "=== Deploying ${VERSION} to K3s cluster ==="
+          # Save image
+          docker save ${{ env.IMAGE_NAME }}:${VERSION} -o ${TAR_FILE}
+          echo "✓ Image saved ($(du -h ${TAR_FILE} | cut -f1))"
 
+          # Deploy to ALL nodes in PARALLEL
+          echo "=== Deploying to all nodes in parallel ==="
           for NODE in ${{ env.K3S_NODES }}; do
-            echo "Deploying to node $NODE..."
-            scp -o StrictHostKeyChecking=no $TAR_FILE root@$NODE:/tmp/
-            ssh -o StrictHostKeyChecking=no root@$NODE "k3s ctr -n k8s.io images import /tmp/cold-backend-${VERSION}.tar && rm /tmp/cold-backend-${VERSION}.tar"
-            echo "Node $NODE: Image imported"
+            (
+              scp -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${TAR_FILE} root@${NODE}:/tmp/ && \
+              ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 root@${NODE} \
+                "k3s ctr -n k8s.io images import /tmp/cold-backend-${VERSION}.tar && rm /tmp/cold-backend-${VERSION}.tar" && \
+              echo "✓ Node ${NODE}: done"
+            ) &
           done
 
+          # Wait for all parallel jobs
+          wait
           echo "=== All nodes updated ==="
 
       - name: Update Kubernetes deployments
         run: |
           VERSION="${{ steps.version.outputs.version }}"
 
-          echo "Updating deployments to ${VERSION}..."
-          kubectl set image deployment/cold-backend-employee cold-backend=${{ env.IMAGE_NAME }}:${VERSION} -n default
-          kubectl set image deployment/cold-backend-customer cold-backend=${{ env.IMAGE_NAME }}:${VERSION} -n default
+          # Update both deployments in parallel
+          kubectl set image deployment/cold-backend-employee cold-backend=${{ env.IMAGE_NAME }}:${VERSION} -n default &
+          kubectl set image deployment/cold-backend-customer cold-backend=${{ env.IMAGE_NAME }}:${VERSION} -n default &
+          wait
 
           echo "Waiting for rollout..."
-          kubectl rollout status deployment/cold-backend-employee -n default --timeout=120s
-          kubectl rollout status deployment/cold-backend-customer -n default --timeout=120s
+          kubectl rollout status deployment/cold-backend-employee -n default --timeout=120s &
+          kubectl rollout status deployment/cold-backend-customer -n default --timeout=120s &
+          wait
 
-          echo "=== Deployment complete: ${VERSION} ==="
+          echo "=== Deployed: ${VERSION} ==="
 
       - name: Cleanup
         if: always()
@@ -94,9 +96,6 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           rm -f /tmp/cold-backend-${VERSION}.tar || true
 
-      - name: Verify deployment
+      - name: Verify
         run: |
-          echo "=== Current pod status ==="
-          kubectl get pods -l app=cold-backend -o wide -n default
-          echo ""
-          echo "=== Deployed version: ${{ steps.version.outputs.version }} ==="
+          kubectl get pods -l app=cold-backend -n default -o custom-columns="POD:.metadata.name,IMAGE:.spec.containers[0].image,READY:.status.containerStatuses[0].ready" --no-headers
