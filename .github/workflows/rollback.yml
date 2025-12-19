@@ -1,0 +1,59 @@
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to rollback to (e.g., v1.5.5) - leave empty for previous'
+        required: false
+        type: string
+      deployment:
+        description: 'Which deployment to rollback'
+        required: true
+        type: choice
+        options:
+          - both
+          - employee
+          - customer
+        default: 'both'
+
+env:
+  IMAGE_NAME: lakshyajaat/cold-backend
+
+jobs:
+  rollback:
+    runs-on: self-hosted
+
+    steps:
+      - name: Rollback
+        run: |
+          DEPLOYMENT="${{ inputs.deployment }}"
+          VERSION="${{ inputs.version }}"
+
+          rollback_deployment() {
+            local name=$1
+
+            if [ -z "$VERSION" ]; then
+              echo "=== Rolling back $name to previous version ==="
+              kubectl rollout undo deployment/cold-backend-$name -n default
+            else
+              echo "=== Rolling back $name to $VERSION ==="
+              kubectl set image deployment/cold-backend-$name cold-backend=${{ env.IMAGE_NAME }}:$VERSION -n default
+            fi
+          }
+
+          if [ "$DEPLOYMENT" = "both" ] || [ "$DEPLOYMENT" = "employee" ]; then
+            rollback_deployment "employee"
+          fi
+
+          if [ "$DEPLOYMENT" = "both" ] || [ "$DEPLOYMENT" = "customer" ]; then
+            rollback_deployment "customer"
+          fi
+
+          echo ""
+          echo "=== Rollback initiated (pods updating in background) ==="
+
+      - name: Verify
+        run: |
+          sleep 5
+          kubectl get pods -l app=cold-backend -n default -o custom-columns="POD:.metadata.name,IMAGE:.spec.containers[0].image,READY:.status.containerStatuses[0].ready" --no-headers
