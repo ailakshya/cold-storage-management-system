@@ -91,21 +91,25 @@ func (s *SeasonService) GetRequest(ctx context.Context, id int) (*models.SeasonR
 
 // ArchivedData holds the archived data for a season
 type ArchivedData struct {
-	SeasonName   string                   `json:"season_name"`
-	Entries      []map[string]interface{} `json:"entries"`
-	RoomEntries  []map[string]interface{} `json:"room_entries"`
-	GatePasses   []map[string]interface{} `json:"gate_passes"`
-	RentPayments []map[string]interface{} `json:"rent_payments"`
+	SeasonName      string                   `json:"season_name"`
+	Entries         []map[string]interface{} `json:"entries"`
+	RoomEntries     []map[string]interface{} `json:"room_entries"`
+	GatePasses      []map[string]interface{} `json:"gate_passes"`
+	GatePassPickups []map[string]interface{} `json:"gate_pass_pickups"`
+	RentPayments    []map[string]interface{} `json:"rent_payments"`
+	Invoices        []map[string]interface{} `json:"invoices"`
 }
 
 // GetArchivedData returns archived data for a specific season
 func (s *SeasonService) GetArchivedData(ctx context.Context, seasonName string) (*ArchivedData, error) {
 	data := &ArchivedData{
-		SeasonName:   seasonName,
-		Entries:      []map[string]interface{}{},
-		RoomEntries:  []map[string]interface{}{},
-		GatePasses:   []map[string]interface{}{},
-		RentPayments: []map[string]interface{}{},
+		SeasonName:      seasonName,
+		Entries:         []map[string]interface{}{},
+		RoomEntries:     []map[string]interface{}{},
+		GatePasses:      []map[string]interface{}{},
+		GatePassPickups: []map[string]interface{}{},
+		RentPayments:    []map[string]interface{}{},
+		Invoices:        []map[string]interface{}{},
 	}
 
 	// Get archived entries
@@ -195,6 +199,52 @@ func (s *SeasonService) GetArchivedData(ctx context.Context, seasonName string) 
 					"customer_id":  custID,
 					"amount":       amount,
 					"payment_date": paymentDate,
+				})
+			}
+		}
+	}
+
+	// Get archived invoices
+	rows5, err := s.pool.Query(ctx, `
+		SELECT original_id, customer_id, invoice_number, total_amount, status, created_at
+		FROM archived_invoices WHERE season_name = $1 ORDER BY original_id
+	`, seasonName)
+	if err == nil {
+		defer rows5.Close()
+		for rows5.Next() {
+			var origID, custID int
+			var invoiceNumber, status string
+			var totalAmount float64
+			var createdAt interface{}
+			if err := rows5.Scan(&origID, &custID, &invoiceNumber, &totalAmount, &status, &createdAt); err == nil {
+				data.Invoices = append(data.Invoices, map[string]interface{}{
+					"id":             origID,
+					"customer_id":    custID,
+					"invoice_number": invoiceNumber,
+					"total_amount":   totalAmount,
+					"status":         status,
+					"created_at":     createdAt,
+				})
+			}
+		}
+	}
+
+	// Get archived gate pass pickups
+	rows6, err := s.pool.Query(ctx, `
+		SELECT original_id, gate_pass_id, quantity, picked_at
+		FROM archived_gate_pass_pickups WHERE season_name = $1 ORDER BY original_id
+	`, seasonName)
+	if err == nil {
+		defer rows6.Close()
+		for rows6.Next() {
+			var origID, gatePassID, quantity int
+			var pickedAt interface{}
+			if err := rows6.Scan(&origID, &gatePassID, &quantity, &pickedAt); err == nil {
+				data.GatePassPickups = append(data.GatePassPickups, map[string]interface{}{
+					"id":           origID,
+					"gate_pass_id": gatePassID,
+					"quantity":     quantity,
+					"picked_at":    pickedAt,
 				})
 			}
 		}
@@ -445,6 +495,35 @@ func (s *SeasonService) createArchiveTables(ctx context.Context) error {
 			path VARCHAR(255),
 			data JSONB
 		)`,
+		`CREATE TABLE IF NOT EXISTS archived_invoices (
+			id SERIAL PRIMARY KEY,
+			season_name VARCHAR(100),
+			original_id INTEGER,
+			customer_id INTEGER,
+			invoice_number VARCHAR(50),
+			total_amount DECIMAL(12,2),
+			status VARCHAR(50),
+			created_at TIMESTAMP,
+			data JSONB
+		)`,
+		`CREATE TABLE IF NOT EXISTS archived_invoice_items (
+			id SERIAL PRIMARY KEY,
+			season_name VARCHAR(100),
+			original_id INTEGER,
+			invoice_id INTEGER,
+			description TEXT,
+			amount DECIMAL(12,2),
+			data JSONB
+		)`,
+		`CREATE TABLE IF NOT EXISTS archived_gate_pass_pickups (
+			id SERIAL PRIMARY KEY,
+			season_name VARCHAR(100),
+			original_id INTEGER,
+			gate_pass_id INTEGER,
+			quantity INTEGER,
+			picked_at TIMESTAMP,
+			data JSONB
+		)`,
 	}
 
 	for _, ddl := range tables {
@@ -599,11 +678,42 @@ func (s *SeasonService) archiveGatePasses(ctx context.Context, seasonName string
 }
 
 func (s *SeasonService) archiveGatePassPickups(ctx context.Context, seasonName string) (int, error) {
-	result, err := s.pool.Exec(ctx, "SELECT COUNT(*) FROM gate_pass_pickups")
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, gate_pass_id, quantity, created_at,
+			   row_to_json(gate_pass_pickups.*) as data
+		FROM gate_pass_pickups
+	`)
 	if err != nil {
+		log.Printf("[Season] archiveGatePassPickups query error: %v", err)
 		return 0, err
 	}
-	return int(result.RowsAffected()), nil
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		var id, gatePassID, quantity int
+		var createdAt time.Time
+		var data []byte
+
+		if err := rows.Scan(&id, &gatePassID, &quantity, &createdAt, &data); err != nil {
+			log.Printf("[Season] archiveGatePassPickups scan error: %v", err)
+			continue
+		}
+
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO archived_gate_pass_pickups (season_name, original_id, gate_pass_id, quantity, picked_at, data)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, seasonName, id, gatePassID, quantity, createdAt, data)
+
+		if err != nil {
+			log.Printf("[Season] archiveGatePassPickups insert error: %v", err)
+		} else {
+			count++
+		}
+	}
+
+	log.Printf("[Season] archiveGatePassPickups: archived %d pickups", count)
+	return count, nil
 }
 
 func (s *SeasonService) archiveRentPayments(ctx context.Context, seasonName string) (int, error) {
@@ -642,11 +752,68 @@ func (s *SeasonService) archiveRentPayments(ctx context.Context, seasonName stri
 }
 
 func (s *SeasonService) archiveInvoices(ctx context.Context, seasonName string) (int, error) {
-	result, err := s.pool.Exec(ctx, "SELECT COUNT(*) FROM invoices")
+	rows, err := s.pool.Query(ctx, `
+		SELECT id, customer_id, invoice_number, total_amount, status, created_at,
+			   row_to_json(invoices.*) as data
+		FROM invoices
+	`)
 	if err != nil {
+		log.Printf("[Season] archiveInvoices query error: %v", err)
 		return 0, err
 	}
-	return int(result.RowsAffected()), nil
+	defer rows.Close()
+
+	count := 0
+	for rows.Next() {
+		var id, customerID int
+		var invoiceNumber, status string
+		var totalAmount float64
+		var createdAt time.Time
+		var data []byte
+
+		if err := rows.Scan(&id, &customerID, &invoiceNumber, &totalAmount, &status, &createdAt, &data); err != nil {
+			log.Printf("[Season] archiveInvoices scan error: %v", err)
+			continue
+		}
+
+		_, err := s.pool.Exec(ctx, `
+			INSERT INTO archived_invoices (season_name, original_id, customer_id, invoice_number, total_amount, status, created_at, data)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		`, seasonName, id, customerID, invoiceNumber, totalAmount, status, createdAt, data)
+
+		if err != nil {
+			log.Printf("[Season] archiveInvoices insert error: %v", err)
+		} else {
+			count++
+		}
+	}
+
+	// Also archive invoice items
+	itemRows, err := s.pool.Query(ctx, `
+		SELECT id, invoice_id, description, amount, row_to_json(invoice_items.*) as data
+		FROM invoice_items
+	`)
+	if err == nil {
+		defer itemRows.Close()
+		for itemRows.Next() {
+			var id, invoiceID int
+			var description string
+			var amount float64
+			var data []byte
+
+			if err := itemRows.Scan(&id, &invoiceID, &description, &amount, &data); err != nil {
+				continue
+			}
+
+			s.pool.Exec(ctx, `
+				INSERT INTO archived_invoice_items (season_name, original_id, invoice_id, description, amount, data)
+				VALUES ($1, $2, $3, $4, $5, $6)
+			`, seasonName, id, invoiceID, description, amount, data)
+		}
+	}
+
+	log.Printf("[Season] archiveInvoices: archived %d invoices", count)
+	return count, nil
 }
 
 func (s *SeasonService) archiveNodeMetrics(ctx context.Context, seasonName string) (int, error) {

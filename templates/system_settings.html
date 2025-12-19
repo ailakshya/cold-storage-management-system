@@ -384,6 +384,48 @@
                             </table>
                         </div>
                     </div>
+
+                    <!-- Invoices Section -->
+                    <div class="neu-border p-4 bg-yellow-50">
+                        <h3 class="font-bold mb-3 flex items-center gap-2">
+                            <i class="bi bi-receipt text-yellow-600"></i>
+                            Invoices (<span id="invoicesCount">0</span>)
+                        </h3>
+                        <div class="overflow-x-auto max-h-64 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-yellow-100 sticky top-0">
+                                    <tr>
+                                        <th class="p-2 text-left">Invoice #</th>
+                                        <th class="p-2 text-left">Customer ID</th>
+                                        <th class="p-2 text-right">Amount</th>
+                                        <th class="p-2 text-left">Status</th>
+                                        <th class="p-2 text-left">Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="archivedInvoicesTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Gate Pass Pickups Section -->
+                    <div class="neu-border p-4 bg-pink-50">
+                        <h3 class="font-bold mb-3 flex items-center gap-2">
+                            <i class="bi bi-truck text-pink-600"></i>
+                            Gate Pass Pickups (<span id="pickupsCount">0</span>)
+                        </h3>
+                        <div class="overflow-x-auto max-h-64 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-pink-100 sticky top-0">
+                                    <tr>
+                                        <th class="p-2 text-left">Gate Pass ID</th>
+                                        <th class="p-2 text-right">Quantity</th>
+                                        <th class="p-2 text-left">Picked At</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="archivedPickupsTable"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
 
                 <div id="archivedError" class="hidden p-4 bg-red-100 neu-border border-red-300 text-red-800">
@@ -961,6 +1003,30 @@
                     <td class="p-2">${formatDate(rp.created_at || rp.payment_date)}</td>
                 </tr>
             `).join('') || '<tr><td colspan="4" class="p-4 text-center text-gray-500">No rent payments</td></tr>';
+
+            // Display Invoices
+            const invoices = data.invoices || [];
+            document.getElementById('invoicesCount').textContent = invoices.length;
+            document.getElementById('archivedInvoicesTable').innerHTML = invoices.map(inv => `
+                <tr class="border-b hover:bg-yellow-100">
+                    <td class="p-2">${inv.invoice_number || '-'}</td>
+                    <td class="p-2">${inv.customer_id || '-'}</td>
+                    <td class="p-2 text-right">₹${(inv.total_amount || 0).toLocaleString('en-IN')}</td>
+                    <td class="p-2">${inv.status || '-'}</td>
+                    <td class="p-2">${formatDate(inv.created_at)}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="5" class="p-4 text-center text-gray-500">No invoices</td></tr>';
+
+            // Display Gate Pass Pickups
+            const pickups = data.gate_pass_pickups || [];
+            document.getElementById('pickupsCount').textContent = pickups.length;
+            document.getElementById('archivedPickupsTable').innerHTML = pickups.map(p => `
+                <tr class="border-b hover:bg-pink-100">
+                    <td class="p-2">${p.gate_pass_id || '-'}</td>
+                    <td class="p-2 text-right">${p.quantity || 0}</td>
+                    <td class="p-2">${formatDate(p.picked_at)}</td>
+                </tr>
+            `).join('') || '<tr><td colspan="3" class="p-4 text-center text-gray-500">No pickups</td></tr>';
         }
 
         function formatDate(dateStr) {
