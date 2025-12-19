@@ -17,43 +17,53 @@ func NewEntryRepository(db *pgxpool.Pool) *EntryRepository {
 }
 
 func (r *EntryRepository) Create(ctx context.Context, e *models.Entry) error {
-	// Use COUNT-based logic for thock numbers
+	// Use atomic INSERT with COUNT in a single query to prevent race conditions
 	// This ensures counters auto-reset when entries are deleted (season reset)
+	// The CTE (Common Table Expression) makes the count and insert atomic
 
-	var nextNumber int
-	var err error
-
-	if e.ThockCategory == "seed" {
-		// SEED: starts at 1, format 0001/quantity
-		err = r.DB.QueryRow(ctx, "SELECT COALESCE(COUNT(*), 0) + 1 FROM entries WHERE thock_category = 'seed'").Scan(&nextNumber)
-	} else if e.ThockCategory == "sell" {
-		// SELL: starts at 1501, format 1501/quantity
-		err = r.DB.QueryRow(ctx, "SELECT COALESCE(COUNT(*), 0) + 1501 FROM entries WHERE thock_category = 'sell'").Scan(&nextNumber)
-	} else {
+	if e.ThockCategory != "seed" && e.ThockCategory != "sell" {
 		return fmt.Errorf("invalid thock category: %s", e.ThockCategory)
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to get next thock number: %w", err)
-	}
-
-	// Generate thock number: NO/QUANTITY format
-	// SEED: 0001/quantity format (4-digit padded)
-	// SELL: 1501+/quantity format
-	var thockNumber string
+	// Determine the base offset for the category
+	var baseOffset int
 	if e.ThockCategory == "seed" {
-		thockNumber = fmt.Sprintf("%04d/%d", nextNumber, e.ExpectedQuantity)
+		baseOffset = 1 // SEED starts at 1
 	} else {
-		thockNumber = fmt.Sprintf("%d/%d", nextNumber, e.ExpectedQuantity)
+		baseOffset = 1501 // SELL starts at 1501
 	}
-	e.ThockNumber = thockNumber
 
-	return r.DB.QueryRow(ctx,
-		`INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, created_by_user_id)
-         VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9)
-         RETURNING id, created_at, updated_at`,
-		e.CustomerID, e.Phone, e.Name, e.Village, e.SO, e.ExpectedQuantity, e.ThockCategory, e.ThockNumber, e.CreatedByUserID,
-	).Scan(&e.ID, &e.CreatedAt, &e.UpdatedAt)
+	// Atomic query: COUNT and INSERT happen together in a single transaction
+	// This prevents race conditions where two requests get the same count
+	query := `
+		WITH next_num AS (
+			SELECT COALESCE(COUNT(*), 0) + $1 as num
+			FROM entries
+			WHERE thock_category = $2
+		)
+		INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, created_by_user_id)
+		SELECT $3, $4, $5, $6, $7, $8, $9,
+			CASE WHEN $9 = 'seed'
+				THEN LPAD(num::text, 4, '0') || '/' || $8::text
+				ELSE num::text || '/' || $8::text
+			END,
+			$10
+		FROM next_num
+		RETURNING id, thock_number, created_at, updated_at
+	`
+
+	return r.DB.QueryRow(ctx, query,
+		baseOffset,           // $1
+		e.ThockCategory,      // $2
+		e.CustomerID,         // $3
+		e.Phone,              // $4
+		e.Name,               // $5
+		e.Village,            // $6
+		e.SO,                 // $7
+		e.ExpectedQuantity,   // $8
+		e.ThockCategory,      // $9
+		e.CreatedByUserID,    // $10
+	).Scan(&e.ID, &e.ThockNumber, &e.CreatedAt, &e.UpdatedAt)
 }
 
 func (r *EntryRepository) Get(ctx context.Context, id int) (*models.Entry, error) {

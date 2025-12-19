@@ -275,7 +275,7 @@
                 </div>
 
                 <div class="flex gap-3">
-                    <button type="submit" class="neu-button bg-green-500 text-white flex-1">
+                    <button type="submit" id="submitEntryBtn" class="neu-button bg-green-500 text-white flex-1">
                         <i class="bi bi-check-circle"></i> <span data-i18n="submit">Submit</span>
                     </button>
                     <button type="button" onclick="resetForm()" class="neu-button bg-gray-300">
@@ -793,8 +793,19 @@
             capitalizeFirstLetter(document.getElementById('userVillage'));
         }
 
+        let isSubmitting = false; // Debounce flag to prevent double submission
+
         async function submitEntry(event) {
             event.preventDefault();
+
+            // Prevent double submission
+            if (isSubmitting) {
+                console.log('Submission already in progress, ignoring');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitEntryBtn');
+            const originalBtnText = submitBtn.innerHTML;
 
             const quantity = parseInt(document.getElementById('expectedQuantity').value);
 
@@ -840,6 +851,11 @@
                 thock_category: category
             };
 
+            // Disable button and set loading state
+            isSubmitting = true;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Submitting...';
+
             try {
                 const response = await fetch('/api/entries', {
                     method: 'POST',
@@ -862,6 +878,14 @@
                 showSuccess(thockNumber);
             } catch (error) {
                 alert(i18n.t('error_creating_entry', 'Error creating entry') + ': ' + error.message);
+                // Re-enable button on error
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+            } finally {
+                // Reset debounce flag after 2 seconds
+                setTimeout(() => {
+                    isSubmitting = false;
+                }, 2000);
             }
         }
 
@@ -875,6 +899,7 @@
             console.log('showSuccess called with:', thockNumber);
             const truckEl = document.getElementById('assignedTruck');
             const successEl = document.getElementById('successMessage');
+            const submitBtn = document.getElementById('submitEntryBtn');
 
             if (truckEl) {
                 truckEl.textContent = thockNumber;
@@ -886,6 +911,12 @@
                 console.log('Success message shown');
                 // Scroll to success message
                 successEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            // Re-enable submit button for next entry
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-i18n="submit">Submit</span>';
             }
 
             // Reload recent entries and room entries to show the new entry
