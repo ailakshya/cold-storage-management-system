@@ -1,11 +1,14 @@
 name: Deploy to K3s
 
 on:
+  push:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g., v1.5.40)'
-        required: true
+        description: 'Version tag (e.g., v1.5.40) - leave empty for auto'
+        required: false
         type: string
 
 env:
@@ -17,16 +20,21 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: Normalize version
-        id: version
-        run: |
-          # Trim whitespace from version input
-          VERSION=$(echo "${{ inputs.version }}" | xargs)
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Using version: ${VERSION}"
-
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Generate version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            # Manual trigger with version
+            VERSION=$(echo "${{ inputs.version }}" | xargs)
+          else
+            # Auto-generate version: v1.5.{run_number}
+            VERSION="v1.5.${{ github.run_number }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "=== Deploying version: ${VERSION} ==="
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -90,3 +98,5 @@ jobs:
         run: |
           echo "=== Current pod status ==="
           kubectl get pods -l app=cold-backend -o wide -n default
+          echo ""
+          echo "=== Deployed version: ${{ steps.version.outputs.version }} ==="
