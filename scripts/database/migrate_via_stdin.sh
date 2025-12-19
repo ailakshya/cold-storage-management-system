@@ -27,7 +27,6 @@
 #   - Skips migrations with "reset" in filename (destructive operations)
 #   - Continues on non-critical errors (e.g., table already exists)
 #
-# Author: Claude Code
 # Last Updated: 2025-12-16
 # Version: 1.2
 #
