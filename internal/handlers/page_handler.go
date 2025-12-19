@@ -159,3 +159,8 @@ func (h *PageHandler) InfrastructureMonitoringPage(w http.ResponseWriter, r *htt
 func (h *PageHandler) MonitoringDashboardPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "monitoring_dashboard.html", nil)
 }
+
+// CustomerPDFExportPage serves the customer PDF export page
+func (h *PageHandler) CustomerPDFExportPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "customer_pdf_export.html", nil)
+}

@@ -228,7 +228,7 @@
                     </div>
 
                     <div class="flex gap-3">
-                        <button type="submit" class="neu-button bg-red-500 text-white flex-1">
+                        <button type="submit" id="submitGatePassBtn" class="neu-button bg-red-500 text-white flex-1">
                             <i class="bi bi-check-circle"></i> <span data-i18n="issue_gate_pass">Issue Gate Pass</span>
                         </button>
                         <button type="button" onclick="resetForm()" class="neu-button bg-gray-300">
@@ -361,7 +361,7 @@
                     </div>
 
                     <div class="flex gap-4">
-                        <button type="submit" class="neu-button bg-green-500 text-white flex-1">
+                        <button type="submit" id="submitApprovalBtn" class="neu-button bg-green-500 text-white flex-1">
                             <i class="bi bi-check-circle"></i> <span data-i18n="approve">Approve</span>
                         </button>
                         <button type="button" onclick="closeApprovalModal()" class="neu-button bg-gray-300">
@@ -396,6 +396,8 @@
         let allCustomers = [];
         let allEntries = [];
         let customerPayments = [];
+        let isSubmittingGatePass = false; // Debounce flag for gate pass submission
+        let isSubmittingApproval = false; // Debounce flag for approval submission
         let customerRentRate = 10; // Default ₹10 per item, will be loaded from system settings
         let totalRentOwed = 0;
         let totalPaid = 0;
@@ -921,6 +923,15 @@
         async function submitGatePass(event) {
             event.preventDefault();
 
+            // Debounce - prevent double submission
+            if (isSubmittingGatePass) {
+                console.log('Gate pass submission already in progress, ignoring');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitGatePassBtn');
+            const originalBtnText = submitBtn.innerHTML;
+
             const customerId = parseInt(document.getElementById('customerId').value);
             if (!customerId) {
                 alert(i18n.t('select_valid_customer', 'Please search and select a valid customer first'));
@@ -990,6 +1001,11 @@
                 remarks: finalRemarks
             };
 
+            // Lock submission - disable button and show loading state
+            isSubmittingGatePass = true;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Issuing...';
+
             try {
                 const response = await fetch('/api/gate-passes', {
                     method: 'POST',
@@ -1011,6 +1027,10 @@
 
             } catch (error) {
                 alert(i18n.t('error_issuing_gate_pass', 'Error issuing gate pass') + ': ' + error.message);
+                // Re-enable button on error
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                isSubmittingGatePass = false;
             }
         }
 
@@ -1018,6 +1038,26 @@
             document.getElementById('issuedGatePassId').textContent = '#' + gatePassId;
             document.getElementById('successMessage').classList.remove('hidden');
             document.getElementById('successMessage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+            // 5 second cooldown before allowing next submission
+            const submitBtn = document.getElementById('submitGatePassBtn');
+            if (submitBtn) {
+                let countdown = 5;
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> Wait ${countdown}s...`;
+
+                const cooldownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        submitBtn.innerHTML = `<i class="bi bi-hourglass-split"></i> Wait ${countdown}s...`;
+                    } else {
+                        clearInterval(cooldownInterval);
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-i18n="issue_gate_pass">Issue Gate Pass</span>';
+                        isSubmittingGatePass = false;
+                    }
+                }, 1000);
+            }
         }
 
         function resetForm() {
@@ -1031,6 +1071,15 @@
             document.getElementById('paymentAllowedQuantity').textContent = '-';
             customerPayments = [];
             selectedThockEntry = null; // Clear selected truck
+
+            // Reset submit button state
+            const submitBtn = document.getElementById('submitGatePassBtn');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-i18n="issue_gate_pass">Issue Gate Pass</span>';
+            }
+            isSubmittingGatePass = false;
+
             loadRecentGatePasses();
         }
 
@@ -1356,10 +1405,27 @@
         function closeApprovalModal() {
             document.getElementById('approvalModal').classList.add('hidden');
             document.getElementById('approvalForm').reset();
+
+            // Reset approval button state
+            const submitBtn = document.getElementById('submitApprovalBtn');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-i18n="approve">Approve</span>';
+            }
+            isSubmittingApproval = false;
         }
 
         async function submitApproval(event) {
             event.preventDefault();
+
+            // Debounce - prevent double submission
+            if (isSubmittingApproval) {
+                console.log('Approval submission already in progress, ignoring');
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitApprovalBtn');
+            const originalBtnText = submitBtn.innerHTML;
 
             const gatePassId = document.getElementById('approvalGatePassId').value;
             const approvedQty = parseInt(document.getElementById('approvalApprovedQty').value);
@@ -1384,6 +1450,11 @@
                 return;
             }
 
+            // Lock submission - disable button and show loading state
+            isSubmittingApproval = true;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Approving...';
+
             try {
                 const response = await fetch(`/api/gate-passes/${gatePassId}/approve`, {
                     method: 'PUT',
@@ -1405,13 +1476,33 @@
                     throw new Error(error);
                 }
 
+                // 5 second cooldown with success state
+                let countdown = 5;
+                submitBtn.innerHTML = `<i class="bi bi-check-circle"></i> Success! ${countdown}s...`;
+
+                const cooldownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        submitBtn.innerHTML = `<i class="bi bi-check-circle"></i> Success! ${countdown}s...`;
+                    } else {
+                        clearInterval(cooldownInterval);
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = originalBtnText;
+                        isSubmittingApproval = false;
+                        closeApprovalModal();
+                        loadCustomerRequests(); // Reload customer requests
+                        loadRecentGatePasses(); // Reload recent passes
+                    }
+                }, 1000);
+
                 alert(i18n.t('customer_request_accepted', 'Customer request accepted!') + '\n' + i18n.t('pickup_from', 'Pickup from:') + ' ' + (gateNo || 'Selected gatars') + '\n' + i18n.t('quantity', 'Quantity') + ': ' + approvedQty + ' ' + i18n.t('items', 'items'));
-                closeApprovalModal();
-                loadCustomerRequests(); // Reload customer requests
-                loadRecentGatePasses(); // Reload recent passes
 
             } catch (error) {
                 alert(i18n.t('error_approving_request', 'Error approving request') + ': ' + error.message);
+                // Re-enable button on error
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                isSubmittingApproval = false;
             }
         }
 

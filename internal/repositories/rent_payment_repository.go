@@ -27,7 +27,33 @@ func (r *RentPaymentRepository) GenerateReceiptNumber(ctx context.Context) (stri
 	return receiptNumber, nil
 }
 
+// CheckDuplicatePayment checks if a similar payment was made within the last 10 seconds
+// Returns true if a duplicate is found
+func (r *RentPaymentRepository) CheckDuplicatePayment(ctx context.Context, customerPhone string, amountPaid float64) (bool, error) {
+	query := `
+		SELECT COUNT(*) FROM rent_payments
+		WHERE customer_phone = $1
+		AND amount_paid = $2
+		AND created_at > NOW() - INTERVAL '10 seconds'
+	`
+	var count int
+	err := r.DB.QueryRow(ctx, query, customerPhone, amountPaid).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (r *RentPaymentRepository) Create(ctx context.Context, payment *models.RentPayment) error {
+	// Check for duplicate payment (same customer, same amount within 10 seconds)
+	isDuplicate, err := r.CheckDuplicatePayment(ctx, payment.CustomerPhone, payment.AmountPaid)
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicate payment: %w", err)
+	}
+	if isDuplicate {
+		return fmt.Errorf("duplicate payment detected: a payment of ₹%.2f for this customer was already processed within the last 10 seconds", payment.AmountPaid)
+	}
+
 	// Generate receipt number
 	receiptNumber, err := r.GenerateReceiptNumber(ctx)
 	if err != nil {

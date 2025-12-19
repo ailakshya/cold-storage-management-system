@@ -2,6 +2,8 @@ package repositories
 
 import (
 	"context"
+	"fmt"
+
 	"cold-backend/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -14,8 +16,35 @@ func NewGatePassRepository(db *pgxpool.Pool) *GatePassRepository {
 	return &GatePassRepository{DB: db}
 }
 
+// CheckDuplicateGatePass checks if a similar gate pass was created within the last 10 seconds
+// Returns true if a duplicate is found
+func (r *GatePassRepository) CheckDuplicateGatePass(ctx context.Context, customerID int, thockNumber string, requestedQty int) (bool, error) {
+	query := `
+		SELECT COUNT(*) FROM gate_passes
+		WHERE customer_id = $1
+		AND thock_number = $2
+		AND requested_quantity = $3
+		AND created_at > NOW() - INTERVAL '10 seconds'
+	`
+	var count int
+	err := r.DB.QueryRow(ctx, query, customerID, thockNumber, requestedQty).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 // CreateGatePass creates a new gate pass with 30-hour expiration
 func (r *GatePassRepository) CreateGatePass(ctx context.Context, gatePass *models.GatePass) error {
+	// Check for duplicate gate pass (same customer, same thock, same quantity within 10 seconds)
+	isDuplicate, err := r.CheckDuplicateGatePass(ctx, gatePass.CustomerID, gatePass.ThockNumber, gatePass.RequestedQuantity)
+	if err != nil {
+		return fmt.Errorf("failed to check for duplicate gate pass: %w", err)
+	}
+	if isDuplicate {
+		return fmt.Errorf("duplicate gate pass detected: a gate pass for %s with %d items was already created within the last 10 seconds", gatePass.ThockNumber, gatePass.RequestedQuantity)
+	}
+
 	query := `
 		INSERT INTO gate_passes (
 			customer_id, thock_number, entry_id, requested_quantity,
@@ -451,6 +480,15 @@ func (r *GatePassRepository) CompleteGatePass(ctx context.Context, id int) error
 
 // CreateCustomerGatePass creates a gate pass from customer portal (status = pending, no expiration)
 func (r *GatePassRepository) CreateCustomerGatePass(ctx context.Context, customerID int, thockNumber string, requestedQuantity int, remarks string, entryID int) (*models.GatePass, error) {
+	// Check for duplicate gate pass (same customer, same thock, same quantity within 10 seconds)
+	isDuplicate, err := r.CheckDuplicateGatePass(ctx, customerID, thockNumber, requestedQuantity)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for duplicate gate pass: %w", err)
+	}
+	if isDuplicate {
+		return nil, fmt.Errorf("duplicate request detected: a gate pass for %s with %d items was already created within the last 10 seconds", thockNumber, requestedQuantity)
+	}
+
 	query := `
 		INSERT INTO gate_passes (
 			customer_id, thock_number, entry_id, requested_quantity,
@@ -473,7 +511,7 @@ func (r *GatePassRepository) CreateCustomerGatePass(ctx context.Context, custome
 		gatePass.Remarks = &remarks
 	}
 
-	err := r.DB.QueryRow(ctx, query, customerID, thockNumber, entryID, requestedQuantity, customerID, remarks).Scan(
+	err = r.DB.QueryRow(ctx, query, customerID, thockNumber, entryID, requestedQuantity, customerID, remarks).Scan(
 		&gatePass.ID, &gatePass.IssuedAt, &gatePass.CreatedAt, &gatePass.UpdatedAt,
 	)
 

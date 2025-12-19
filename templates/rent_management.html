@@ -664,6 +664,9 @@
                                 <button onclick="toggleThockList(${index})" class="neu-button bg-blue-500 text-white">
                                     <i class="bi bi-list"></i> <span id="toggleText${index}">Show Thoks</span>
                                 </button>
+                                <button onclick="exportCustomerPDF('${customer.phone}')" class="neu-button bg-purple-500 text-white">
+                                    <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                                </button>
                             </div>
                         </div>
 
@@ -824,6 +827,11 @@
                 thockList.classList.add('expanded');
                 toggleText.textContent = 'Hide Thoks';
             }
+        }
+
+        function exportCustomerPDF(phone) {
+            // Open the PDF export page in a new tab
+            window.open(`/customer-export?phone=${encodeURIComponent(phone)}`, '_blank');
         }
 
         function getThockColor(thockNumber) {

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Report - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Print-friendly styles */
+        @media print {
+            body {
+                background: white !important;
+                padding: 0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .neu-border {
+                box-shadow: none !important;
+                border: 1px solid #000 !important;
+            }
+            table {
+                font-size: 10px;
+            }
+        }
+
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+        }
+        .neu-button {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .badge-paid {
+            background: #22c55e;
+            color: white;
+        }
+        .badge-outstanding {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
+    <div class="max-w-5xl mx-auto">
+        <!-- Print Controls - Hidden in print -->
+        <div class="no-print mb-6 flex gap-4 justify-between items-center">
+            <button onclick="window.history.back()" class="neu-button bg-gray-200">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
+            <div class="flex gap-4">
+                <button onclick="window.print()" class="neu-button bg-blue-500 text-white">
+                    <i class="bi bi-printer"></i> Print / Save PDF
+                </button>
+            </div>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loadingState" class="neu-border bg-white p-12 text-center">
+            <i class="bi bi-hourglass-split text-4xl animate-pulse"></i>
+            <p class="mt-4 text-gray-600">Loading customer data...</p>
+        </div>
+
+        <!-- Error State -->
+        <div id="errorState" class="hidden neu-border bg-red-50 p-12 text-center">
+            <i class="bi bi-exclamation-triangle text-4xl text-red-500"></i>
+            <p class="mt-4 text-red-600" id="errorMessage">Customer not found</p>
+        </div>
+
+        <!-- Main Content -->
+        <div id="mainContent" class="hidden">
+            <!-- Header with Logo -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="flex items-center gap-3 mb-2">
+                            <i class="bi bi-snow2 text-3xl text-blue-500"></i>
+                            <h1 class="text-2xl font-bold">Cold Storage Management</h1>
+                        </div>
+                        <p class="text-gray-500 text-sm">Customer Account Statement</p>
+                        <p class="text-gray-400 text-xs mt-1">Generated: <span id="reportDate"></span></p>
+                    </div>
+                    <div class="text-right">
+                        <span id="statusBadge" class="inline-block px-4 py-2 rounded font-bold text-lg"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Customer Info Card -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b-2 border-black pb-2">
+                    <i class="bi bi-person-circle"></i> Customer Information
+                </h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                        <p class="text-gray-500 text-sm">Name</p>
+                        <p class="font-bold text-lg" id="customerName">-</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">S/O (Father/Husband)</p>
+                        <p class="font-bold text-lg" id="customerSO">-</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Phone</p>
+                        <p class="font-bold text-lg" id="customerPhone">-</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Village</p>
+                        <p class="font-bold text-lg" id="customerVillage">-</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mt-4 pt-4 border-t">
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Thoks</p>
+                        <p class="font-bold text-2xl text-blue-600" id="totalThoks">0</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-500 text-sm">Total Items</p>
+                        <p class="font-bold text-2xl text-green-600" id="totalItems">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Financial Summary -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b-2 border-black pb-2">
+                    <i class="bi bi-cash-stack"></i> Financial Summary
+                </h2>
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="bg-blue-50 p-4 rounded border-2 border-blue-200">
+                        <p class="text-gray-600 text-sm">Total Rent</p>
+                        <p class="font-bold text-2xl text-blue-600" id="totalRent">₹0</p>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded border-2 border-green-200">
+                        <p class="text-gray-600 text-sm">Total Paid</p>
+                        <p class="font-bold text-2xl text-green-600" id="totalPaid">₹0</p>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded border-2 border-red-200">
+                        <p class="text-gray-600 text-sm">Balance Due</p>
+                        <p class="font-bold text-2xl text-red-600" id="balanceDue">₹0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Storage Details (Room Entries) -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b-2 border-black pb-2">
+                    <i class="bi bi-building"></i> Storage Details (Current Inventory)
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-3 text-left border-b-2 border-black">Thok No</th>
+                                <th class="p-3 text-left border-b-2 border-black">Room</th>
+                                <th class="p-3 text-left border-b-2 border-black">Floor</th>
+                                <th class="p-3 text-left border-b-2 border-black">Gatar No</th>
+                                <th class="p-3 text-left border-b-2 border-black">Qty</th>
+                                <th class="p-3 text-left border-b-2 border-black">Remark</th>
+                                <th class="p-3 text-left border-b-2 border-black">Entry By</th>
+                                <th class="p-3 text-left border-b-2 border-black">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="storageTableBody">
+                            <tr>
+                                <td colspan="8" class="p-4 text-center text-gray-500">No storage entries</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Current Inventory Per Thok -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b-2 border-black pb-2">
+                    <i class="bi bi-box-seam"></i> Current Inventory Per Thok (After Outgoing)
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-3 text-left border-b-2 border-black">Thok Number</th>
+                                <th class="p-3 text-left border-b-2 border-black">Category</th>
+                                <th class="p-3 text-right border-b-2 border-black">Entered Qty</th>
+                                <th class="p-3 text-right border-b-2 border-black">Outgoing</th>
+                                <th class="p-3 text-right border-b-2 border-black">Inventory Qty</th>
+                                <th class="p-3 text-right border-b-2 border-black">Current Rent</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventoryTableBody">
+                            <tr>
+                                <td colspan="6" class="p-4 text-center text-gray-500">No inventory</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- All Thoks Transaction History -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b-2 border-black pb-2">
+                    <i class="bi bi-list-ul"></i> All Thoks Transaction History
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-3 text-left border-b-2 border-black">Thok Number</th>
+                                <th class="p-3 text-left border-b-2 border-black">Type</th>
+                                <th class="p-3 text-right border-b-2 border-black">Quantity</th>
+                                <th class="p-3 text-right border-b-2 border-black">Rent</th>
+                                <th class="p-3 text-left border-b-2 border-black">Created By</th>
+                                <th class="p-3 text-left border-b-2 border-black">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="thoksTableBody">
+                            <tr>
+                                <td colspan="6" class="p-4 text-center text-gray-500">No thoks</td>
+                            </tr>
+                        </tbody>
+                        <tfoot id="thoksTableFoot" class="bg-gray-50 font-bold">
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Payment History -->
+            <div class="neu-border bg-white p-6 mb-6">
+                <h2 class="text-xl font-bold mb-4 border-b-2 border-black pb-2">
+                    <i class="bi bi-receipt"></i> Payment History
+                </h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-3 text-left border-b-2 border-black">Receipt No</th>
+                                <th class="p-3 text-right border-b-2 border-black">Amount</th>
+                                <th class="p-3 text-left border-b-2 border-black">Processed By</th>
+                                <th class="p-3 text-left border-b-2 border-black">Notes</th>
+                                <th class="p-3 text-left border-b-2 border-black">Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentsTableBody">
+                            <tr>
+                                <td colspan="5" class="p-4 text-center text-gray-500">No payments</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="text-center text-gray-500 text-sm py-4">
+                <p>This is a computer-generated document. No signature required.</p>
+                <p class="mt-1">Cold Storage Management System</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let rentRate = 160; // Default, will be loaded from settings
+
+        // Get URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const phone = urlParams.get('phone');
+        const name = urlParams.get('name');
+
+        // Set report date
+        document.getElementById('reportDate').textContent = new Date().toLocaleString('en-IN', {
+            dateStyle: 'full',
+            timeStyle: 'short'
+        });
+
+        async function loadData() {
+            if (!phone) {
+                showError('Phone number is required. Add ?phone=XXXXXXXXXX to the URL');
+                return;
+            }
+
+            try {
+                // Load rent rate from settings
+                const settingsRes = await fetch('/api/settings/rent_rate_per_item', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (settingsRes.ok) {
+                    const setting = await settingsRes.json();
+                    rentRate = parseFloat(setting.value) || 160;
+                }
+
+                // Load customer accounts data
+                const accountsRes = await fetch('/api/rent-payments/accounts', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!accountsRes.ok) throw new Error('Failed to load accounts');
+
+                const accounts = await accountsRes.json();
+                const customer = accounts.find(a => a.phone === phone);
+
+                if (!customer) {
+                    showError(`Customer with phone ${phone} not found`);
+                    return;
+                }
+
+                // Load entries for this customer
+                const entriesRes = await fetch('/api/entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const allEntries = await entriesRes.json();
+                const customerEntries = allEntries.filter(e => e.phone === phone);
+
+                // Load room entries
+                const roomEntriesRes = await fetch('/api/room-entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const allRoomEntries = await roomEntriesRes.json();
+
+                // Filter room entries by customer's thock numbers
+                const customerThockNumbers = customerEntries.map(e => e.thock_number);
+                const customerRoomEntries = allRoomEntries.filter(re =>
+                    customerThockNumbers.includes(re.thock_number)
+                );
+
+                // Load payments for this phone
+                const paymentsRes = await fetch(`/api/rent-payments/phone?phone=${phone}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const payments = paymentsRes.ok ? await paymentsRes.json() : [];
+
+                // Load users for employee names
+                const usersRes = await fetch('/api/users', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const users = usersRes.ok ? await usersRes.json() : [];
+                const userMap = {};
+                users.forEach(u => userMap[u.id] = u.name);
+
+                // Render the data
+                renderCustomerInfo(customer, customerEntries);
+                renderStorageDetails(customerRoomEntries, userMap);
+                renderInventory(customer, customerEntries, customerRoomEntries);
+                renderThoksHistory(customer, customerEntries, userMap);
+                renderPayments(payments, userMap);
+
+                // Show content
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                showError('Error loading customer data: ' + error.message);
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorState').classList.remove('hidden');
+        }
+
+        function renderCustomerInfo(customer, entries) {
+            document.getElementById('customerName').textContent = customer.name || '-';
+            document.getElementById('customerPhone').textContent = customer.phone || '-';
+            document.getElementById('customerVillage').textContent = customer.village || '-';
+
+            // Get S/O from entries (first entry that has it)
+            const entryWithSO = entries.find(e => e.so);
+            document.getElementById('customerSO').textContent = entryWithSO?.so || '-';
+
+            document.getElementById('totalThoks').textContent = customer.thock_count || 0;
+            document.getElementById('totalItems').textContent = customer.total_quantity || 0;
+
+            // Financial
+            const totalRent = customer.total_rent || 0;
+            const totalPaid = customer.total_paid || 0;
+            const balance = customer.balance || 0;
+
+            document.getElementById('totalRent').textContent = formatCurrency(totalRent);
+            document.getElementById('totalPaid').textContent = formatCurrency(totalPaid);
+            document.getElementById('balanceDue').textContent = formatCurrency(balance);
+
+            // Status badge
+            const statusBadge = document.getElementById('statusBadge');
+            if (balance <= 0) {
+                statusBadge.textContent = 'PAID';
+                statusBadge.className = 'inline-block px-4 py-2 rounded font-bold text-lg badge-paid';
+            } else {
+                statusBadge.textContent = 'OUTSTANDING';
+                statusBadge.className = 'inline-block px-4 py-2 rounded font-bold text-lg badge-outstanding';
+            }
+        }
+
+        function renderStorageDetails(roomEntries, userMap) {
+            const tbody = document.getElementById('storageTableBody');
+
+            if (!roomEntries || roomEntries.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">No storage entries</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = roomEntries.map(re => {
+                const qtyDisplay = re.quantity_breakdown || re.quantity;
+                const createdBy = userMap[re.created_by_user_id] || '-';
+                const date = new Date(re.created_at).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium">${re.thock_number}</td>
+                        <td class="p-3">${re.room_no || '-'}</td>
+                        <td class="p-3">${re.floor || '0'}</td>
+                        <td class="p-3">${re.gate_no || '-'}</td>
+                        <td class="p-3 font-bold">${qtyDisplay}</td>
+                        <td class="p-3">${re.remark || '-'}</td>
+                        <td class="p-3">${createdBy}</td>
+                        <td class="p-3 text-sm">${date}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderInventory(customer, entries, roomEntries) {
+            const tbody = document.getElementById('inventoryTableBody');
+
+            // Group entries by thock_number and calculate inventory
+            const inventoryMap = {};
+
+            entries.forEach(entry => {
+                if (!inventoryMap[entry.thock_number]) {
+                    inventoryMap[entry.thock_number] = {
+                        thock_number: entry.thock_number,
+                        category: entry.thock_category,
+                        entered_qty: 0,
+                        outgoing: 0
+                    };
+                }
+            });
+
+            // Sum up room entry quantities
+            roomEntries.forEach(re => {
+                if (inventoryMap[re.thock_number]) {
+                    inventoryMap[re.thock_number].entered_qty += re.quantity || 0;
+                }
+            });
+
+            // Calculate outgoing (from gate pass pickups) - for now use expected - actual
+            entries.forEach(entry => {
+                if (inventoryMap[entry.thock_number]) {
+                    // Simple calculation: expected - room entry quantity = outgoing
+                    const roomQty = inventoryMap[entry.thock_number].entered_qty;
+                    if (entry.expected_quantity > roomQty) {
+                        inventoryMap[entry.thock_number].outgoing = entry.expected_quantity - roomQty;
+                    }
+                }
+            });
+
+            const inventoryList = Object.values(inventoryMap);
+
+            if (inventoryList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No inventory</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = inventoryList.map(inv => {
+                const inventoryQty = inv.entered_qty;
+                const currentRent = inventoryQty * rentRate;
+                const categoryLabel = inv.category === 'seed' ? 'SEED' : 'SELL';
+                const categoryColor = inv.category === 'seed' ? 'text-green-600' : 'text-blue-600';
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium">${inv.thock_number}</td>
+                        <td class="p-3"><span class="font-bold ${categoryColor}">${categoryLabel}</span></td>
+                        <td class="p-3 text-right">${inv.entered_qty + inv.outgoing}</td>
+                        <td class="p-3 text-right text-red-600">${inv.outgoing > 0 ? inv.outgoing : '-'}</td>
+                        <td class="p-3 text-right font-bold text-green-600">${inventoryQty}</td>
+                        <td class="p-3 text-right font-bold">${formatCurrency(currentRent)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderThoksHistory(customer, entries, userMap) {
+            const tbody = document.getElementById('thoksTableBody');
+            const tfoot = document.getElementById('thoksTableFoot');
+
+            if (!customer.thocks || customer.thocks.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No thoks</td></tr>';
+                return;
+            }
+
+            let seedTotal = 0, seedRent = 0;
+            let sellTotal = 0, sellRent = 0;
+            let outgoingTotal = 0, outgoingRent = 0;
+
+            tbody.innerHTML = customer.thocks.map(thok => {
+                const isOutgoing = thok.is_outgoing;
+                const type = isOutgoing ? '⬅️ OUT' : '➡️ IN';
+                const typeClass = isOutgoing ? 'text-red-600' : 'text-green-600';
+                const qty = thok.quantity || 0;
+                const rent = thok.rent || 0;
+
+                // Find the entry for employee name
+                const entry = entries.find(e => e.thock_number === thok.thock_number);
+                const createdBy = entry ? (userMap[entry.created_by_user_id] || '-') : '-';
+
+                const date = new Date(thok.date || thok.created_at).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                });
+
+                // Calculate totals
+                if (isOutgoing) {
+                    outgoingTotal += qty;
+                    outgoingRent += rent;
+                } else if (thok.category === 'seed') {
+                    seedTotal += qty;
+                    seedRent += rent;
+                } else {
+                    sellTotal += qty;
+                    sellRent += rent;
+                }
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium">${thok.thock_number}</td>
+                        <td class="p-3 ${typeClass} font-bold">${type}</td>
+                        <td class="p-3 text-right">${qty}</td>
+                        <td class="p-3 text-right">${formatCurrency(rent)}</td>
+                        <td class="p-3">${createdBy}</td>
+                        <td class="p-3 text-sm">${date}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            // Footer with totals
+            const netTotal = seedTotal + sellTotal - outgoingTotal;
+            const netRent = seedRent + sellRent - outgoingRent;
+
+            let footerRows = '';
+            if (seedTotal > 0) {
+                footerRows += `
+                    <tr class="border-t-2 border-black bg-green-50">
+                        <td class="p-3" colspan="2">SEED TOTAL</td>
+                        <td class="p-3 text-right">${seedTotal}</td>
+                        <td class="p-3 text-right">${formatCurrency(seedRent)}</td>
+                        <td class="p-3" colspan="2">-</td>
+                    </tr>
+                `;
+            }
+            if (sellTotal > 0) {
+                footerRows += `
+                    <tr class="bg-blue-50">
+                        <td class="p-3" colspan="2">SELL TOTAL</td>
+                        <td class="p-3 text-right">${sellTotal}</td>
+                        <td class="p-3 text-right">${formatCurrency(sellRent)}</td>
+                        <td class="p-3" colspan="2">-</td>
+                    </tr>
+                `;
+            }
+            if (outgoingTotal > 0) {
+                footerRows += `
+                    <tr class="bg-red-50">
+                        <td class="p-3" colspan="2">⬅️ OUTGOING TOTAL</td>
+                        <td class="p-3 text-right text-red-600">${outgoingTotal}</td>
+                        <td class="p-3 text-right text-red-600">${formatCurrency(outgoingRent)}</td>
+                        <td class="p-3" colspan="2">-</td>
+                    </tr>
+                `;
+            }
+            footerRows += `
+                <tr class="bg-yellow-100 border-t-2 border-black">
+                    <td class="p-3" colspan="2">NET TOTAL (IN - OUT)</td>
+                    <td class="p-3 text-right font-bold">${netTotal}</td>
+                    <td class="p-3 text-right font-bold">${formatCurrency(netRent)}</td>
+                    <td class="p-3" colspan="2">-</td>
+                </tr>
+            `;
+
+            tfoot.innerHTML = footerRows;
+        }
+
+        function renderPayments(payments, userMap) {
+            const tbody = document.getElementById('paymentsTableBody');
+
+            if (!payments || payments.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No payments recorded</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = payments.map(p => {
+                const processedBy = userMap[p.processed_by_user_id] || '-';
+                const date = new Date(p.payment_date || p.created_at).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+
+                return `
+                    <tr class="border-b hover:bg-gray-50">
+                        <td class="p-3 font-medium">${p.receipt_number || '-'}</td>
+                        <td class="p-3 text-right font-bold text-green-600">${formatCurrency(p.amount_paid)}</td>
+                        <td class="p-3">${processedBy}</td>
+                        <td class="p-3 text-sm">${p.notes || '-'}</td>
+                        <td class="p-3 text-sm">${date}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function formatCurrency(amount) {
+            return '₹' + (amount || 0).toLocaleString('en-IN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Load data on page load
+        if (token) {
+            loadData();
+        } else {
+            showError('Please login first');
+        }
+    </script>
+</body>
+</html>
