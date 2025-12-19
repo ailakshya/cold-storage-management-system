@@ -221,7 +221,7 @@
             </div>
 
             <div class="flex gap-4">
-                <button onclick="processPayment()" class="flex-1 neu-button bg-green-500 text-white">
+                <button id="collectPaymentBtn" onclick="processPayment()" class="flex-1 neu-button bg-green-500 text-white">
                     <i class="bi bi-check-circle"></i> Collect Payment
                 </button>
                 <button onclick="closePaymentModal()" class="flex-1 neu-button bg-gray-300">
@@ -919,9 +919,25 @@
         function closePaymentModal() {
             document.getElementById('paymentModal').classList.add('hidden');
             currentPaymentCustomer = null;
+            // Reset button state when modal closes
+            const btn = document.getElementById('collectPaymentBtn');
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-check-circle"></i> Collect Payment';
+            }
+            isProcessingPayment = false;
         }
 
+        let isProcessingPayment = false; // Debounce flag to prevent double submission
+
         async function processPayment() {
+            // Prevent double submission
+            if (isProcessingPayment) {
+                console.log('Payment already in progress, ignoring');
+                return;
+            }
+
+            const submitBtn = document.getElementById('collectPaymentBtn');
             const amount = parseFloat(document.getElementById('paymentAmount').value);
             const notes = document.getElementById('paymentNotes').value;
 
@@ -942,6 +958,11 @@
                 console.error('Invalid customer data:', currentPaymentCustomer);
                 return;
             }
+
+            // Disable button and set loading state
+            isProcessingPayment = true;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Processing...';
 
             try {
                 // Get first entry ID for this customer
@@ -978,11 +999,23 @@
 
                 const result = await response.json();
 
-                // Close modal and reload accounts first
-                closePaymentModal();
-                await loadCustomerAccounts(); // Reload to update balances
+                // 5 second cooldown before allowing next payment
+                let countdown = 5;
+                submitBtn.innerHTML = `<i class="bi bi-check-circle"></i> Success! Wait ${countdown}s...`;
 
-                // Then show success message and open receipt
+                const cooldownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown > 0) {
+                        submitBtn.innerHTML = `<i class="bi bi-check-circle"></i> Success! Wait ${countdown}s...`;
+                    } else {
+                        clearInterval(cooldownInterval);
+                        // Close modal and reload accounts
+                        closePaymentModal();
+                        loadCustomerAccounts();
+                    }
+                }, 1000);
+
+                // Show success message and open receipt
                 alert(`Payment of ₹${amount.toFixed(2)} collected successfully!\nReceipt: ${result.receipt_number}`);
 
                 if (result.receipt_number) {
@@ -992,6 +1025,10 @@
             } catch (error) {
                 console.error('Error processing payment:', error);
                 alert('Error processing payment: ' + error.message);
+                // Re-enable button on error
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Collect Payment';
+                isProcessingPayment = false;
             }
         }
 
