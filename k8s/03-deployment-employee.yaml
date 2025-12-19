@@ -59,6 +59,8 @@ spec:
             secretKeyRef:
               name: cold-backend-secret
               key: jwt-secret
+        - name: METRICS_DB_HOST
+          value: "192.168.15.195"
         volumeMounts:
         - name: config
           mountPath: /app/configs

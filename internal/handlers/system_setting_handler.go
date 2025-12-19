@@ -67,3 +67,37 @@ func (h *SystemSettingHandler) UpdateSetting(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Setting updated successfully"})
 }
+
+// GetOperationMode returns the current system operation mode
+func (h *SystemSettingHandler) GetOperationMode(w http.ResponseWriter, r *http.Request) {
+	// Try to get from database, fallback to default
+	setting, err := h.Service.GetSetting(context.Background(), "operation_mode")
+
+	mode := "loading" // Default to loading mode
+	message := "System is in loading mode - items being stored"
+
+	if err == nil && setting != nil {
+		mode = setting.SettingValue
+		switch mode {
+		case "loading":
+			message = "System is in loading mode - items being stored"
+		case "unloading":
+			message = "System is in unloading mode - items being dispatched"
+		case "maintenance":
+			message = "System is in maintenance mode"
+		case "readonly":
+			message = "System is in read-only mode"
+		case "emergency":
+			message = "System is in emergency mode"
+		default:
+			mode = "loading"
+			message = "System is in loading mode - items being stored"
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"mode":    mode,
+		"message": message,
+	})
+}

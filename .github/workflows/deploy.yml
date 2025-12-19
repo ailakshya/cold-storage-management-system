@@ -1,0 +1,81 @@
+name: Deploy to K3s
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.5.40)'
+        required: true
+        type: string
+
+env:
+  IMAGE_NAME: lakshyajaat/cold-backend
+  K3S_NODES: "192.168.15.110 192.168.15.111 192.168.15.112 192.168.15.113 192.168.15.114"
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Build Go binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o server ./cmd/server
+          echo "Go binary built successfully"
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.IMAGE_NAME }}:${{ inputs.version }} .
+          echo "Docker image built: ${{ env.IMAGE_NAME }}:${{ inputs.version }}"
+
+      - name: Save Docker image
+        run: |
+          docker save ${{ env.IMAGE_NAME }}:${{ inputs.version }} -o /tmp/cold-backend-${{ inputs.version }}.tar
+          ls -lh /tmp/cold-backend-${{ inputs.version }}.tar
+
+      - name: Deploy to K3s nodes
+        run: |
+          VERSION="${{ inputs.version }}"
+          TAR_FILE="/tmp/cold-backend-${VERSION}.tar"
+
+          echo "=== Deploying $VERSION to K3s cluster ==="
+
+          for NODE in ${{ env.K3S_NODES }}; do
+            echo "Deploying to node $NODE..."
+            scp -o StrictHostKeyChecking=no $TAR_FILE root@$NODE:/tmp/
+            ssh -o StrictHostKeyChecking=no root@$NODE "k3s ctr -n k8s.io images import /tmp/cold-backend-${VERSION}.tar && rm /tmp/cold-backend-${VERSION}.tar"
+            echo "Node $NODE: Image imported"
+          done
+
+          echo "=== All nodes updated ==="
+
+      - name: Update Kubernetes deployments
+        run: |
+          VERSION="${{ inputs.version }}"
+
+          echo "Updating deployments to $VERSION..."
+          kubectl set image deployment/cold-backend-employee cold-backend=${{ env.IMAGE_NAME }}:$VERSION -n default
+          kubectl set image deployment/cold-backend-customer cold-backend=${{ env.IMAGE_NAME }}:$VERSION -n default
+
+          echo "Waiting for rollout..."
+          kubectl rollout status deployment/cold-backend-employee -n default --timeout=120s
+          kubectl rollout status deployment/cold-backend-customer -n default --timeout=120s
+
+          echo "=== Deployment complete: $VERSION ==="
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f /tmp/cold-backend-${{ inputs.version }}.tar || true
+
+      - name: Verify deployment
+        run: |
+          echo "=== Current pod status ==="
+          kubectl get pods -l app=cold-backend -o wide -n default

@@ -154,3 +154,8 @@ func (h *PageHandler) CustomerPortalDashboardPage(w http.ResponseWriter, r *http
 func (h *PageHandler) InfrastructureMonitoringPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "infrastructure_monitoring.html", nil)
 }
+
+// MonitoringDashboardPage serves the enhanced monitoring dashboard
+func (h *PageHandler) MonitoringDashboardPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "monitoring_dashboard.html", nil)
+}

@@ -313,6 +313,15 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 		return errors.New("failed to create pickup record: " + err.Error())
 	}
 
+	// Step 1b: Save gatar breakdown if provided
+	if len(req.GatarBreakdown) > 0 {
+		err = s.PickupRepo.CreateGatarBreakdown(ctx, pickup.ID, req.GatarBreakdown)
+		if err != nil {
+			// Non-critical - log but don't fail the pickup
+			// The main pickup is already recorded
+		}
+	}
+
 	// Step 2: Update gate pass total_picked_up and status
 	err = s.GatePassRepo.UpdatePickupQuantity(ctx, req.GatePassID, req.PickupQuantity)
 	if err != nil {
@@ -334,6 +343,16 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 // GetPickupHistory retrieves all pickups for a gate pass
 func (s *GatePassService) GetPickupHistory(ctx context.Context, gatePassID int) ([]models.GatePassPickup, error) {
 	return s.PickupRepo.GetPickupsByGatePassID(ctx, gatePassID)
+}
+
+// GetAllPickups retrieves all pickups with customer info for activity log
+func (s *GatePassService) GetAllPickups(ctx context.Context) ([]map[string]interface{}, error) {
+	return s.PickupRepo.GetAllPickups(ctx)
+}
+
+// GetPickupHistoryByThockNumber retrieves all pickups for a thock number (across all gate passes)
+func (s *GatePassService) GetPickupHistoryByThockNumber(ctx context.Context, thockNumber string) ([]models.GatePassPickup, error) {
+	return s.PickupRepo.GetPickupsByThockNumber(ctx, thockNumber)
 }
 
 // CheckAndExpireGatePasses checks for and expires gate passes past their 15-hour window

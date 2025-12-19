@@ -1,459 +1,904 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Cold Storage Monitoring</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitoring Dashboard - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
     <script src="/static/js/chart.umd.min.js"></script>
+    <style>
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .neu-border { border: 3px solid #000; box-shadow: 4px 4px 0 #000; }
+        .status-healthy { background: #10b981; }
+        .status-warning { background: #f59e0b; }
+        .status-critical { background: #ef4444; }
+        .status-unknown { background: #6b7280; }
+        .severity-critical { background: #fef2f2; border-left: 4px solid #ef4444; }
+        .severity-warning { background: #fffbeb; border-left: 4px solid #f59e0b; }
+        .severity-info { background: #eff6ff; border-left: 4px solid #3b82f6; }
+        .tab-active { background: #000; color: #fff; }
+        .pulse { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+        .metric-card { transition: transform 0.2s; }
+        .metric-card:hover { transform: translateY(-2px); }
+    </style>
 </head>
 <body class="bg-gray-100">
-    <!-- Alert Banner -->
-    <div id="alertBanner" class="hidden bg-red-600 text-white p-4 fixed top-0 w-full z-50">
-        <div class="container mx-auto flex justify-between items-center">
-            <span id="alertMessage"></span>
-            <button onclick="dismissAlert()" class="text-white font-bold">✕</button>
-        </div>
-    </div>
-
-    <div class="container mx-auto p-8 mt-16">
-        <h1 class="text-4xl font-bold mb-8">Infrastructure Monitoring</h1>
-
-        <!-- Stats Cards -->
-        <div class="grid grid-cols-6 gap-4 mb-8">
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-xs text-gray-600">Database Status</div>
-                <div id="dbStatus" class="text-2xl font-bold text-green-600">--</div>
+    <!-- Navigation -->
+    <nav class="bg-black text-white px-6 py-4">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-4">
+                <a href="/admin/dashboard" class="hover:text-gray-300"><i class="bi bi-arrow-left"></i> Dashboard</a>
+                <span class="text-2xl font-bold"><i class="bi bi-graph-up-arrow"></i> Monitoring</span>
             </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-xs text-gray-600">Active Connections</div>
-                <div id="activeConns" class="text-2xl font-bold text-blue-600">--</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-xs text-gray-600">Response Time</div>
-                <div id="responseTime" class="text-2xl font-bold text-purple-600">--</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-xs text-gray-600">Requests/min</div>
-                <div id="requestRate" class="text-2xl font-bold text-indigo-600">--</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-xs text-gray-600">CPU Usage</div>
-                <div id="cpuUsage" class="text-2xl font-bold text-orange-600">--</div>
-            </div>
-            <div class="bg-white p-4 rounded-lg shadow">
-                <div class="text-xs text-gray-600">Active Alerts</div>
-                <div id="activeAlerts" class="text-2xl font-bold text-red-600">0</div>
-            </div>
-        </div>
-
-        <!-- System Metrics -->
-        <div class="grid grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-bold mb-4">System Resources</h3>
-                <div class="space-y-3">
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-sm text-gray-600">CPU</span>
-                            <span id="cpuPercent" class="text-sm font-bold">--</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div id="cpuBar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-sm text-gray-600">Memory</span>
-                            <span id="memPercent" class="text-sm font-bold">--</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div id="memBar" class="bg-green-500 h-2 rounded-full" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-sm text-gray-600">Disk</span>
-                            <span id="diskPercent" class="text-sm font-bold">--</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div id="diskBar" class="bg-yellow-500 h-2 rounded-full" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div>
-                        <div class="flex justify-between mb-1">
-                            <span class="text-sm text-gray-600">Database</span>
-                            <span id="dbPercent" class="text-sm font-bold">--</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2">
-                            <div id="dbBar" class="bg-purple-500 h-2 rounded-full" style="width: 0%"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-bold mb-4">Request Metrics</h3>
-                <div class="space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Total Requests:</span>
-                        <span id="totalRequests" class="text-sm font-bold">--</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Success Rate:</span>
-                        <span id="successRate" class="text-sm font-bold text-green-600">--</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Avg Response:</span>
-                        <span id="avgResponse" class="text-sm font-bold">--</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Errors/min:</span>
-                        <span id="errorRate" class="text-sm font-bold text-red-600">--</span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-lg shadow">
-                <h3 class="text-lg font-bold mb-4">Database Metrics</h3>
-                <div class="space-y-2">
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Queries/sec:</span>
-                        <span id="queriesPerSec" class="text-sm font-bold">--</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Connections:</span>
-                        <span id="dbConnections" class="text-sm font-bold">--</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">DB Size:</span>
-                        <span id="dbSize" class="text-sm font-bold">--</span>
-                    </div>
-                    <div class="flex justify-between">
-                        <span class="text-sm text-gray-600">Uptime:</span>
-                        <span id="uptime" class="text-sm font-bold">--</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Cluster Overview -->
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 class="text-2xl font-bold mb-4">Cluster Totals</h2>
-            <div class="grid grid-cols-4 gap-6">
-                <div class="text-center">
-                    <div class="text-3xl font-bold text-blue-600" id="clusterNodes">--</div>
-                    <div class="text-sm text-gray-600">Total Nodes</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-3xl font-bold text-green-600" id="clusterCPUs">--</div>
-                    <div class="text-sm text-gray-600">Total CPUs</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-3xl font-bold text-purple-600" id="clusterMemory">--</div>
-                    <div class="text-sm text-gray-600">Total Memory</div>
-                </div>
-                <div class="text-center">
-                    <div class="text-3xl font-bold text-yellow-600" id="clusterDisk">--</div>
-                    <div class="text-sm text-gray-600">Total Disk</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- K3s Nodes Table -->
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 class="text-2xl font-bold mb-4">K3s Cluster Nodes</h2>
-            <table class="w-full">
-                <thead class="bg-gray-100">
-                    <tr>
-                        <th class="p-3 text-left">Node</th>
-                        <th class="p-3 text-left">Role</th>
-                        <th class="p-3 text-left">Status</th>
-                        <th class="p-3 text-left">CPU</th>
-                        <th class="p-3 text-left">Memory</th>
-                        <th class="p-3 text-left">Disk</th>
-                        <th class="p-3 text-left">Pods</th>
-                    </tr>
-                </thead>
-                <tbody id="nodesTable"></tbody>
-            </table>
-        </div>
-
-        <!-- Database Pods Table -->
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 class="text-2xl font-bold mb-4">PostgreSQL Database Pods</h2>
-            <table class="w-full">
-                <thead class="bg-gray-100">
-                    <tr>
-                        <th class="p-3 text-left">Pod Name</th>
-                        <th class="p-3 text-left">Role</th>
-                        <th class="p-3 text-left">Status</th>
-                        <th class="p-3 text-left">Node</th>
-                        <th class="p-3 text-left">Disk Used</th>
-                        <th class="p-3 text-left">Disk Total</th>
-                        <th class="p-3 text-left">Connections</th>
-                        <th class="p-3 text-left">Replication Lag</th>
-                    </tr>
-                </thead>
-                <tbody id="dbPodsTable"></tbody>
-            </table>
-        </div>
-
-        <!-- Alerts Table -->
-        <div class="bg-white p-6 rounded-lg shadow mb-8">
-            <h2 class="text-2xl font-bold mb-4">Active Alerts</h2>
-            <table class="w-full">
-                <thead class="bg-gray-100">
-                    <tr>
-                        <th class="p-3 text-left">Severity</th>
-                        <th class="p-3 text-left">Type</th>
-                        <th class="p-3 text-left">Message</th>
-                        <th class="p-3 text-left">Time</th>
-                    </tr>
-                </thead>
-                <tbody id="alertsTable"></tbody>
-            </table>
-        </div>
-
-        <!-- Test Alert Button -->
-        <div class="bg-white p-6 rounded-lg shadow">
-            <h3 class="text-xl font-bold mb-4">Test Alert System</h3>
-            <div class="flex gap-4">
-                <button onclick="createTestAlert('critical')" class="bg-red-600 text-white px-6 py-2 rounded">
-                    Create Critical Alert
+            <div class="flex items-center gap-4">
+                <select id="timeRange" onchange="changeTimeRange()" class="bg-gray-800 text-white px-3 py-1 rounded">
+                    <option value="5m">Last 5 min</option>
+                    <option value="15m">Last 15 min</option>
+                    <option value="1h" selected>Last 1 hour</option>
+                    <option value="6h">Last 6 hours</option>
+                    <option value="24h">Last 24 hours</option>
+                    <option value="7d">Last 7 days</option>
+                </select>
+                <button onclick="refreshAll()" class="bg-blue-600 px-4 py-1 rounded hover:bg-blue-700">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
-                <button onclick="createTestAlert('warning')" class="bg-yellow-500 text-white px-6 py-2 rounded">
-                    Create Warning Alert
-                </button>
-                <button onclick="createTestAlert('info')" class="bg-blue-500 text-white px-6 py-2 rounded">
-                    Create Info Alert
-                </button>
+                <span id="lastUpdate" class="text-sm text-gray-400">--:--:--</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6">
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6">
+            <button onclick="showTab('overview')" id="tab-overview" class="neu-border px-4 py-2 tab-active">
+                <i class="bi bi-grid-1x2"></i> Overview
+            </button>
+            <button onclick="showTab('nodes')" id="tab-nodes" class="neu-border px-4 py-2 bg-white">
+                <i class="bi bi-hdd-stack"></i> K3s Nodes
+            </button>
+            <button onclick="showTab('postgres')" id="tab-postgres" class="neu-border px-4 py-2 bg-white">
+                <i class="bi bi-database"></i> PostgreSQL
+            </button>
+            <button onclick="showTab('api')" id="tab-api" class="neu-border px-4 py-2 bg-white">
+                <i class="bi bi-braces"></i> API Analytics
+            </button>
+            <button onclick="showTab('alerts')" id="tab-alerts" class="neu-border px-4 py-2 bg-white">
+                <i class="bi bi-bell"></i> Alerts
+            </button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="content-overview" class="tab-content">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">K3s Nodes</div>
+                    <div id="summary-nodes" class="text-2xl font-bold">-/-</div>
+                    <div class="text-xs text-green-600"><i class="bi bi-check-circle"></i> Healthy</div>
+                </div>
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">PostgreSQL</div>
+                    <div id="summary-postgres" class="text-2xl font-bold">-/-</div>
+                    <div class="text-xs text-green-600"><i class="bi bi-check-circle"></i> Primary + Replicas</div>
+                </div>
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">API Requests (1h)</div>
+                    <div id="summary-requests" class="text-2xl font-bold">-</div>
+                    <div id="summary-error-rate" class="text-xs">Error rate: --%</div>
+                </div>
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">Active Alerts</div>
+                    <div id="summary-alerts" class="text-2xl font-bold">-</div>
+                    <div id="summary-alerts-breakdown" class="text-xs">- critical, - warning</div>
+                </div>
+            </div>
+
+            <!-- Cluster Resources -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600 mb-2">Cluster CPU</div>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-gray-200 rounded-full h-4">
+                            <div id="cluster-cpu-bar" class="bg-blue-500 h-4 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span id="cluster-cpu-pct" class="font-bold">--%</span>
+                    </div>
+                    <div id="cluster-cpu-cores" class="text-xs text-gray-500 mt-1">- cores</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600 mb-2">Cluster Memory</div>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-gray-200 rounded-full h-4">
+                            <div id="cluster-mem-bar" class="bg-green-500 h-4 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span id="cluster-mem-pct" class="font-bold">--%</span>
+                    </div>
+                    <div id="cluster-mem-used" class="text-xs text-gray-500 mt-1">- / - GB</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600 mb-2">Cluster Disk</div>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-gray-200 rounded-full h-4">
+                            <div id="cluster-disk-bar" class="bg-purple-500 h-4 rounded-full" style="width: 0%"></div>
+                        </div>
+                        <span id="cluster-disk-pct" class="font-bold">--%</span>
+                    </div>
+                    <div id="cluster-disk-used" class="text-xs text-gray-500 mt-1">- / - GB</div>
+                </div>
+            </div>
+
+            <!-- Backup Database Status -->
+            <div class="neu-border bg-white p-4 mb-6">
+                <h3 class="font-bold mb-4"><i class="bi bi-hdd-rack"></i> Backup Database Server (192.168.15.195)</h3>
+                <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Status</div>
+                        <div id="backup-db-status" class="font-bold flex items-center gap-1">
+                            <span class="w-2 h-2 rounded-full bg-gray-400"></span> Loading...
+                        </div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Container</div>
+                        <div id="backup-db-container" class="font-bold text-sm">cold-storage-postgres</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Last Backup</div>
+                        <div id="backup-db-last" class="font-bold text-sm">--</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Total Backups</div>
+                        <div id="backup-db-total" class="font-bold text-sm">--</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Backup Size</div>
+                        <div id="backup-db-size" class="font-bold text-sm">--</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Schedule</div>
+                        <div id="backup-db-schedule" class="font-bold text-sm">--</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">CPU</div>
+                        <div id="backup-db-cpu" class="font-bold text-sm">--%</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Memory</div>
+                        <div id="backup-db-mem" class="font-bold text-sm">--%</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">Disk</div>
+                        <div id="backup-db-disk" class="font-bold text-sm">-- / --</div>
+                    </div>
+                    <div class="p-3 bg-gray-50 rounded border">
+                        <div class="text-xs text-gray-500">NAS Archive</div>
+                        <div id="backup-db-nas" class="font-bold text-sm">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- K3s Node Charts Row -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-cpu text-blue-500"></i> Node CPU Usage (%)</h3>
+                    <div style="height: 250px;">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-memory text-green-500"></i> Node Memory Usage (%)</h3>
+                    <div style="height: 250px;">
+                        <canvas id="memoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PostgreSQL Charts Row -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-plug text-purple-500"></i> PostgreSQL Connections</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgConnectionsChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-lightning text-yellow-500"></i> Cache Hit Ratio (%)</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgCacheHitChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-hdd text-red-500"></i> DB Size (MB)</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgDbSizeChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-arrow-repeat text-orange-500"></i> Replication Lag</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgReplLagChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Alerts -->
+            <div class="neu-border bg-white p-4">
+                <h3 class="font-bold mb-4"><i class="bi bi-bell"></i> Recent Alerts</h3>
+                <div id="recent-alerts" class="space-y-2">
+                    <div class="text-gray-500 text-center py-4">No recent alerts</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Nodes Tab -->
+        <div id="content-nodes" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" id="nodes-grid">
+            </div>
+            <div class="neu-border bg-white p-4">
+                <h3 class="font-bold mb-2">Node Metrics History</h3>
+                <select id="nodeSelect" onchange="loadNodeHistory()" class="border px-3 py-1 mb-4">
+                    <option value="">Select a node</option>
+                </select>
+                <canvas id="nodeHistoryChart" height="300"></canvas>
+            </div>
+        </div>
+
+        <!-- PostgreSQL Tab -->
+        <div id="content-postgres" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Total Size</div>
+                    <div id="pg-total-size" class="text-2xl font-bold">- GB</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Connections</div>
+                    <div id="pg-connections" class="text-2xl font-bold">-</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Max Repl. Lag</div>
+                    <div id="pg-repl-lag" class="text-2xl font-bold">- s</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Cache Hit Ratio</div>
+                    <div id="pg-cache-ratio" class="text-2xl font-bold">--%</div>
+                </div>
+            </div>
+            <div class="neu-border bg-white p-4">
+                <h3 class="font-bold mb-4"><i class="bi bi-database"></i> PostgreSQL Pods</h3>
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-2 text-left">Pod</th>
+                            <th class="p-2 text-left">Role</th>
+                            <th class="p-2 text-left">Status</th>
+                            <th class="p-2 text-left">Node</th>
+                            <th class="p-2 text-left">DB Size</th>
+                            <th class="p-2 text-left">Connections</th>
+                            <th class="p-2 text-left">Repl. Lag</th>
+                            <th class="p-2 text-left">Cache Hit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="postgres-pods-table"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- API Analytics Tab -->
+        <div id="content-api" class="tab-content hidden">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Total Requests</div>
+                    <div id="api-total" class="text-2xl font-bold">-</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Success Rate</div>
+                    <div id="api-success-rate" class="text-2xl font-bold text-green-600">--%</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Avg Response Time</div>
+                    <div id="api-avg-time" class="text-2xl font-bold">- ms</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">P95 Response Time</div>
+                    <div id="api-p95-time" class="text-2xl font-bold">- ms</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-fire"></i> Top Endpoints</h3>
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 text-left">Path</th>
+                                <th class="p-2 text-right">Requests</th>
+                                <th class="p-2 text-right">Avg (ms)</th>
+                                <th class="p-2 text-right">Errors</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top-endpoints-table"></tbody>
+                    </table>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-hourglass-split"></i> Slowest Endpoints</h3>
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 text-left">Path</th>
+                                <th class="p-2 text-right">Avg (ms)</th>
+                                <th class="p-2 text-right">P95 (ms)</th>
+                                <th class="p-2 text-right">Max (ms)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="slowest-endpoints-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="neu-border bg-white p-4">
+                <h3 class="font-bold mb-4"><i class="bi bi-list"></i> Recent API Logs</h3>
+                <table class="w-full text-xs">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-2 text-left">Time</th>
+                            <th class="p-2 text-left">Method</th>
+                            <th class="p-2 text-left">Path</th>
+                            <th class="p-2 text-center">Status</th>
+                            <th class="p-2 text-right">Duration</th>
+                            <th class="p-2 text-left">User</th>
+                            <th class="p-2 text-left">IP</th>
+                        </tr>
+                    </thead>
+                    <tbody id="api-logs-table"></tbody>
+                </table>
+                <div class="mt-4 flex justify-center gap-2">
+                    <button onclick="loadAPILogs(Math.max(0, apiLogsOffset - 50))" class="px-3 py-1 border">Previous</button>
+                    <span id="api-logs-pagination" class="px-3 py-1">-</span>
+                    <button onclick="loadAPILogs(apiLogsOffset + 50)" class="px-3 py-1 border">Next</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Tab -->
+        <div id="content-alerts" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-4"><i class="bi bi-exclamation-triangle"></i> Active Alerts</h3>
+                    <div id="active-alerts" class="space-y-2">
+                        <div class="text-gray-500 text-center py-4">No active alerts</div>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-4"><i class="bi bi-sliders"></i> Alert Thresholds</h3>
+                    <div id="alert-thresholds" class="space-y-2"></div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
-        let ws;
-        const severityColors = {
-            critical: 'bg-red-500',
-            warning: 'bg-yellow-500',
-            info: 'bg-blue-500'
-        };
+        const API_BASE = '/api/monitoring';
+        let token = localStorage.getItem('token');
+        let currentTimeRange = '1h';
+        let cpuChart, memoryChart, nodeHistoryChart;
+        let pgConnectionsChart, pgCacheHitChart, pgDbSizeChart, pgReplLagChart;
+        let apiLogsOffset = 0;
 
-        function connectWebSocket() {
-            ws = new WebSocket('ws://' + window.location.host + '/ws');
-
-            ws.onmessage = function(event) {
-                const alert = JSON.parse(event.data);
-                addAlertToTable(alert);
-                showAlertBanner(alert);
-                updateStats();
-            };
-
-            ws.onclose = function() {
-                setTimeout(connectWebSocket, 1000);
-            };
+        function authHeaders() {
+            return { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
         }
 
-        function loadStats() {
-            fetch('/api/stats')
-                .then(r => r.json())
-                .then(data => {
-                    // Top stats cards
-                    document.getElementById('dbStatus').textContent = data.database_status;
-                    document.getElementById('dbStatus').className =
-                        data.database_status === 'healthy' ? 'text-2xl font-bold text-green-600' : 'text-2xl font-bold text-red-600';
+        function formatBytes(bytes) {
+            if (!bytes || bytes === 0) return '--';
+            const tb = bytes / (1024 * 1024 * 1024 * 1024);
+            if (tb >= 1) return tb.toFixed(1) + ' TB';
+            const gb = bytes / (1024 * 1024 * 1024);
+            return gb.toFixed(0) + ' GB';
+        }
 
-                    document.getElementById('activeConns').textContent = data.active_connections;
-                    document.getElementById('responseTime').textContent = data.response_time_ms + 'ms';
-                    document.getElementById('activeAlerts').textContent = data.active_alerts;
-                    document.getElementById('requestRate').textContent = data.request_rate || 0;
-                    document.getElementById('cpuUsage').textContent = (data.cpu_percent || 0).toFixed(1) + '%';
+        function formatLagBytes(bytes) {
+            if (bytes === 0) return '0';
+            if (bytes < 0) return 'N/A';
+            if (bytes < 1024) return Math.round(bytes) + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+        }
 
-                    // System Resources with absolute values
-                    const cpu = data.cpu_percent || 0;
-                    const mem = data.memory_percent || 0;
-                    const disk = data.disk_percent || 0;
-
-                    // CPU - show as percentage (no absolute core count for current pod)
-                    document.getElementById('cpuPercent').textContent = cpu.toFixed(1) + '%';
-                    document.getElementById('cpuBar').style.width = cpu + '%';
-                    document.getElementById('cpuBar').className = cpu > 80 ? 'bg-red-500 h-2 rounded-full' : 'bg-blue-500 h-2 rounded-full';
-
-                    // Memory - show absolute values
-                    document.getElementById('memPercent').textContent =
-                        (data.memory_used || '--') + ' / ' + (data.memory_total || '--') + ' (' + mem.toFixed(1) + '%)';
-                    document.getElementById('memBar').style.width = mem + '%';
-                    document.getElementById('memBar').className = mem > 80 ? 'bg-red-500 h-2 rounded-full' : 'bg-green-500 h-2 rounded-full';
-
-                    // Disk - show absolute values
-                    document.getElementById('diskPercent').textContent =
-                        (data.disk_used || '--') + ' / ' + (data.disk_total || '--') + ' (' + disk.toFixed(1) + '%)';
-                    document.getElementById('diskBar').style.width = disk + '%';
-                    document.getElementById('diskBar').className = disk > 80 ? 'bg-red-500 h-2 rounded-full' : 'bg-yellow-500 h-2 rounded-full';
-
-                    // Database metric (based on connections usage: assume max 100 connections)
-                    const maxConnections = 100;
-                    const dbConnUsage = ((data.active_connections || 0) / maxConnections) * 100;
-                    const dbResponseTime = data.response_time_ms || 0;
-
-                    // Show connections usage percentage
-                    document.getElementById('dbPercent').textContent =
-                        data.active_connections + ' / ' + maxConnections + ' (' + dbConnUsage.toFixed(1) + '%)';
-                    document.getElementById('dbBar').style.width = dbConnUsage + '%';
-
-                    // Color based on response time health
-                    if (dbResponseTime > 500 || data.database_status !== 'healthy') {
-                        document.getElementById('dbBar').className = 'bg-red-500 h-2 rounded-full';
-                    } else if (dbResponseTime > 200) {
-                        document.getElementById('dbBar').className = 'bg-yellow-500 h-2 rounded-full';
-                    } else {
-                        document.getElementById('dbBar').className = 'bg-purple-500 h-2 rounded-full';
-                    }
-
-                    // Request Metrics
-                    document.getElementById('totalRequests').textContent = data.total_requests || 0;
-                    document.getElementById('successRate').textContent = (data.success_rate || 100).toFixed(1) + '%';
-                    document.getElementById('avgResponse').textContent = (data.avg_response || 0) + 'ms';
-                    document.getElementById('errorRate').textContent = data.error_rate || 0;
-
-                    // Database Metrics
-                    document.getElementById('queriesPerSec').textContent = data.queries_per_sec || 0;
-                    document.getElementById('dbConnections').textContent = data.active_connections;
-                    document.getElementById('dbSize').textContent = data.db_size || '--';
-                    document.getElementById('uptime').textContent = data.uptime || '--';
-
-                    // Cluster Totals
-                    if (data.cluster_totals) {
-                        document.getElementById('clusterNodes').textContent = data.cluster_totals.total_nodes || '--';
-                        document.getElementById('clusterCPUs').textContent = data.cluster_totals.total_cpus || '--';
-                        document.getElementById('clusterMemory').textContent = data.cluster_totals.total_memory || '--';
-                        document.getElementById('clusterDisk').textContent = data.cluster_totals.total_disk || '--';
-                    }
-
-                    // K3s Nodes Table
-                    if (data.nodes && data.nodes.length > 0) {
-                        const nodesTable = document.getElementById('nodesTable');
-                        nodesTable.innerHTML = data.nodes.map(node => {
-                            const statusClass = node.status === 'Ready' ? 'text-green-600' : 'text-red-600';
-                            const cpuClass = node.cpu_percent > 80 ? 'text-red-600' : 'text-gray-900';
-                            const memClass = node.memory_percent > 80 ? 'text-red-600' : 'text-gray-900';
-                            const diskClass = node.disk_percent > 80 ? 'text-red-600' : 'text-gray-900';
-
-                            return `
-                                <tr class="border-b hover:bg-gray-50">
-                                    <td class="p-3 font-semibold">${node.name}</td>
-                                    <td class="p-3">
-                                        <span class="px-2 py-1 rounded text-xs ${node.role === 'Control Plane' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">
-                                            ${node.role}
-                                        </span>
-                                    </td>
-                                    <td class="p-3 ${statusClass} font-semibold">${node.status}</td>
-                                    <td class="p-3 ${cpuClass}">${node.cpu_percent.toFixed(1)}%</td>
-                                    <td class="p-3 ${memClass}">
-                                        <div>${node.memory_used} / ${node.memory_total}</div>
-                                        <div class="text-xs text-gray-500">(${node.memory_percent.toFixed(1)}%)</div>
-                                    </td>
-                                    <td class="p-3 ${diskClass}">
-                                        <div>${node.disk_used} / ${node.disk_total}</div>
-                                        <div class="text-xs text-gray-500">(${node.disk_percent.toFixed(1)}%)</div>
-                                    </td>
-                                    <td class="p-3">${node.pods_running}</td>
-                                </tr>
-                            `;
-                        }).join('');
-                    }
-
-                    // Database Pods Table
-                    if (data.database_pods && data.database_pods.length > 0) {
-                        const dbPodsTable = document.getElementById('dbPodsTable');
-                        dbPodsTable.innerHTML = data.database_pods.map(pod => {
-                            const statusClass = pod.status === 'Running' ? 'text-green-600' : 'text-red-600';
-                            const roleClass = pod.role === 'Primary' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800';
-
-                            return `
-                                <tr class="border-b hover:bg-gray-50">
-                                    <td class="p-3 font-semibold">${pod.name}</td>
-                                    <td class="p-3">
-                                        <span class="px-2 py-1 rounded text-xs font-bold ${roleClass}">
-                                            ${pod.role}
-                                        </span>
-                                    </td>
-                                    <td class="p-3 ${statusClass} font-semibold">${pod.status}</td>
-                                    <td class="p-3 text-sm text-gray-600">${pod.node}</td>
-                                    <td class="p-3">${pod.disk_used}</td>
-                                    <td class="p-3">${pod.disk_total}</td>
-                                    <td class="p-3">${pod.connections}</td>
-                                    <td class="p-3 text-sm">${pod.replication_lag || 'N/A'}</td>
-                                </tr>
-                            `;
-                        }).join('');
-                    }
+        async function fetchAPI(endpoint, options = {}) {
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, {
+                    ...options,
+                    headers: { ...authHeaders(), ...options.headers }
                 });
-        }
-
-        function loadAlerts() {
-            fetch('/api/alerts')
-                .then(r => r.json())
-                .then(alerts => {
-                    const tbody = document.getElementById('alertsTable');
-                    tbody.innerHTML = alerts.filter(a => !a.resolved).map(alert => `
-                        <tr class="border-b">
-                            <td class="p-3">
-                                <span class="${severityColors[alert.severity]} text-white px-3 py-1 rounded text-sm">
-                                    ${alert.severity}
-                                </span>
-                            </td>
-                            <td class="p-3">${alert.type}</td>
-                            <td class="p-3">${alert.message}</td>
-                            <td class="p-3">${new Date(alert.timestamp).toLocaleString()}</td>
-                        </tr>
-                    `).join('');
-                });
-        }
-
-        function addAlertToTable(alert) {
-            loadAlerts();
-        }
-
-        function showAlertBanner(alert) {
-            if (alert.severity === 'critical') {
-                const banner = document.getElementById('alertBanner');
-                const message = document.getElementById('alertMessage');
-                message.textContent = `🚨 ${alert.message}`;
-                banner.classList.remove('hidden');
+                if (res.status === 401) {
+                    window.location.href = '/login';
+                    return null;
+                }
+                return await res.json();
+            } catch (e) {
+                console.error('API Error:', e);
+                return null;
             }
         }
 
-        function dismissAlert() {
-            document.getElementById('alertBanner').classList.add('hidden');
+        function showTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-"]').forEach(el => {
+                el.classList.remove('tab-active');
+                el.classList.add('bg-white');
+            });
+            document.getElementById(`content-${tab}`).classList.remove('hidden');
+            document.getElementById(`tab-${tab}`).classList.add('tab-active');
+            document.getElementById(`tab-${tab}`).classList.remove('bg-white');
+
+            if (tab === 'nodes') loadNodes();
+            if (tab === 'postgres') loadPostgres();
+            if (tab === 'api') loadAPIAnalytics();
+            if (tab === 'alerts') loadAlerts();
         }
 
-        function createTestAlert(severity) {
-            const messages = {
-                critical: 'Database connection lost - immediate attention required',
-                warning: 'High response time detected - performance degraded',
-                info: 'System backup completed successfully'
+        function changeTimeRange() {
+            currentTimeRange = document.getElementById('timeRange').value;
+            refreshAll();
+        }
+
+        async function loadOverview() {
+            const data = await fetchAPI('/dashboard');
+            if (!data) return;
+
+            if (data.cluster_overview) {
+                const c = data.cluster_overview;
+                document.getElementById('summary-nodes').textContent = `${c.healthy_nodes}/${c.total_nodes}`;
+                document.getElementById('cluster-cpu-pct').textContent = `${(c.avg_cpu_percent || 0).toFixed(1)}%`;
+                document.getElementById('cluster-cpu-bar').style.width = `${c.avg_cpu_percent || 0}%`;
+                document.getElementById('cluster-cpu-cores').textContent = `${c.total_cpu_cores} cores`;
+                document.getElementById('cluster-mem-pct').textContent = `${(c.avg_memory_percent || 0).toFixed(1)}%`;
+                document.getElementById('cluster-mem-bar').style.width = `${c.avg_memory_percent || 0}%`;
+                document.getElementById('cluster-mem-used').textContent = `${(c.used_memory_gb || 0).toFixed(1)} / ${(c.total_memory_gb || 0).toFixed(1)} GB`;
+                document.getElementById('cluster-disk-pct').textContent = `${(c.avg_disk_percent || 0).toFixed(1)}%`;
+                document.getElementById('cluster-disk-bar').style.width = `${c.avg_disk_percent || 0}%`;
+                document.getElementById('cluster-disk-used').textContent = `${(c.used_disk_gb || 0).toFixed(1)} / ${(c.total_disk_gb || 0).toFixed(1)} GB`;
+            }
+
+            if (data.postgres_overview) {
+                document.getElementById('summary-postgres').textContent = `${data.postgres_overview.healthy_pods}/${data.postgres_overview.total_pods}`;
+            }
+
+            if (data.api_analytics) {
+                document.getElementById('summary-requests').textContent = (data.api_analytics.total_requests || 0).toLocaleString();
+                const errorRate = data.api_analytics.error_rate || 0;
+                document.getElementById('summary-error-rate').textContent = `Error rate: ${errorRate.toFixed(2)}%`;
+                document.getElementById('summary-error-rate').className = `text-xs ${errorRate > 5 ? 'text-red-600' : 'text-green-600'}`;
+            }
+
+            if (data.alert_summary) {
+                document.getElementById('summary-alerts').textContent = data.alert_summary.unresolved_alerts || 0;
+                document.getElementById('summary-alerts-breakdown').textContent = `${data.alert_summary.critical_alerts || 0} critical, ${data.alert_summary.warning_alerts || 0} warning`;
+            }
+
+            if (data.nodes && data.nodes.length > 0) updateNodeCharts(data.nodes);
+            if (data.recent_alerts) renderRecentAlerts(data.recent_alerts);
+
+            // Load backup DB status
+            loadBackupDBStatus();
+
+            // Load PostgreSQL charts
+            loadPgCharts();
+
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
+        async function loadBackupDBStatus() {
+            try {
+                const data = await fetchAPI('/backup-db');
+                if (!data) return;
+
+                // Update status
+                const statusEl = document.getElementById('backup-db-status');
+                if (data.healthy) {
+                    statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-green-500"></span> Healthy';
+                    statusEl.className = 'font-bold flex items-center gap-1 text-green-600';
+                } else {
+                    statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500"></span> Unhealthy';
+                    statusEl.className = 'font-bold flex items-center gap-1 text-red-600';
+                }
+
+                // Update other fields
+                document.getElementById('backup-db-last').textContent = data.last_backup || '--';
+                document.getElementById('backup-db-total').textContent = data.total_backups || 0;
+                document.getElementById('backup-db-size').textContent = data.backup_size || '--';
+                document.getElementById('backup-db-schedule').textContent = data.backup_schedule || '--';
+                document.getElementById('backup-db-cpu').textContent = `${(data.cpu_percent || 0).toFixed(1)}%`;
+                document.getElementById('backup-db-mem').textContent = `${(data.memory_percent || 0).toFixed(1)}%`;
+                document.getElementById('backup-db-disk').textContent = `${data.disk_used || '--'} / ${data.disk_total || '--'}`;
+                document.getElementById('backup-db-nas').textContent = data.nas_archive_size || '--';
+            } catch (e) {
+                console.error('Failed to load backup DB status:', e);
+            }
+        }
+
+        function updateNodeCharts(nodes) {
+            // Sort: k3s nodes first, then backup server
+            const sortedNodes = nodes.sort((a, b) => {
+                if (a.node_name.startsWith('k3s-') && !b.node_name.startsWith('k3s-')) return -1;
+                if (!a.node_name.startsWith('k3s-') && b.node_name.startsWith('k3s-')) return 1;
+                return a.node_name.localeCompare(b.node_name);
+            });
+
+            const labels = sortedNodes.map(n => n.node_name.replace('k3s-', '').replace('backup-server', 'backup'));
+            const cpuData = sortedNodes.map(n => n.cpu_percent || 0);
+            const memData = sortedNodes.map(n => n.memory_percent || 0);
+
+            // Color based on value
+            const cpuColors = cpuData.map(v => v < 50 ? '#22c55e' : v < 75 ? '#f59e0b' : '#ef4444');
+            const memColors = memData.map(v => v < 60 ? '#3b82f6' : v < 80 ? '#f59e0b' : '#ef4444');
+
+            const chartConfig = {
+                type: 'bar',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { font: { size: 11, weight: '600' } } },
+                        y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' }, ticks: { callback: v => v + '%' } }
+                    }
+                }
             };
 
-            fetch('/api/test-alert', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    severity: severity,
-                    type: 'test_alert',
-                    message: messages[severity]
-                })
+            if (cpuChart) cpuChart.destroy();
+            cpuChart = new Chart(document.getElementById('cpuChart'), {
+                ...chartConfig,
+                data: { labels, datasets: [{ data: cpuData, backgroundColor: cpuColors, borderRadius: 6, barThickness: 35 }] }
+            });
+
+            if (memoryChart) memoryChart.destroy();
+            memoryChart = new Chart(document.getElementById('memoryChart'), {
+                ...chartConfig,
+                data: { labels, datasets: [{ data: memData, backgroundColor: memColors, borderRadius: 6, barThickness: 35 }] }
             });
         }
 
-        function updateStats() {
-            loadStats();
-            loadAlerts();
+        function initPgCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { font: { size: 10, weight: '600' } } },
+                    y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }
+                }
+            };
+
+            pgConnectionsChart = new Chart(document.getElementById('pgConnectionsChart'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 6, barThickness: 30 }] },
+                options: commonOptions
+            });
+
+            pgCacheHitChart = new Chart(document.getElementById('pgCacheHitChart'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 6, barThickness: 30 }] },
+                options: { ...commonOptions, scales: { ...commonOptions.scales, y: { ...commonOptions.scales.y, min: 90, max: 100, ticks: { callback: v => v + '%' } } } }
+            });
+
+            pgDbSizeChart = new Chart(document.getElementById('pgDbSizeChart'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 6, barThickness: 30 }] },
+                options: commonOptions
+            });
+
+            pgReplLagChart = new Chart(document.getElementById('pgReplLagChart'), {
+                type: 'bar',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderRadius: 6, barThickness: 30 }] },
+                options: commonOptions
+            });
         }
 
-        // Initialize
-        connectWebSocket();
-        updateStats();
-        setInterval(updateStats, 10000);
+        async function loadPgCharts() {
+            try {
+                const res = await fetch('/api/infrastructure/postgresql-pods', { headers: authHeaders() });
+                const data = await res.json();
+                if (!data.pods || data.pods.length === 0) return;
+
+                const pods = data.pods;
+                const labels = pods.map(p => {
+                    if (p.name.includes('streaming-replica')) return 'ext-195';
+                    return p.name.replace('cold-postgres-', 'pg-');
+                });
+
+                // Connections - color by role
+                const connData = pods.map(p => parseInt(p.connections) || 0);
+                const connColors = pods.map(p => p.role === 'Primary' ? '#3b82f6' : p.role === 'Metrics DB' ? '#8b5cf6' : '#22c55e');
+                pgConnectionsChart.data.labels = labels;
+                pgConnectionsChart.data.datasets[0].data = connData;
+                pgConnectionsChart.data.datasets[0].backgroundColor = connColors;
+                pgConnectionsChart.update('none');
+
+                // Cache Hit
+                const cacheData = pods.map(p => parseFloat(p.cache_hit) || 0);
+                const cacheColors = cacheData.map(v => v >= 99 ? '#22c55e' : v >= 95 ? '#84cc16' : v >= 90 ? '#f59e0b' : '#ef4444');
+                pgCacheHitChart.data.labels = labels;
+                pgCacheHitChart.data.datasets[0].data = cacheData;
+                pgCacheHitChart.data.datasets[0].backgroundColor = cacheColors;
+                pgCacheHitChart.update('none');
+
+                // DB Size (MB)
+                const sizeData = pods.map(p => {
+                    const size = p.disk_used || '0';
+                    if (size.includes('MB')) return parseFloat(size);
+                    if (size.includes('kB')) return parseFloat(size) / 1024;
+                    if (size.includes('GB')) return parseFloat(size) * 1024;
+                    return parseFloat(size) / (1024 * 1024) || 0;
+                });
+                const sizeColors = ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe'];
+                pgDbSizeChart.data.labels = labels;
+                pgDbSizeChart.data.datasets[0].data = sizeData;
+                pgDbSizeChart.data.datasets[0].backgroundColor = labels.map((_, i) => sizeColors[i % sizeColors.length]);
+                pgDbSizeChart.update('none');
+
+                // Replication Lag
+                const lagData = pods.map(p => {
+                    if (p.role === 'Primary' || p.repl_lag === 'N/A') return 0;
+                    const lag = p.repl_lag || '0';
+                    if (lag.includes('KB')) return parseFloat(lag) * 1024;
+                    if (lag.includes('MB')) return parseFloat(lag) * 1024 * 1024;
+                    if (lag.includes('B')) return parseFloat(lag);
+                    return parseFloat(lag) || 0;
+                });
+                const lagColors = lagData.map(v => v === 0 ? '#22c55e' : v < 1024 ? '#84cc16' : v < 10240 ? '#f59e0b' : '#ef4444');
+                pgReplLagChart.data.labels = labels;
+                pgReplLagChart.data.datasets[0].data = lagData;
+                pgReplLagChart.data.datasets[0].backgroundColor = lagColors;
+                pgReplLagChart.update('none');
+            } catch (e) {
+                console.error('Failed to load PG charts:', e);
+            }
+        }
+
+        function renderRecentAlerts(alerts) {
+            const container = document.getElementById('recent-alerts');
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div class="text-gray-500 text-center py-4">No recent alerts</div>';
+                return;
+            }
+            container.innerHTML = alerts.slice(0, 5).map(a => `
+                <div class="p-3 severity-${a.severity}">
+                    <div class="flex justify-between">
+                        <span class="font-bold">${a.title}</span>
+                        <span class="text-xs text-gray-500">${new Date(a.time).toLocaleString()}</span>
+                    </div>
+                    <div class="text-sm">${a.message}</div>
+                </div>
+            `).join('');
+        }
+
+        async function loadNodes() {
+            const data = await fetchAPI('/nodes');
+            if (!data || !data.nodes) return;
+
+            document.getElementById('nodes-grid').innerHTML = data.nodes.map(n => `
+                <div class="neu-border bg-white p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-bold">${n.node_name}</span>
+                        <span class="px-2 py-1 rounded text-xs ${n.node_status === 'Ready' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${n.node_status}</span>
+                    </div>
+                    <div class="text-xs text-gray-500 mb-3">${n.node_ip} | ${n.node_role}</div>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between"><span>CPU</span><span class="font-bold">${(n.cpu_percent || 0).toFixed(1)}%</span></div>
+                        <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-blue-500 h-2 rounded-full" style="width: ${n.cpu_percent || 0}%"></div></div>
+                        <div class="flex justify-between"><span>Memory</span><span class="font-bold">${(n.memory_percent || 0).toFixed(1)}%</span></div>
+                        <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-green-500 h-2 rounded-full" style="width: ${n.memory_percent || 0}%"></div></div>
+                        <div class="flex justify-between"><span>Disk</span><span class="font-bold">${(n.disk_percent || 0).toFixed(1)}%</span></div>
+                        <div class="w-full bg-gray-200 rounded-full h-2"><div class="bg-purple-500 h-2 rounded-full" style="width: ${n.disk_percent || 0}%"></div></div>
+                        <div class="text-xs text-gray-500 text-right">${formatBytes(n.disk_used_bytes)} / ${formatBytes(n.disk_total_bytes)}</div>
+                        <div class="flex justify-between text-gray-600"><span>Load Avg</span><span>${(n.load_average_1m || 0).toFixed(2)}</span></div>
+                        <div class="flex justify-between text-gray-600"><span>Pods</span><span>${n.pod_count || 0}</span></div>
+                    </div>
+                </div>
+            `).join('');
+
+            const select = document.getElementById('nodeSelect');
+            select.innerHTML = '<option value="">Select a node</option>' + data.nodes.map(n => `<option value="${n.node_name}">${n.node_name}</option>`).join('');
+        }
+
+        async function loadNodeHistory() {
+            const nodeName = document.getElementById('nodeSelect').value;
+            if (!nodeName) return;
+
+            const data = await fetchAPI(`/nodes/${nodeName}/history?range=${currentTimeRange}`);
+            if (!data || !data.metrics) return;
+
+            const labels = data.metrics.map(m => new Date(m.time).toLocaleTimeString());
+            const cpuData = data.metrics.map(m => m.cpu_percent || 0);
+            const memData = data.metrics.map(m => m.memory_percent || 0);
+
+            if (nodeHistoryChart) nodeHistoryChart.destroy();
+            nodeHistoryChart = new Chart(document.getElementById('nodeHistoryChart'), {
+                type: 'line',
+                data: { labels, datasets: [{ label: 'CPU %', data: cpuData, borderColor: '#3b82f6', tension: 0.1 }, { label: 'Memory %', data: memData, borderColor: '#10b981', tension: 0.1 }] },
+                options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } }
+            });
+        }
+
+        async function loadPostgres() {
+            const overview = await fetchAPI('/postgres/overview');
+            const pods = await fetchAPI('/postgres');
+
+            if (overview) {
+                document.getElementById('pg-total-size').textContent = `${(overview.total_database_size_gb || 0).toFixed(2)} GB`;
+                document.getElementById('pg-connections').textContent = overview.total_connections || 0;
+                document.getElementById('pg-repl-lag').textContent = formatLagBytes(overview.max_replication_lag || 0);
+                document.getElementById('pg-cache-ratio').textContent = `${(overview.avg_cache_hit_ratio || 0).toFixed(1)}%`;
+            }
+
+            if (pods && pods.pods) {
+                document.getElementById('postgres-pods-table').innerHTML = pods.pods.map(p => `
+                    <tr class="border-t">
+                        <td class="p-2">${p.pod_name}</td>
+                        <td class="p-2"><span class="px-2 py-1 rounded text-xs ${p.role === 'Primary' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}">${p.role}</span></td>
+                        <td class="p-2"><span class="px-2 py-1 rounded text-xs ${p.status === 'Running' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${p.status}</span></td>
+                        <td class="p-2">${p.node_name}</td>
+                        <td class="p-2">${((p.database_size_bytes || 0) / 1024 / 1024).toFixed(2)} MB</td>
+                        <td class="p-2">${p.active_connections || 0} / ${p.max_connections || 200}</td>
+                        <td class="p-2">${p.role === 'Replica' ? formatLagBytes(p.replication_lag_seconds || 0) : 'N/A'}</td>
+                        <td class="p-2">${(p.cache_hit_ratio || 0).toFixed(1)}%</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        async function loadAPIAnalytics() {
+            const analytics = await fetchAPI(`/api/analytics?range=${currentTimeRange}`);
+            const topEndpoints = await fetchAPI(`/api/top-endpoints?range=${currentTimeRange}&limit=10`);
+            const slowEndpoints = await fetchAPI(`/api/slowest-endpoints?range=${currentTimeRange}&limit=10`);
+
+            if (analytics) {
+                document.getElementById('api-total').textContent = (analytics.total_requests || 0).toLocaleString();
+                const successRate = analytics.total_requests > 0 ? ((analytics.success_requests / analytics.total_requests) * 100).toFixed(2) : 0;
+                document.getElementById('api-success-rate').textContent = `${successRate}%`;
+                document.getElementById('api-avg-time').textContent = `${(analytics.avg_duration_ms || 0).toFixed(2)} ms`;
+                document.getElementById('api-p95-time').textContent = `${(analytics.p95_duration_ms || 0).toFixed(2)} ms`;
+            }
+
+            if (topEndpoints && topEndpoints.endpoints) {
+                document.getElementById('top-endpoints-table').innerHTML = topEndpoints.endpoints.map(e => `
+                    <tr class="border-t">
+                        <td class="p-2 truncate max-w-xs">${e.path}</td>
+                        <td class="p-2 text-right">${e.total_requests}</td>
+                        <td class="p-2 text-right">${(e.avg_duration_ms || 0).toFixed(2)}</td>
+                        <td class="p-2 text-right ${e.error_count > 0 ? 'text-red-600' : ''}">${e.error_count || 0}</td>
+                    </tr>
+                `).join('');
+            }
+
+            if (slowEndpoints && slowEndpoints.endpoints) {
+                document.getElementById('slowest-endpoints-table').innerHTML = slowEndpoints.endpoints.map(e => `
+                    <tr class="border-t">
+                        <td class="p-2 truncate max-w-xs">${e.path}</td>
+                        <td class="p-2 text-right">${(e.avg_duration_ms || 0).toFixed(2)}</td>
+                        <td class="p-2 text-right">${(e.p95_duration_ms || 0).toFixed(2)}</td>
+                        <td class="p-2 text-right">${(e.max_duration_ms || 0).toFixed(2)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            loadAPILogs(0);
+        }
+
+        async function loadAPILogs(offset) {
+            apiLogsOffset = offset;
+            const data = await fetchAPI(`/api/logs?limit=50&offset=${offset}`);
+            if (!data || !data.logs) return;
+
+            document.getElementById('api-logs-table').innerHTML = data.logs.map(l => `
+                <tr class="border-t ${l.status_code >= 400 ? 'bg-red-50' : ''}">
+                    <td class="p-2">${new Date(l.time).toLocaleTimeString()}</td>
+                    <td class="p-2"><span class="px-1 rounded text-xs bg-gray-200">${l.method}</span></td>
+                    <td class="p-2 truncate max-w-xs">${l.path}</td>
+                    <td class="p-2 text-center"><span class="px-2 py-1 rounded text-xs ${l.status_code < 400 ? 'bg-green-100' : 'bg-red-100'}">${l.status_code}</span></td>
+                    <td class="p-2 text-right">${(l.duration_ms || 0).toFixed(2)} ms</td>
+                    <td class="p-2">${l.user_email || '-'}</td>
+                    <td class="p-2">${l.ip_address || '-'}</td>
+                </tr>
+            `).join('');
+            document.getElementById('api-logs-pagination').textContent = `${offset + 1} - ${offset + data.logs.length}`;
+        }
+
+        async function loadAlerts() {
+            const active = await fetchAPI('/alerts/active');
+            const thresholds = await fetchAPI('/alerts/thresholds');
+
+            if (active && active.alerts) {
+                const container = document.getElementById('active-alerts');
+                if (active.alerts.length === 0) {
+                    container.innerHTML = '<div class="text-gray-500 text-center py-4">No active alerts</div>';
+                } else {
+                    container.innerHTML = active.alerts.map(a => `
+                        <div class="p-3 severity-${a.severity}">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="font-bold">${a.title}</span>
+                                    <div class="text-sm">${a.message}</div>
+                                    <div class="text-xs text-gray-500 mt-1">${new Date(a.time).toLocaleString()}</div>
+                                </div>
+                                <div class="flex gap-2">
+                                    ${!a.acknowledged ? `<button onclick="acknowledgeAlert(${a.id})" class="text-xs px-2 py-1 border rounded hover:bg-gray-100">Acknowledge</button>` : ''}
+                                    <button onclick="resolveAlert(${a.id})" class="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600">Resolve</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            }
+
+            if (thresholds && thresholds.thresholds) {
+                document.getElementById('alert-thresholds').innerHTML = thresholds.thresholds.map(t => `
+                    <div class="flex justify-between items-center p-2 border-b">
+                        <div>
+                            <div class="font-medium">${t.display_name || t.metric_name}</div>
+                            <div class="text-xs text-gray-500">${t.description || ''}</div>
+                        </div>
+                        <div class="text-sm">
+                            <span class="text-yellow-600">W: ${t.warning_threshold}</span> |
+                            <span class="text-red-600">C: ${t.critical_threshold}</span>
+                            <span class="ml-2 ${t.enabled ? 'text-green-600' : 'text-gray-400'}">${t.enabled ? 'Enabled' : 'Disabled'}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function acknowledgeAlert(id) {
+            await fetchAPI(`/alerts/${id}/acknowledge`, { method: 'POST' });
+            loadAlerts();
+            loadOverview();
+        }
+
+        async function resolveAlert(id) {
+            await fetchAPI(`/alerts/${id}/resolve`, { method: 'POST' });
+            loadAlerts();
+            loadOverview();
+        }
+
+        let lastRefreshTime = Date.now();
+        let refreshInterval = 15000; // 15 seconds
+
+        async function refreshAll() {
+            // Add pulse animation during refresh
+            document.querySelectorAll('.metric-card').forEach(el => el.classList.add('pulse'));
+
+            await loadOverview();
+            lastRefreshTime = Date.now();
+
+            // Remove pulse animation
+            setTimeout(() => {
+                document.querySelectorAll('.metric-card').forEach(el => el.classList.remove('pulse'));
+            }, 500);
+        }
+
+        function updateCountdown() {
+            const elapsed = Math.floor((Date.now() - lastRefreshTime) / 1000);
+            const remaining = Math.max(0, Math.floor(refreshInterval / 1000) - elapsed);
+            const timeStr = new Date().toLocaleTimeString();
+            document.getElementById('lastUpdate').textContent = `${timeStr} (${remaining}s)`;
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            initPgCharts();
+            loadOverview();
+            setInterval(refreshAll, refreshInterval);
+            setInterval(updateCountdown, 1000);
+        });
     </script>
 </body>
 </html>

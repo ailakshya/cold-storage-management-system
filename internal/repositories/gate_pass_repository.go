@@ -194,14 +194,19 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 			COALESCE(gp.request_source, 'employee') as request_source,
 			gp.created_by_customer_id,
 			c.id as customer_id, c.name as customer_name, c.phone as customer_phone,
+			c.village as customer_village,
 			e.id as entry_id, e.expected_quantity as entry_quantity,
 			iu.name as issued_by_name,
-			re.room_no, re.floor, re.gate_no as gatar_no
+			(SELECT string_agg(DISTINCT room_no, ', ' ORDER BY room_no) FROM room_entries WHERE thock_number = gp.thock_number) as rooms,
+			(SELECT string_agg(DISTINCT floor, ', ' ORDER BY floor) FROM room_entries WHERE thock_number = gp.thock_number) as floors,
+			(SELECT string_agg(DISTINCT gate_no, ', ') FROM room_entries WHERE thock_number = gp.thock_number) as gatars,
+			(SELECT COALESCE(SUM(quantity), 0) FROM room_entries WHERE thock_number = gp.thock_number) as total_qty,
+			(SELECT string_agg(quantity_breakdown, ', ') FROM room_entries WHERE thock_number = gp.thock_number) as qty_breakdown,
+			(SELECT string_agg(DISTINCT NULLIF(remark, ''), ', ') FROM room_entries WHERE thock_number = gp.thock_number) as remark
 		FROM gate_passes gp
 		JOIN customers c ON gp.customer_id = c.id
 		LEFT JOIN entries e ON gp.entry_id = e.id
 		LEFT JOIN users iu ON gp.issued_by_user_id = iu.id
-		LEFT JOIN room_entries re ON gp.thock_number = re.thock_number
 		WHERE gp.status = 'pending'
 		ORDER BY gp.issued_at ASC
 	`
@@ -220,8 +225,8 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 			id, customerID int
 			thockNumber, customerName, customerPhone, requestSource string
 			requestedQty int
-			gateNo, remarks, roomNo, floor, gatarNo, issuedByName *string
-			entryID, entryQty, createdByCustomerID *int
+			gateNo, remarks, issuedByName, customerVillage, rooms, floors, gatars, qtyBreakdown, remark *string
+			entryID, entryQty, createdByCustomerID, totalQty *int
 			paymentVerified, isExpired bool
 			paymentAmount *float64
 			issuedAt, expiresAt interface{}
@@ -231,9 +236,9 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 			&id, &thockNumber, &requestedQty, &gateNo,
 			&paymentVerified, &paymentAmount, &issuedAt, &expiresAt, &remarks, &isExpired,
 			&requestSource, &createdByCustomerID,
-			&customerID, &customerName, &customerPhone,
+			&customerID, &customerName, &customerPhone, &customerVillage,
 			&entryID, &entryQty, &issuedByName,
-			&roomNo, &floor, &gatarNo,
+			&rooms, &floors, &gatars, &totalQty, &qtyBreakdown, &remark,
 		)
 		if err != nil {
 			return nil, err
@@ -257,6 +262,9 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 		if createdByCustomerID != nil {
 			gatePass["created_by_customer_id"] = *createdByCustomerID
 		}
+		if customerVillage != nil {
+			gatePass["customer_village"] = *customerVillage
+		}
 
 		if gateNo != nil {
 			gatePass["gate_no"] = *gateNo
@@ -273,14 +281,23 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 		if entryQty != nil {
 			gatePass["entry_quantity"] = *entryQty
 		}
-		if roomNo != nil {
-			gatePass["room_no"] = *roomNo
+		if rooms != nil {
+			gatePass["rooms"] = *rooms
 		}
-		if floor != nil {
-			gatePass["floor"] = *floor
+		if floors != nil {
+			gatePass["floors"] = *floors
 		}
-		if gatarNo != nil {
-			gatePass["gate_no"] = *gatarNo
+		if gatars != nil {
+			gatePass["gatars"] = *gatars
+		}
+		if totalQty != nil {
+			gatePass["total_qty"] = *totalQty
+		}
+		if qtyBreakdown != nil {
+			gatePass["qty_breakdown"] = *qtyBreakdown
+		}
+		if remark != nil {
+			gatePass["remark"] = *remark
 		}
 
 		gatePasses = append(gatePasses, gatePass)

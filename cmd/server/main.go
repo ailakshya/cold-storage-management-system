@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"cold-backend/internal/auth"
@@ -21,7 +22,69 @@ import (
 	"cold-backend/internal/repositories"
 	"cold-backend/internal/services"
 	"cold-backend/internal/sms"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// connectTimescaleDB connects to the TimescaleDB metrics database
+func connectTimescaleDB() *pgxpool.Pool {
+	// TimescaleDB connection string from environment or default
+	// Using METRICS_DB_* prefix to avoid Kubernetes service env var collision
+	host := os.Getenv("METRICS_DB_HOST")
+	if host == "" {
+		host = "timescaledb.default.svc.cluster.local" // K8s service DNS
+	}
+	port := os.Getenv("METRICS_DB_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	user := os.Getenv("METRICS_DB_USER")
+	if user == "" {
+		user = "metrics"
+	}
+	password := os.Getenv("METRICS_DB_PASSWORD")
+	if password == "" {
+		password = "MetricsDB2025!"
+	}
+	database := os.Getenv("METRICS_DB_NAME")
+	if database == "" {
+		database = "metrics_db"
+	}
+
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		user, password, host, port, database)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	config, err := pgxpool.ParseConfig(connStr)
+	if err != nil {
+		log.Printf("[TimescaleDB] Failed to parse config: %v", err)
+		return nil
+	}
+
+	// Connection pool settings
+	config.MaxConns = 10
+	config.MinConns = 2
+	config.MaxConnLifetime = 1 * time.Hour
+	config.MaxConnIdleTime = 30 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		log.Printf("[TimescaleDB] Failed to connect: %v", err)
+		return nil
+	}
+
+	// Verify connection
+	if err := pool.Ping(ctx); err != nil {
+		log.Printf("[TimescaleDB] Failed to ping: %v", err)
+		pool.Close()
+		return nil
+	}
+
+	log.Println("[TimescaleDB] Connected successfully")
+	return pool
+}
 
 func main() {
 	// Parse command-line flags
@@ -84,6 +147,7 @@ func main() {
 
 	// Initialize middleware (needed for both modes)
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager, userRepo)
+	operationModeMiddleware := middleware.NewOperationModeMiddleware(systemSettingRepo)
 	corsMiddleware := middleware.NewCORS(cfg)
 	pageHandler := handlers.NewPageHandler()
 	healthHandler := handlers.NewHealthHandler(healthChecker)
@@ -153,8 +217,45 @@ func main() {
 		adminActionLogHandler := handlers.NewAdminActionLogHandler(adminActionLogRepo)
 		gatePassHandler := handlers.NewGatePassHandler(gatePassService, adminActionLogRepo)
 
+		// Initialize season repository
+		seasonRequestRepo := repositories.NewSeasonRequestRepository(pool)
+
+		// Initialize TimescaleDB connection for metrics (optional - degrades gracefully)
+		var metricsRepo *repositories.MetricsRepository
+		var monitoringHandler *handlers.MonitoringHandler
+		var apiLoggingMiddleware *middleware.APILoggingMiddleware
+		var metricsCollector *services.MetricsCollector
+
+		tsdbPool := connectTimescaleDB()
+		if tsdbPool != nil {
+			defer tsdbPool.Close()
+			log.Println("[Monitoring] Initializing monitoring components...")
+
+			// Initialize metrics repository
+			metricsRepo = repositories.NewMetricsRepository(tsdbPool)
+
+			// Initialize API logging middleware
+			apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(metricsRepo)
+
+			// Initialize monitoring handler
+			monitoringHandler = handlers.NewMonitoringHandler(metricsRepo)
+
+			// Initialize and start metrics collector
+			metricsCollector = services.NewMetricsCollector(metricsRepo)
+			metricsCollector.Start()
+			defer metricsCollector.Stop()
+
+			log.Println("[Monitoring] Monitoring components initialized successfully")
+		} else {
+			log.Println("[Monitoring] TimescaleDB not available, monitoring features disabled")
+		}
+
+		// Initialize season service and handler (needs tsdbPool for archiving timeseries data)
+		seasonService := services.NewSeasonService(seasonRequestRepo, userRepo, pool, tsdbPool, jwtManager)
+		seasonHandler := handlers.NewSeasonHandler(seasonService)
+
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, adminActionLogHandler, gatePassHandler, pageHandler, healthHandler, authMiddleware)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

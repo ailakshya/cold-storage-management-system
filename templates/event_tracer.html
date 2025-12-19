@@ -77,6 +77,28 @@
             background: #ede9fe !important;
             border-left: 4px solid #8b5cf6;
         }
+        .row-out {
+            background: #fee2e2 !important;
+            border-left: 4px solid #ef4444;
+        }
+        .type-in {
+            background: #22c55e;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            font-size: 0.75rem;
+            display: inline-block;
+        }
+        .type-out {
+            background: #ef4444;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            font-size: 0.75rem;
+            display: inline-block;
+        }
         .lang-selector {
             border: 2px solid #000;
             box-shadow: 2px 2px 0px #000;
@@ -122,7 +144,7 @@
             <h2 class="text-2xl font-bold mb-4">
                 <i class="bi bi-graph-up text-green-600"></i> <span data-i18n="entry_status_overview">Entry Status Overview</span>
             </h2>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div class="p-4 bg-green-50 border-2 border-black">
                     <p class="text-sm text-gray-600" data-i18n="total_entries">Total Entries</p>
                     <p id="totalEntries" class="text-3xl font-bold">...</p>
@@ -139,6 +161,10 @@
                     <p class="text-sm text-gray-600" data-i18n="sell_category">SELL Category</p>
                     <p id="sellEntries" class="text-3xl font-bold">...</p>
                 </div>
+                <div class="p-4 bg-red-50 border-2 border-black">
+                    <p class="text-sm text-gray-600" data-i18n="stock_out">Stock Out</p>
+                    <p id="totalPickups" class="text-3xl font-bold text-red-600">...</p>
+                </div>
             </div>
         </div>
 
@@ -151,6 +177,7 @@
                 <table class="w-full">
                     <thead class="table-header">
                         <tr>
+                            <th class="p-3 text-left border-2 border-black" data-i18n="type">Type</th>
                             <th class="p-3 text-left border-2 border-black" data-i18n="truck_number">Truck Number</th>
                             <th class="p-3 text-left border-2 border-black" data-i18n="category">Category</th>
                             <th class="p-3 text-left border-2 border-black" data-i18n="customer_name">Customer Name</th>
@@ -158,13 +185,12 @@
                             <th class="p-3 text-left border-2 border-black" data-i18n="village">Village</th>
                             <th class="p-3 text-left border-2 border-black" data-i18n="room_floor_gate">Room/Floor/Gate</th>
                             <th class="p-3 text-left border-2 border-black" data-i18n="quantity">Quantity</th>
-                            <th class="p-3 text-left border-2 border-black" data-i18n="entry_created">Entry Created</th>
-                            <th class="p-3 text-left border-2 border-black" data-i18n="room_allocated">Room Allocated</th>
+                            <th class="p-3 text-left border-2 border-black" data-i18n="time">Time</th>
                             <th class="p-3 text-left border-2 border-black" data-i18n="status">Status</th>
                         </tr>
                     </thead>
                     <tbody id="activityLogBody">
-                        <tr><td colspan="10" class="text-center p-4" data-i18n="loading">Loading...</td></tr>
+                        <tr><td colspan="11" class="text-center p-4" data-i18n="loading">Loading...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -235,14 +261,16 @@
 
         async function loadActivityLog() {
             try {
-                // Fetch entries and room entries (required)
-                const [entriesRes, roomEntriesRes] = await Promise.all([
+                // Fetch entries, room entries, and pickups
+                const [entriesRes, roomEntriesRes, pickupsRes] = await Promise.all([
                     fetch('/api/entries', { headers: { 'Authorization': `Bearer ${token}` } }),
-                    fetch('/api/room-entries', { headers: { 'Authorization': `Bearer ${token}` } })
+                    fetch('/api/room-entries', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/gate-passes/pickups/all', { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
 
                 const entries = await entriesRes.json();
                 const roomEntries = await roomEntriesRes.json();
+                const pickups = pickupsRes.ok ? await pickupsRes.json() : [];
 
                 // Try to fetch users (optional - requires admin role)
                 let users = [];
@@ -261,14 +289,16 @@
                     userMap[user.id] = capitalizeText(user.name);
                 });
 
-                // Group by truck number
-                const truckMap = new Map();
+                // Combined activities array
+                let activities = [];
 
-                // Process main entries
+                // Process main entries with room entries (IN type)
+                const truckMap = new Map();
                 entries.forEach(entry => {
                     const truckNum = entry.thock_number;
                     if (!truckMap.has(truckNum)) {
                         truckMap.set(truckNum, {
+                            type: 'in',
                             thock_number: truckNum,
                             customer_name: entry.name,
                             phone: entry.phone,
@@ -276,8 +306,6 @@
                             quantity: entry.expected_quantity || 0,
                             main_entry_time: entry.created_at,
                             main_entry_user: userMap[entry.created_by_user_id] || `User #${entry.created_by_user_id}`,
-                            room_entry_time: null,
-                            room_entry_user: null,
                             room: null,
                             floor: null,
                             gate: null,
@@ -302,8 +330,28 @@
                     }
                 });
 
-                // Convert to array and sort by latest activity
-                let activities = Array.from(truckMap.values());
+                // Add IN activities
+                activities = activities.concat(Array.from(truckMap.values()));
+
+                // Process pickups (OUT type)
+                pickups.forEach(pickup => {
+                    activities.push({
+                        type: 'out',
+                        thock_number: pickup.thock_number || '-',
+                        customer_name: pickup.customer_name || '-',
+                        phone: pickup.customer_phone || '-',
+                        village: pickup.customer_village || '-',
+                        quantity: pickup.pickup_quantity || 0,
+                        room: pickup.room_no || null,
+                        floor: pickup.floor || null,
+                        gate: null,
+                        pickup_time: pickup.pickup_time,
+                        pickup_user: pickup.picked_up_by_user_name || `User #${pickup.picked_up_by_user_id}`,
+                        latest_time: new Date(pickup.pickup_time).getTime()
+                    });
+                });
+
+                // Sort by latest activity
                 activities.sort((a, b) => b.latest_time - a.latest_time);
 
                 // Apply view mode filter
@@ -311,35 +359,83 @@
 
                 const tbody = document.getElementById('activityLogBody');
                 if (displayActivities.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="10" class="text-center p-4">' + i18n.t('no_activity_found', 'No activity found') + '</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">' + i18n.t('no_activity_found', 'No activity found') + '</td></tr>';
                     return;
                 }
 
-                const expectedLabel = i18n.t('expected_label', 'Expected:');
-                const storedLabel = i18n.t('stored_label', 'Stored:');
                 const bagsLabel = i18n.t('bags', 'bags');
                 const byLabel = i18n.t('by', 'by');
                 const roomLabel = i18n.t('room', 'Room');
                 const floorLabel = i18n.t('floor', 'Floor');
                 const gateLabel = i18n.t('gatar', 'Gate');
                 const awaitingStorageText = i18n.t('awaiting_storage', 'Awaiting Storage');
-                const completeText = i18n.t('status_complete', 'COMPLETE');
-                const pendingStorageText = i18n.t('status_pending_storage', 'PENDING STORAGE');
+                const storedText = i18n.t('status_stored', 'STORED');
+                const pendingStorageText = i18n.t('status_pending_storage', 'PENDING');
+                const pickedText = i18n.t('status_picked', 'PICKED');
 
                 tbody.innerHTML = displayActivities.map(activity => {
                     const category = getCategory(activity.thock_number);
                     const categoryClass = getCategoryClass(category);
+                    const isOut = activity.type === 'out';
                     const hasRoom = activity.room !== null;
-                    const rowClass = hasRoom ? 'row-room' : 'row-main';
-                    const statusClass = hasRoom ? 'status-room' : 'status-main';
-                    const statusText = hasRoom ? completeText : pendingStorageText;
 
-                    const roomInfo = hasRoom ?
-                        `${roomLabel} ${activity.room} / ${floorLabel} ${activity.floor} / ${gateLabel} ${activity.gate}` :
-                        `<span class="text-orange-600 font-semibold">${awaitingStorageText}</span>`;
+                    // Type badge
+                    const typeClass = isOut ? 'type-out' : 'type-in';
+                    const typeText = isOut ? 'OUT' : 'IN';
+
+                    // Row class
+                    const rowClass = isOut ? 'row-out' : (hasRoom ? 'row-room' : 'row-main');
+
+                    // Status
+                    let statusClass, statusText;
+                    if (isOut) {
+                        statusClass = 'type-out';
+                        statusText = pickedText;
+                    } else if (hasRoom) {
+                        statusClass = 'status-room';
+                        statusText = storedText;
+                    } else {
+                        statusClass = 'status-main';
+                        statusText = pendingStorageText;
+                    }
+
+                    // Room/Floor/Gate info
+                    let roomInfo;
+                    if (hasRoom) {
+                        roomInfo = `${roomLabel} ${activity.room} / ${floorLabel} ${activity.floor}${activity.gate ? ` / ${gateLabel} ${activity.gate}` : ''}`;
+                    } else {
+                        roomInfo = isOut ? '-' : `<span class="text-orange-600 font-semibold">${awaitingStorageText}</span>`;
+                    }
+
+                    // Time and user info
+                    let timeCell;
+                    if (isOut) {
+                        // OUT: Show pickup time and user
+                        timeCell = `
+                            <div class="font-semibold">${formatDateTime(activity.pickup_time)}</div>
+                            <div class="text-xs text-red-600">${byLabel} ${activity.pickup_user}</div>
+                        `;
+                    } else if (hasRoom) {
+                        // IN with room: Show both entry and room allocation
+                        timeCell = `
+                            <div class="text-xs text-blue-600">Entry: ${formatDateTime(activity.main_entry_time)}</div>
+                            <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
+                            <div class="text-xs text-purple-600 mt-1">Room: ${formatDateTime(activity.room_entry_time)}</div>
+                            <div class="text-xs text-purple-600">${byLabel} ${activity.room_entry_user}</div>
+                        `;
+                    } else {
+                        // IN without room: Show entry only
+                        timeCell = `
+                            <div class="font-semibold">${formatDateTime(activity.main_entry_time)}</div>
+                            <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
+                        `;
+                    }
 
                     return `
                     <tr class="${rowClass} hover:opacity-80 transition-opacity">
+                        <td class="p-3 border-2 border-black">
+                            <span class="${typeClass}">${typeText}</span>
+                        </td>
                         <td class="p-3 border-2 border-black font-bold text-lg">${activity.thock_number || '-'}</td>
                         <td class="p-3 border-2 border-black">
                             <span class="${categoryClass}">${category}</span>
@@ -348,19 +444,9 @@
                         <td class="p-3 border-2 border-black">${activity.phone || '-'}</td>
                         <td class="p-3 border-2 border-black">${capitalizeText(activity.village) || '-'}</td>
                         <td class="p-3 border-2 border-black text-purple-700 font-semibold">${roomInfo}</td>
-                        <td class="p-3 border-2 border-black">
-                            <div class="text-sm">${expectedLabel} <span class="font-bold">${activity.quantity}</span></div>
-                            ${hasRoom ? `<div class="text-sm text-green-700">${storedLabel} <span class="font-bold">${activity.room_quantity} ${bagsLabel}</span></div>` : ''}
-                        </td>
+                        <td class="p-3 border-2 border-black font-bold">${activity.quantity} ${bagsLabel}</td>
                         <td class="p-3 border-2 border-black text-sm">
-                            <div class="font-semibold">${formatDateTime(activity.main_entry_time)}</div>
-                            <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
-                        </td>
-                        <td class="p-3 border-2 border-black text-sm">
-                            ${hasRoom ? `
-                                <div class="font-semibold">${formatDateTime(activity.room_entry_time)}</div>
-                                <div class="text-xs text-purple-600">${byLabel} ${activity.room_entry_user}</div>
-                            ` : '<span class="text-gray-400">-</span>'}
+                            ${timeCell}
                         </td>
                         <td class="p-3 border-2 border-black">
                             <span class="${statusClass}">${statusText}</span>
@@ -371,19 +457,21 @@
             } catch (error) {
                 console.error('Error loading activity log:', error);
                 document.getElementById('activityLogBody').innerHTML =
-                    '<tr><td colspan="10" class="text-center p-4 text-red-600">' + i18n.t('error_loading_data', 'Error loading data') + '</td></tr>';
+                    '<tr><td colspan="11" class="text-center p-4 text-red-600">' + i18n.t('error_loading_data', 'Error loading data') + '</td></tr>';
             }
         }
 
         async function loadEntryStatus() {
             try {
-                const [entriesRes, roomEntriesRes] = await Promise.all([
+                const [entriesRes, roomEntriesRes, pickupsRes] = await Promise.all([
                     fetch('/api/entries', { headers: { 'Authorization': `Bearer ${token}` } }),
-                    fetch('/api/room-entries', { headers: { 'Authorization': `Bearer ${token}` } })
+                    fetch('/api/room-entries', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/gate-passes/pickups/all', { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
 
                 const entries = await entriesRes.json();
                 const roomEntries = await roomEntriesRes.json();
+                const pickups = pickupsRes.ok ? await pickupsRes.json() : [];
 
                 // Count SEED and SELL categories based on truck number
                 const seedEntries = entries.filter(e => {
@@ -401,10 +489,11 @@
                 document.getElementById('totalRoomEntries').textContent = roomEntries.length || 0;
                 document.getElementById('seedEntries').textContent = seedEntries || 0;
                 document.getElementById('sellEntries').textContent = sellEntries || 0;
+                document.getElementById('totalPickups').textContent = pickups.length || 0;
 
             } catch (error) {
                 console.error('Error loading entry status:', error);
-                ['totalEntries', 'totalRoomEntries', 'seedEntries', 'sellEntries'].forEach(id => {
+                ['totalEntries', 'totalRoomEntries', 'seedEntries', 'sellEntries', 'totalPickups'].forEach(id => {
                     const el = document.getElementById(id);
                     if (el) el.textContent = 'Error';
                 });

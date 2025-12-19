@@ -47,11 +47,12 @@ type UpdateGatePassRequest struct {
 }
 
 type RecordPickupRequest struct {
-	GatePassID     int    `json:"gate_pass_id"`
-	PickupQuantity int    `json:"pickup_quantity"`
-	RoomNo         string `json:"room_no"`
-	Floor          string `json:"floor"`
-	Remarks        string `json:"remarks"`
+	GatePassID      int              `json:"gate_pass_id"`
+	PickupQuantity  int              `json:"pickup_quantity"`
+	RoomNo          string           `json:"room_no"`
+	Floor           string           `json:"floor"`
+	Remarks         string           `json:"remarks"`
+	GatarBreakdown  []GatarBreakdown `json:"gatar_breakdown,omitempty"`
 }
 
 // CreateCustomerGatePassRequest represents a customer's gate pass request

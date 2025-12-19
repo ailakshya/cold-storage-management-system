@@ -71,7 +71,7 @@
                     <span class="employee-badge inline-block">
                         <i class="bi bi-person-circle"></i> <span id="employeeName">Loading...</span>
                     </span>
-                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 border-2 border-black shadow-[2px_2px_0px_#000]">v1.4.74</span>
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 border-2 border-black shadow-[2px_2px_0px_#000]">v1.5.15</span>
                 </div>
             </div>
             <nav class="flex gap-4 items-center">
@@ -106,7 +106,7 @@
                 <small class="text-xs opacity-75" data-i18n="search_items">Search for stored items</small>
             </button>
 
-            <button class="page-button bg-[#7DEDFF]" onclick="navigate('/entry-room')">
+            <button class="page-button bg-[#7DEDFF]" data-mode="loading" onclick="navigate('/entry-room')">
                 <i class="bi bi-door-open"></i>
                 <span data-i18n="entry_room_page">Entry Room</span>
                 <small class="text-xs opacity-75" data-i18n="room_entry_operations">Room entry operations</small>
@@ -118,19 +118,19 @@
                 <small class="text-xs opacity-75" data-i18n="check_activity">Check activity log</small>
             </button>
 
-            <button class="page-button bg-[#A8E6CF]" onclick="navigate('/room-config-1')">
+            <button class="page-button bg-[#A8E6CF]" data-mode="loading" onclick="navigate('/room-config-1')">
                 <i class="bi bi-thermometer-snow"></i>
                 <span data-i18n="room_configuration">Room Configuration 1</span>
                 <small class="text-xs opacity-75" data-i18n="update_room_data">Update room data</small>
             </button>
 
-            <button class="page-button bg-[#FFB3BA]" onclick="navigate('/gate-pass-entry')">
+            <button class="page-button bg-[#FFB3BA]" data-mode="unloading" onclick="navigate('/gate-pass-entry')">
                 <i class="bi bi-box-arrow-right"></i>
                 <span data-i18n="gate_pass_entry_page">Gate Pass Entry</span>
                 <small class="text-xs opacity-75" data-i18n="issue_gate_passes">Issue gate passes</small>
             </button>
 
-            <button class="page-button bg-[#FFDFBA]" onclick="navigate('/unloading-tickets')">
+            <button class="page-button bg-[#FFDFBA]" data-mode="unloading" onclick="navigate('/unloading-tickets')">
                 <i class="bi bi-clipboard-check"></i>
                 <span data-i18n="unloading_tickets_page">Unloading Tickets</span>
                 <small class="text-xs opacity-75" data-i18n="approve_manage_passes">Approve & manage passes</small>
@@ -270,6 +270,70 @@
 
         // Load data on page load
         window.addEventListener('load', loadEmployeeDashboard);
+
+        // Operation Mode - hide buttons based on current mode
+        async function loadOperationMode() {
+            try {
+                const res = await fetch('/api/settings/operation_mode', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+
+                const data = await res.json();
+                const currentMode = data.mode || 'loading';
+
+                // Check if user is admin (admins see all buttons)
+                const userStr = localStorage.getItem('user');
+                const user = userStr ? JSON.parse(userStr) : null;
+                const isAdmin = user && user.role === 'admin';
+
+                if (isAdmin) {
+                    // Admins see everything - just update the mode indicator
+                    updateModeIndicator(currentMode, true);
+                    return;
+                }
+
+                // Hide buttons based on operation mode
+                document.querySelectorAll('[data-mode]').forEach(btn => {
+                    if (btn.dataset.mode !== currentMode) {
+                        btn.style.display = 'none';
+                    }
+                });
+
+                // Update mode indicator
+                updateModeIndicator(currentMode, false);
+
+            } catch (error) {
+                console.error('Error loading operation mode:', error);
+            }
+        }
+
+        function updateModeIndicator(mode, isAdmin) {
+            const notice = document.querySelector('.mb-8.neu-border.bg-blue-100');
+            if (!notice) return;
+
+            const modeIcon = mode === 'loading' ? '📥' : '📤';
+            const modeName = mode === 'loading' ? 'Loading Mode' : 'Unloading Mode';
+            const modeDesc = mode === 'loading'
+                ? 'System is in loading mode - items are being stored'
+                : 'System is in unloading mode - items are being dispatched';
+
+            const modeHtml = `
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-2xl">${modeIcon}</span>
+                    <span class="font-bold text-lg">${modeName}</span>
+                    ${isAdmin ? '<span class="text-xs bg-yellow-200 px-2 py-1 border border-black">(Admin - All features visible)</span>' : ''}
+                </div>
+                <p class="text-sm">${modeDesc}</p>
+            `;
+            notice.innerHTML = modeHtml;
+            notice.className = mode === 'loading'
+                ? 'mb-8 neu-border bg-green-100 p-4'
+                : 'mb-8 neu-border bg-orange-100 p-4';
+        }
+
+        // Load operation mode on page load
+        window.addEventListener('load', loadOperationMode);
     </script>
 </body>
 </html>

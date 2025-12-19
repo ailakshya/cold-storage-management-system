@@ -104,9 +104,28 @@
 
         <!-- PostgreSQL Database Pods -->
         <div class="neu-border bg-white p-6 mb-6">
-            <h2 class="text-2xl font-bold mb-4">
-                <i class="bi bi-database-gear"></i> PostgreSQL Database Pods
-            </h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold">
+                    <i class="bi bi-database-gear"></i> PostgreSQL Database Pods
+                </h2>
+                <div class="flex gap-2">
+                    <button onclick="checkRecoveryStatus()" class="neu-border bg-blue-100 text-blue-800 px-3 py-1 text-sm">
+                        <i class="bi bi-info-circle"></i> Check Status
+                    </button>
+                    <button onclick="recoverStuckPods(true)" class="neu-border bg-yellow-100 text-yellow-800 px-3 py-1 text-sm">
+                        <i class="bi bi-search"></i> Detect Stuck
+                    </button>
+                    <button onclick="recoverStuckPods(false)" class="neu-border bg-red-100 text-red-800 px-3 py-1 text-sm">
+                        <i class="bi bi-arrow-repeat"></i> Recover Stuck
+                    </button>
+                </div>
+            </div>
+            <div id="recoveryAlert" class="hidden neu-border bg-yellow-50 p-3 mb-4 text-sm">
+                <div class="flex items-center gap-2">
+                    <i class="bi bi-exclamation-triangle text-yellow-600"></i>
+                    <span id="recoveryAlertText"></span>
+                </div>
+            </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
                     <thead>
@@ -115,10 +134,10 @@
                             <th class="px-4 py-2 text-left font-bold">Role</th>
                             <th class="px-4 py-2 text-left font-bold">Status</th>
                             <th class="px-4 py-2 text-left font-bold">Node</th>
-                            <th class="px-4 py-2 text-left font-bold">Disk Used</th>
-                            <th class="px-4 py-2 text-left font-bold">Disk Total</th>
+                            <th class="px-4 py-2 text-left font-bold">DB Size</th>
                             <th class="px-4 py-2 text-left font-bold">Connections</th>
-                            <th class="px-4 py-2 text-left font-bold">Repl Lag</th>
+                            <th class="px-4 py-2 text-left font-bold">Repl. Lag</th>
+                            <th class="px-4 py-2 text-left font-bold">Cache Hit</th>
                         </tr>
                     </thead>
                     <tbody id="pgPodsList">
@@ -127,6 +146,74 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+
+        <!-- K3s Node Metrics Graphs -->
+        <div class="neu-border bg-white p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">
+                <i class="bi bi-graph-up"></i> K3s Node Metrics
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="neu-border bg-gray-50 p-4">
+                    <h3 class="font-bold mb-3 text-center text-gray-700">
+                        <i class="bi bi-cpu text-blue-500"></i> CPU Usage (%)
+                    </h3>
+                    <div style="height: 280px;">
+                        <canvas id="nodeCpuChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-gray-50 p-4">
+                    <h3 class="font-bold mb-3 text-center text-gray-700">
+                        <i class="bi bi-memory text-green-500"></i> Memory Usage (%)
+                    </h3>
+                    <div style="height: 280px;">
+                        <canvas id="nodeMemoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- PostgreSQL Metrics Graphs -->
+        <div class="neu-border bg-white p-6 mb-6">
+            <h2 class="text-2xl font-bold mb-4">
+                <i class="bi bi-bar-chart-line"></i> PostgreSQL Metrics
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="neu-border bg-gray-50 p-4">
+                    <h3 class="font-bold mb-3 text-center text-gray-700">
+                        <i class="bi bi-plug text-purple-500"></i> Connections
+                    </h3>
+                    <div style="height: 250px;">
+                        <canvas id="pgConnectionsChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-gray-50 p-4">
+                    <h3 class="font-bold mb-3 text-center text-gray-700">
+                        <i class="bi bi-lightning text-yellow-500"></i> Cache Hit Ratio (%)
+                    </h3>
+                    <div style="height: 250px;">
+                        <canvas id="pgCacheHitChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+                <div class="neu-border bg-gray-50 p-4">
+                    <h3 class="font-bold mb-3 text-center text-gray-700">
+                        <i class="bi bi-hdd text-red-500"></i> DB Size (MB)
+                    </h3>
+                    <div style="height: 250px;">
+                        <canvas id="pgDbSizeChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-gray-50 p-4">
+                    <h3 class="font-bold mb-3 text-center text-gray-700">
+                        <i class="bi bi-arrow-repeat text-orange-500"></i> Replication Lag
+                    </h3>
+                    <div style="height: 250px;">
+                        <canvas id="pgReplLagChart"></canvas>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -326,6 +413,7 @@
         </div>
     </div>
 
+    <script src="/static/js/chart.umd.min.js"></script>
     <script>
         const token = localStorage.getItem('token');
         if (!token) {
@@ -334,6 +422,360 @@
             window.location.href = '/login';
         }
         console.log('Token found, length:', token ? token.length : 0);
+
+        // Chart instances
+        let nodeCpuChart = null;
+        let nodeMemoryChart = null;
+        let pgConnectionsChart = null;
+        let pgCacheHitChart = null;
+        let pgDbSizeChart = null;
+        let pgReplLagChart = null;
+
+        // Chart colors
+        const chartColors = [
+            'rgba(59, 130, 246, 0.8)',   // blue
+            'rgba(16, 185, 129, 0.8)',   // green
+            'rgba(245, 158, 11, 0.8)',   // yellow
+            'rgba(139, 92, 246, 0.8)',   // purple
+            'rgba(239, 68, 68, 0.8)',    // red
+        ];
+
+        // Initialize charts
+        function initCharts() {
+            // Optimized chart colors - gradient-like
+            const nodeColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+            const pgColors = ['#6366f1', '#22c55e', '#f97316', '#ec4899'];
+
+            // Common options for all charts
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 500 },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        padding: 12,
+                        cornerRadius: 8
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { font: { size: 11, weight: '600' } }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: { font: { size: 11 } }
+                    }
+                }
+            };
+
+            // Node CPU Chart
+            nodeCpuChart = new Chart(document.getElementById('nodeCpuChart'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'CPU %',
+                        data: [],
+                        backgroundColor: nodeColors,
+                        borderColor: nodeColors.map(c => c),
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        barThickness: 40
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, max: 100, ticks: { callback: v => v + '%' } }
+                    },
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: { label: ctx => `CPU: ${ctx.raw.toFixed(1)}%` }
+                        }
+                    }
+                }
+            });
+
+            // Node Memory Chart
+            nodeMemoryChart = new Chart(document.getElementById('nodeMemoryChart'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Memory %',
+                        data: [],
+                        backgroundColor: nodeColors.map(c => c.replace(')', ', 0.8)').replace('rgb', 'rgba').replace('#', '')),
+                        borderColor: nodeColors,
+                        borderWidth: 2,
+                        borderRadius: 6,
+                        barThickness: 40
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, max: 100, ticks: { callback: v => v + '%' } }
+                    },
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: { label: ctx => `Memory: ${ctx.raw.toFixed(1)}%` }
+                        }
+                    }
+                }
+            });
+
+            // PostgreSQL Connections Chart
+            pgConnectionsChart = new Chart(document.getElementById('pgConnectionsChart'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Connections',
+                        data: [],
+                        backgroundColor: pgColors,
+                        borderRadius: 6,
+                        barThickness: 35
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: { label: ctx => `Connections: ${ctx.raw}` }
+                        }
+                    }
+                }
+            });
+
+            // PostgreSQL Cache Hit Chart
+            pgCacheHitChart = new Chart(document.getElementById('pgCacheHitChart'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Cache Hit %',
+                        data: [],
+                        backgroundColor: ['#22c55e', '#22c55e', '#22c55e', '#22c55e'],
+                        borderRadius: 6,
+                        barThickness: 35
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    scales: {
+                        ...commonOptions.scales,
+                        y: { ...commonOptions.scales.y, min: 90, max: 100, ticks: { callback: v => v + '%' } }
+                    },
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: { label: ctx => `Cache Hit: ${ctx.raw.toFixed(1)}%` }
+                        }
+                    }
+                }
+            });
+
+            // PostgreSQL DB Size Chart
+            pgDbSizeChart = new Chart(document.getElementById('pgDbSizeChart'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Size (MB)',
+                        data: [],
+                        backgroundColor: ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe'],
+                        borderRadius: 6,
+                        barThickness: 35
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: { label: ctx => `Size: ${ctx.raw.toFixed(2)} MB` }
+                        }
+                    }
+                }
+            });
+
+            // PostgreSQL Replication Lag Chart
+            pgReplLagChart = new Chart(document.getElementById('pgReplLagChart'), {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Lag',
+                        data: [],
+                        backgroundColor: ctx => {
+                            const value = ctx.raw || 0;
+                            if (value === 0) return '#22c55e';
+                            if (value < 1024) return '#f59e0b';
+                            return '#ef4444';
+                        },
+                        borderRadius: 6,
+                        barThickness: 35
+                    }]
+                },
+                options: {
+                    ...commonOptions,
+                    plugins: {
+                        ...commonOptions.plugins,
+                        tooltip: {
+                            ...commonOptions.plugins.tooltip,
+                            callbacks: {
+                                label: ctx => {
+                                    const bytes = ctx.raw;
+                                    if (bytes === 0) return 'Lag: 0 (In Sync)';
+                                    if (bytes < 1024) return `Lag: ${bytes} B`;
+                                    if (bytes < 1024 * 1024) return `Lag: ${(bytes/1024).toFixed(1)} KB`;
+                                    return `Lag: ${(bytes/1024/1024).toFixed(1)} MB`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update K3s Node Charts
+        async function updateNodeCharts() {
+            const nodeColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
+            try {
+                const response = await fetch('/api/monitoring/nodes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.nodes && data.nodes.length > 0) {
+                    // Sort: k3s nodes first, then backup server
+                    const sortedNodes = data.nodes.sort((a, b) => {
+                        if (a.node_name.startsWith('k3s-') && !b.node_name.startsWith('k3s-')) return -1;
+                        if (!a.node_name.startsWith('k3s-') && b.node_name.startsWith('k3s-')) return 1;
+                        return a.node_name.localeCompare(b.node_name);
+                    });
+
+                    const labels = sortedNodes.map(n => n.node_name.replace('k3s-', '').replace('backup-server', 'backup'));
+                    const cpuData = sortedNodes.map(n => n.cpu_percent || 0);
+                    const memData = sortedNodes.map(n => n.memory_percent || 0);
+
+                    // Color based on value for CPU
+                    const cpuColors = cpuData.map(v => {
+                        if (v < 50) return '#22c55e';  // green
+                        if (v < 75) return '#f59e0b';  // yellow
+                        return '#ef4444';              // red
+                    });
+
+                    // Color based on value for Memory
+                    const memColors = memData.map(v => {
+                        if (v < 60) return '#3b82f6';  // blue
+                        if (v < 80) return '#f59e0b';  // yellow
+                        return '#ef4444';              // red
+                    });
+
+                    nodeCpuChart.data.labels = labels;
+                    nodeCpuChart.data.datasets[0].data = cpuData;
+                    nodeCpuChart.data.datasets[0].backgroundColor = cpuColors;
+                    nodeCpuChart.update('none');  // No animation for smoother updates
+
+                    nodeMemoryChart.data.labels = labels;
+                    nodeMemoryChart.data.datasets[0].data = memData;
+                    nodeMemoryChart.data.datasets[0].backgroundColor = memColors;
+                    nodeMemoryChart.update('none');
+                }
+            } catch (error) {
+                console.error('Failed to update node charts:', error);
+            }
+        }
+
+        // Update PostgreSQL Charts from pods data
+        function updatePgCharts(pods) {
+            if (!pods || pods.length === 0) return;
+
+            const pgColors = ['#6366f1', '#22c55e', '#f97316', '#ec4899', '#8b5cf6'];
+            const labels = pods.map(p => {
+                if (p.name.includes('streaming-replica')) return 'ext-195';
+                return p.name.replace('cold-postgres-', 'pg-');
+            });
+
+            // Connections - color by role
+            const connData = pods.map(p => parseInt(p.connections) || 0);
+            const connColors = pods.map(p => {
+                if (p.role === 'Primary') return '#3b82f6';      // blue for primary
+                if (p.role === 'Metrics DB') return '#8b5cf6';   // purple for metrics
+                return '#22c55e';                                 // green for replicas
+            });
+            pgConnectionsChart.data.labels = labels;
+            pgConnectionsChart.data.datasets[0].data = connData;
+            pgConnectionsChart.data.datasets[0].backgroundColor = connColors;
+            pgConnectionsChart.update('none');
+
+            // Cache Hit - color by performance
+            const cacheData = pods.map(p => parseFloat(p.cache_hit) || 0);
+            const cacheColors = cacheData.map(v => {
+                if (v >= 99) return '#22c55e';   // green - excellent
+                if (v >= 95) return '#84cc16';   // lime - good
+                if (v >= 90) return '#f59e0b';   // yellow - warning
+                return '#ef4444';                 // red - bad
+            });
+            pgCacheHitChart.data.labels = labels;
+            pgCacheHitChart.data.datasets[0].data = cacheData;
+            pgCacheHitChart.data.datasets[0].backgroundColor = cacheColors;
+            pgCacheHitChart.update('none');
+
+            // DB Size (convert to MB) - gradient purple
+            const sizeData = pods.map(p => {
+                const size = p.disk_used || '0';
+                if (size.includes('MB')) return parseFloat(size);
+                if (size.includes('kB')) return parseFloat(size) / 1024;
+                if (size.includes('GB')) return parseFloat(size) * 1024;
+                return parseFloat(size) / (1024 * 1024) || 0;
+            });
+            const sizeColors = ['#8b5cf6', '#a78bfa', '#c4b5fd', '#ddd6fe', '#ede9fe'];
+            pgDbSizeChart.data.labels = labels;
+            pgDbSizeChart.data.datasets[0].data = sizeData;
+            pgDbSizeChart.data.datasets[0].backgroundColor = labels.map((_, i) => sizeColors[i % sizeColors.length]);
+            pgDbSizeChart.update('none');
+
+            // Replication Lag - color by lag severity
+            const lagData = pods.map(p => {
+                if (p.role === 'Primary' || p.repl_lag === 'N/A') return 0;
+                const lag = p.repl_lag || '0';
+                if (lag.includes('KB')) return parseFloat(lag) * 1024;
+                if (lag.includes('MB')) return parseFloat(lag) * 1024 * 1024;
+                if (lag.includes('B')) return parseFloat(lag);
+                return parseFloat(lag) || 0;
+            });
+            const lagColors = lagData.map(v => {
+                if (v === 0) return '#22c55e';       // green - in sync
+                if (v < 1024) return '#84cc16';      // lime - minimal lag
+                if (v < 10240) return '#f59e0b';    // yellow - some lag
+                return '#ef4444';                    // red - significant lag
+            });
+            pgReplLagChart.data.labels = labels;
+            pgReplLagChart.data.datasets[0].data = lagData;
+            pgReplLagChart.data.datasets[0].backgroundColor = lagColors;
+            pgReplLagChart.update('none');
+        }
+
+        // Initialize charts on page load
+        initCharts();
 
         async function checkK3sCluster() {
             try {
@@ -466,11 +908,21 @@
                 const tbody = document.getElementById('pgPodsList');
 
                 if (data.pods && data.pods.length > 0) {
-                    tbody.innerHTML = data.pods.map(pod => `
-                        <tr class="border-b border-gray-200 hover:bg-gray-50">
+                    tbody.innerHTML = data.pods.map(pod => {
+                        const isExternal = pod.is_external || false;
+                        const rowClass = isExternal ? 'border-b border-gray-200 hover:bg-purple-50 bg-purple-50' : 'border-b border-gray-200 hover:bg-gray-50';
+                        const roleClass = pod.role === 'Primary' ? 'bg-blue-100 text-blue-800' :
+                                         pod.role === 'Metrics DB' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800';
+                        const cacheHit = pod.cache_hit || 'N/A';
+                        const connections = pod.connections || 'N/A';
+                        const maxConn = pod.max_conn || 200;
+                        const connDisplay = connections !== 'N/A' ? `${connections} / ${maxConn}` : 'N/A';
+
+                        return `
+                        <tr class="${rowClass}">
                             <td class="px-4 py-3 font-mono text-xs">${pod.name}</td>
                             <td class="px-4 py-3">
-                                <span class="px-2 py-1 rounded text-xs font-bold ${pod.role === 'Primary' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'}">
+                                <span class="px-2 py-1 rounded text-xs font-bold ${roleClass}">
                                     ${pod.role}
                                 </span>
                             </td>
@@ -482,11 +934,14 @@
                             </td>
                             <td class="px-4 py-3 text-xs">${pod.node}</td>
                             <td class="px-4 py-3 font-mono text-xs">${pod.disk_used}</td>
-                            <td class="px-4 py-3 font-mono text-xs">${pod.disk_total}</td>
-                            <td class="px-4 py-3 font-bold ${parseInt(pod.connections) > 0 ? 'text-green-600' : 'text-gray-400'}">${pod.connections}</td>
-                            <td class="px-4 py-3 font-mono text-xs ${pod.repl_lag !== 'N/A' ? 'text-blue-600' : 'text-gray-400'}">${pod.repl_lag}</td>
+                            <td class="px-4 py-3 font-mono text-xs">${connDisplay}</td>
+                            <td class="px-4 py-3 font-mono text-xs ${pod.repl_lag !== 'N/A' && pod.repl_lag !== 'N/A' ? 'text-orange-600' : 'text-gray-400'}">${pod.repl_lag}</td>
+                            <td class="px-4 py-3 font-mono text-xs ${cacheHit !== 'N/A' ? 'text-green-600' : 'text-gray-400'}">${cacheHit}</td>
                         </tr>
-                    `).join('');
+                    `}).join('');
+
+                    // Update PostgreSQL charts with pod data
+                    updatePgCharts(data.pods);
                 } else {
                     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-gray-500">No pods found</td></tr>';
                 }
@@ -546,7 +1001,7 @@
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ frequency })
+                    body: JSON.stringify({ schedule: frequency })
                 });
                 const data = await response.json();
 
@@ -589,6 +1044,87 @@
             }
         }
 
+        async function checkRecoveryStatus() {
+            try {
+                const response = await fetch('/api/infrastructure/recovery-status', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                const alertEl = document.getElementById('recoveryAlert');
+                const alertText = document.getElementById('recoveryAlertText');
+
+                if (data.cluster_healthy) {
+                    alertEl.className = 'neu-border bg-green-50 p-3 mb-4 text-sm';
+                    alertText.innerHTML = `<span class="text-green-700"><i class="bi bi-check-circle"></i> Cluster healthy: ${data.message}</span>`;
+                } else {
+                    alertEl.className = 'neu-border bg-yellow-50 p-3 mb-4 text-sm';
+                    alertText.innerHTML = `<span class="text-yellow-700"><i class="bi bi-exclamation-triangle"></i> ${data.message} - Auto-recovery: ${data.auto_recovery_enabled ? 'Enabled' : 'Disabled'}</span>`;
+                }
+                alertEl.classList.remove('hidden');
+
+                setTimeout(() => alertEl.classList.add('hidden'), 5000);
+            } catch (error) {
+                alert('Failed to check recovery status: ' + error.message);
+            }
+        }
+
+        async function recoverStuckPods(dryRun) {
+            const alertEl = document.getElementById('recoveryAlert');
+            const alertText = document.getElementById('recoveryAlertText');
+
+            try {
+                const response = await fetch('/api/infrastructure/recover-stuck-pods', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ dry_run: dryRun })
+                });
+                const data = await response.json();
+
+                if (dryRun) {
+                    // Show detection results
+                    if (data.stuck_pods && data.stuck_pods.length > 0) {
+                        const stuckList = data.stuck_pods.map(p =>
+                            `${p.name} (${p.reason}, ${p.stuck_duration})`
+                        ).join(', ');
+                        alertEl.className = 'neu-border bg-yellow-50 p-3 mb-4 text-sm';
+                        alertText.innerHTML = `<span class="text-yellow-700"><i class="bi bi-exclamation-triangle"></i> Found ${data.stuck_pods.length} stuck pods: ${stuckList}</span>`;
+                    } else {
+                        alertEl.className = 'neu-border bg-green-50 p-3 mb-4 text-sm';
+                        alertText.innerHTML = `<span class="text-green-700"><i class="bi bi-check-circle"></i> No stuck pods detected. ${data.healthy_pods ? data.healthy_pods.length : 0} pods healthy.</span>`;
+                    }
+                } else {
+                    // Show recovery results
+                    if (!confirm(`This will attempt to recover stuck pods. Continue?`)) return;
+
+                    if (data.recovered_pods && data.recovered_pods.length > 0) {
+                        alertEl.className = 'neu-border bg-green-50 p-3 mb-4 text-sm';
+                        alertText.innerHTML = `<span class="text-green-700"><i class="bi bi-check-circle"></i> Recovered: ${data.recovered_pods.join(', ')}. CNPG will recreate them.</span>`;
+                    } else if (data.skipped_pods && data.skipped_pods.length > 0) {
+                        alertEl.className = 'neu-border bg-yellow-50 p-3 mb-4 text-sm';
+                        alertText.innerHTML = `<span class="text-yellow-700"><i class="bi bi-info-circle"></i> Skipped: ${data.skipped_pods.join(', ')}</span>`;
+                    } else {
+                        alertEl.className = 'neu-border bg-blue-50 p-3 mb-4 text-sm';
+                        alertText.innerHTML = `<span class="text-blue-700"><i class="bi bi-info-circle"></i> No stuck pods to recover.</span>`;
+                    }
+
+                    // Refresh pod list after recovery
+                    setTimeout(() => {
+                        checkPostgreSQLPods();
+                        checkPostgreSQL();
+                    }, 2000);
+                }
+
+                alertEl.classList.remove('hidden');
+                setTimeout(() => alertEl.classList.add('hidden'), 10000);
+            } catch (error) {
+                alert('Failed to recover stuck pods: ' + error.message);
+            }
+        }
+
         function refreshAll() {
             checkK3sCluster();
             checkPostgreSQL();
@@ -596,6 +1132,7 @@
             checkVIP();
             checkBackupServer();
             checkBackendPods();
+            updateNodeCharts();
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
 

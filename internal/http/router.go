@@ -22,11 +22,20 @@ func NewRouter(
 	roomEntryEditLogHandler *handlers.RoomEntryEditLogHandler,
 	adminActionLogHandler *handlers.AdminActionLogHandler,
 	gatePassHandler *handlers.GatePassHandler,
+	seasonHandler *handlers.SeasonHandler,
 	pageHandler *handlers.PageHandler,
 	healthHandler *handlers.HealthHandler,
 	authMiddleware *middleware.AuthMiddleware,
+	operationModeMiddleware *middleware.OperationModeMiddleware,
+	monitoringHandler *handlers.MonitoringHandler,
+	apiLoggingMiddleware *middleware.APILoggingMiddleware,
 ) *mux.Router {
 	r := mux.NewRouter()
+
+	// Apply API logging middleware to all routes (if enabled)
+	if apiLoggingMiddleware != nil {
+		r.Use(apiLoggingMiddleware.Handler)
+	}
 
 	// Serve static files
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -71,11 +80,13 @@ func NewRouter(
 	r.HandleFunc("/admin/report", pageHandler.AdminReportPage).Methods("GET")
 	r.HandleFunc("/admin/logs", pageHandler.AdminLogsPage).Methods("GET")
 	r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
+	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
 
 	// Protected API routes - System Settings
 	settingsAPI := r.PathPrefix("/api/settings").Subrouter()
 	settingsAPI.Use(authMiddleware.Authenticate)
 	settingsAPI.HandleFunc("", systemSettingHandler.ListSettings).Methods("GET")
+	settingsAPI.HandleFunc("/operation_mode", systemSettingHandler.GetOperationMode).Methods("GET")
 	settingsAPI.HandleFunc("/{key}", systemSettingHandler.GetSetting).Methods("GET")
 	settingsAPI.HandleFunc("/{key}", systemSettingHandler.UpdateSetting).Methods("PUT")
 
@@ -99,23 +110,31 @@ func NewRouter(
 	customersAPI.HandleFunc("/{id}", customerHandler.UpdateCustomer).Methods("PUT")
 	customersAPI.HandleFunc("/{id}", customerHandler.DeleteCustomer).Methods("DELETE")
 
-	// Protected API routes - Entries (employees and admins only for creation)
+	// Protected API routes - Entries (employees and admins only for creation, LOADING MODE ONLY)
 	entriesAPI := r.PathPrefix("/api/entries").Subrouter()
 	entriesAPI.Use(authMiddleware.Authenticate)
 	entriesAPI.HandleFunc("", entryHandler.ListEntries).Methods("GET") // All authenticated users can view
-	entriesAPI.HandleFunc("", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(entryHandler.CreateEntry)).ServeHTTP).Methods("POST")
+	// Entry creation requires loading mode (blocked in unloading mode for non-admins)
+	entriesAPI.HandleFunc("", operationModeMiddleware.RequireLoadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(entryHandler.CreateEntry)),
+	).ServeHTTP).Methods("POST")
 	entriesAPI.HandleFunc("/count", entryHandler.GetCountByCategory).Methods("GET")
 	entriesAPI.HandleFunc("/unassigned", roomEntryHandler.GetUnassignedEntries).Methods("GET")
 	entriesAPI.HandleFunc("/{id}", entryHandler.GetEntry).Methods("GET")
 	entriesAPI.HandleFunc("/customer/{customer_id}", entryHandler.ListEntriesByCustomer).Methods("GET")
 
-	// Protected API routes - Room Entries (employees and admins only for creation/update)
+	// Protected API routes - Room Entries (employees and admins only for creation/update, LOADING MODE ONLY)
 	roomEntriesAPI := r.PathPrefix("/api/room-entries").Subrouter()
 	roomEntriesAPI.Use(authMiddleware.Authenticate)
 	roomEntriesAPI.HandleFunc("", roomEntryHandler.ListRoomEntries).Methods("GET") // All authenticated users can view
-	roomEntriesAPI.HandleFunc("", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(roomEntryHandler.CreateRoomEntry)).ServeHTTP).Methods("POST")
+	// Room entry creation/update requires loading mode
+	roomEntriesAPI.HandleFunc("", operationModeMiddleware.RequireLoadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(roomEntryHandler.CreateRoomEntry)),
+	).ServeHTTP).Methods("POST")
 	roomEntriesAPI.HandleFunc("/{id}", roomEntryHandler.GetRoomEntry).Methods("GET")
-	roomEntriesAPI.HandleFunc("/{id}", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(roomEntryHandler.UpdateRoomEntry)).ServeHTTP).Methods("PUT")
+	roomEntriesAPI.HandleFunc("/{id}", operationModeMiddleware.RequireLoadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(roomEntryHandler.UpdateRoomEntry)),
+	).ServeHTTP).Methods("PUT")
 
 	// Protected API routes - Entry Events
 	entryEventsAPI := r.PathPrefix("/api/entry-events").Subrouter()
@@ -160,18 +179,51 @@ func NewRouter(
 	adminActionLogsAPI.Use(authMiddleware.Authenticate)
 	adminActionLogsAPI.HandleFunc("", authMiddleware.RequireRole("admin")(http.HandlerFunc(adminActionLogHandler.ListActionLogs)).ServeHTTP).Methods("GET")
 
-	// Protected API routes - Gate Passes (for unloading mode)
+	// Protected API routes - Season Management (admin only, dual approval)
+	if seasonHandler != nil {
+		seasonAPI := r.PathPrefix("/api/season").Subrouter()
+		seasonAPI.Use(authMiddleware.Authenticate)
+		seasonAPI.Use(authMiddleware.RequireRole("admin"))
+		seasonAPI.HandleFunc("/initiate", seasonHandler.InitiateSeason).Methods("POST")
+		seasonAPI.HandleFunc("/pending", seasonHandler.GetPending).Methods("GET")
+		seasonAPI.HandleFunc("/history", seasonHandler.GetHistory).Methods("GET")
+		seasonAPI.HandleFunc("/{id}", seasonHandler.GetRequest).Methods("GET")
+		seasonAPI.HandleFunc("/{id}/approve", seasonHandler.ApproveRequest).Methods("POST")
+		seasonAPI.HandleFunc("/{id}/reject", seasonHandler.RejectRequest).Methods("POST")
+	}
+
+	// Protected API routes - Gate Passes (UNLOADING MODE ONLY for operations)
 	gatePassAPI := r.PathPrefix("/api/gate-passes").Subrouter()
 	gatePassAPI.Use(authMiddleware.Authenticate)
-	gatePassAPI.HandleFunc("", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CreateGatePass)).ServeHTTP).Methods("POST")
-	gatePassAPI.HandleFunc("", gatePassHandler.ListAllGatePasses).Methods("GET")
-	gatePassAPI.HandleFunc("/pending", gatePassHandler.ListPendingGatePasses).Methods("GET")
-	gatePassAPI.HandleFunc("/approved", gatePassHandler.ListApprovedGatePasses).Methods("GET")
-	gatePassAPI.HandleFunc("/expired", gatePassHandler.GetExpiredGatePasses).Methods("GET")
-	gatePassAPI.HandleFunc("/{id}/approve", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.ApproveGatePass)).ServeHTTP).Methods("PUT")
-	gatePassAPI.HandleFunc("/{id}/complete", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CompleteGatePass)).ServeHTTP).Methods("POST")
-	gatePassAPI.HandleFunc("/{id}/pickups", gatePassHandler.GetPickupHistory).Methods("GET")
-	gatePassAPI.HandleFunc("/pickup", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.RecordPickup)).ServeHTTP).Methods("POST")
+	// Gate pass operations require unloading mode
+	gatePassAPI.HandleFunc("", operationModeMiddleware.RequireUnloadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CreateGatePass)),
+	).ServeHTTP).Methods("POST")
+	gatePassAPI.HandleFunc("", operationModeMiddleware.RequireUnloadingMode(
+		http.HandlerFunc(gatePassHandler.ListAllGatePasses),
+	).ServeHTTP).Methods("GET")
+	gatePassAPI.HandleFunc("/pending", operationModeMiddleware.RequireUnloadingMode(
+		http.HandlerFunc(gatePassHandler.ListPendingGatePasses),
+	).ServeHTTP).Methods("GET")
+	gatePassAPI.HandleFunc("/approved", operationModeMiddleware.RequireUnloadingMode(
+		http.HandlerFunc(gatePassHandler.ListApprovedGatePasses),
+	).ServeHTTP).Methods("GET")
+	gatePassAPI.HandleFunc("/expired", operationModeMiddleware.RequireUnloadingMode(
+		http.HandlerFunc(gatePassHandler.GetExpiredGatePasses),
+	).ServeHTTP).Methods("GET")
+	gatePassAPI.HandleFunc("/{id}/approve", operationModeMiddleware.RequireUnloadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.ApproveGatePass)),
+	).ServeHTTP).Methods("PUT")
+	gatePassAPI.HandleFunc("/{id}/complete", operationModeMiddleware.RequireUnloadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CompleteGatePass)),
+	).ServeHTTP).Methods("POST")
+	// Static paths must come before dynamic {id} paths
+	gatePassAPI.HandleFunc("/pickups/all", gatePassHandler.ListAllPickups).Methods("GET")   // All pickups for activity log
+	gatePassAPI.HandleFunc("/pickups/by-thock", gatePassHandler.GetPickupHistoryByThock).Methods("GET") // Pickups by thock number
+	gatePassAPI.HandleFunc("/{id}/pickups", gatePassHandler.GetPickupHistory).Methods("GET") // View only - allowed in any mode
+	gatePassAPI.HandleFunc("/pickup", operationModeMiddleware.RequireUnloadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.RecordPickup)),
+	).ServeHTTP).Methods("POST")
 
 	// Protected API routes - Infrastructure Monitoring
 	infraHandler := handlers.NewInfrastructureHandler()
@@ -186,6 +238,46 @@ func NewRouter(
 	infraAPI.HandleFunc("/trigger-backup", infraHandler.TriggerBackup).Methods("POST")
 	infraAPI.HandleFunc("/backup-schedule", infraHandler.UpdateBackupSchedule).Methods("POST")
 	infraAPI.HandleFunc("/failover", infraHandler.ExecuteFailover).Methods("POST")
+	infraAPI.HandleFunc("/recover-stuck-pods", infraHandler.RecoverStuckPods).Methods("POST")
+	infraAPI.HandleFunc("/recovery-status", infraHandler.GetRecoveryStatus).Methods("GET")
+
+	// Protected API routes - Monitoring (TimescaleDB metrics)
+	if monitoringHandler != nil {
+		monitoringAPI := r.PathPrefix("/api/monitoring").Subrouter()
+		monitoringAPI.Use(authMiddleware.Authenticate)
+		monitoringAPI.Use(authMiddleware.RequireRole("admin"))
+
+		// Dashboard overview
+		monitoringAPI.HandleFunc("/dashboard", monitoringHandler.GetDashboardData).Methods("GET")
+
+		// API Analytics
+		monitoringAPI.HandleFunc("/api/analytics", monitoringHandler.GetAPIAnalytics).Methods("GET")
+		monitoringAPI.HandleFunc("/api/top-endpoints", monitoringHandler.GetTopEndpoints).Methods("GET")
+		monitoringAPI.HandleFunc("/api/slowest-endpoints", monitoringHandler.GetSlowestEndpoints).Methods("GET")
+		monitoringAPI.HandleFunc("/api/logs", monitoringHandler.GetRecentAPILogs).Methods("GET")
+
+		// Node Metrics
+		monitoringAPI.HandleFunc("/nodes", monitoringHandler.GetLatestNodeMetrics).Methods("GET")
+		monitoringAPI.HandleFunc("/nodes/{name}/history", monitoringHandler.GetNodeMetricsHistory).Methods("GET")
+		monitoringAPI.HandleFunc("/cluster/overview", monitoringHandler.GetClusterOverview).Methods("GET")
+
+		// PostgreSQL Metrics
+		monitoringAPI.HandleFunc("/postgres", monitoringHandler.GetLatestPostgresMetrics).Methods("GET")
+		monitoringAPI.HandleFunc("/postgres/overview", monitoringHandler.GetPostgresOverview).Methods("GET")
+
+		// Alerts
+		monitoringAPI.HandleFunc("/alerts/active", monitoringHandler.GetActiveAlerts).Methods("GET")
+		monitoringAPI.HandleFunc("/alerts", monitoringHandler.GetRecentAlerts).Methods("GET")
+		monitoringAPI.HandleFunc("/alerts/{id}/acknowledge", monitoringHandler.AcknowledgeAlert).Methods("POST")
+		monitoringAPI.HandleFunc("/alerts/{id}/resolve", monitoringHandler.ResolveAlert).Methods("POST")
+		monitoringAPI.HandleFunc("/alerts/summary", monitoringHandler.GetAlertSummary).Methods("GET")
+		monitoringAPI.HandleFunc("/alerts/thresholds", monitoringHandler.GetAlertThresholds).Methods("GET")
+		monitoringAPI.HandleFunc("/alerts/thresholds/{id}", monitoringHandler.UpdateAlertThreshold).Methods("PUT")
+
+		// Backup History
+		monitoringAPI.HandleFunc("/backups", monitoringHandler.GetRecentBackups).Methods("GET")
+		monitoringAPI.HandleFunc("/backup-db", monitoringHandler.GetBackupDBStatus).Methods("GET")
+	}
 
 	// Health endpoints (no auth required - for Kubernetes probes)
 	r.HandleFunc("/health", healthHandler.BasicHealth).Methods("GET")

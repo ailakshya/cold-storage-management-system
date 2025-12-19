@@ -234,6 +234,46 @@ func (h *GatePassHandler) GetPickupHistory(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(pickups)
 }
 
+// ListAllPickups retrieves all pickups with customer info for activity log
+func (h *GatePassHandler) ListAllPickups(w http.ResponseWriter, r *http.Request) {
+	pickups, err := h.Service.GetAllPickups(context.Background())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure we return empty array instead of null
+	if pickups == nil {
+		pickups = []map[string]interface{}{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pickups)
+}
+
+// GetPickupHistoryByThock retrieves pickup history for a thock number (across all gate passes)
+func (h *GatePassHandler) GetPickupHistoryByThock(w http.ResponseWriter, r *http.Request) {
+	thockNumber := r.URL.Query().Get("thock_number")
+	if thockNumber == "" {
+		http.Error(w, "thock_number query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	pickups, err := h.Service.GetPickupHistoryByThockNumber(context.Background(), thockNumber)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Ensure we return empty array instead of null
+	if pickups == nil {
+		pickups = []models.GatePassPickup{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(pickups)
+}
+
 // GetExpiredGatePasses retrieves expired gate passes for admin logs
 func (h *GatePassHandler) GetExpiredGatePasses(w http.ResponseWriter, r *http.Request) {
 	expiredPasses, err := h.Service.GetExpiredGatePassLogs(context.Background())

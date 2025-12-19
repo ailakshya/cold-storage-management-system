@@ -617,11 +617,43 @@ qm rollback 210 snapshot1  # Restore snapshot
 - Load testing
 - Disaster recovery testing
 
-### 6. Monitoring and Observability
-- Deploy Prometheus
-- Deploy Grafana
-- Configure CloudNativePG metrics
-- Set up alerts
+### 6. Monitoring and Observability ✓ COMPLETED (v1.5.0)
+**TimescaleDB Monitoring System** has been deployed with:
+
+#### Components
+- **TimescaleDB Pod**: Time-series database for metrics storage
+  - Service: `timescaledb.default.svc.cluster.local:5432`
+  - Database: `metrics_db`, User: `metrics`
+  - Storage: 10Gi on Longhorn
+
+- **Metrics Collector**: Collects every 30 seconds
+  - K3s node metrics (CPU, memory, disk, network, pods)
+  - PostgreSQL pod metrics (connections, replication lag)
+
+- **API Request Logging**: Tracks all API requests
+  - Duration, status codes, user info
+  - Error rates and response sizes
+
+- **Monitoring Dashboard**: `/monitoring` page
+  - Real-time cluster overview
+  - Historical charts (5m to 7d range)
+  - API analytics and performance
+  - Alert management
+
+#### API Endpoints (Admin only)
+```
+GET /api/monitoring/dashboard     - Full dashboard data
+GET /api/monitoring/nodes         - Node metrics
+GET /api/monitoring/postgres      - PostgreSQL metrics
+GET /api/monitoring/api/analytics - API performance stats
+GET /api/monitoring/alerts        - System alerts
+```
+
+#### TimescaleDB Features
+- Hypertables with automatic partitioning
+- Data compression (after 7 days)
+- Automatic retention policies (30-90 days)
+- Continuous aggregates for fast queries
 
 ### 7. Production Deployment
 - Switch to gurukripacoldstore.in domain
@@ -715,5 +747,6 @@ kubectl run -it --rm psql-test --image=postgres:17 -- \
 
 ---
 
-**Last Updated:** December 15, 2025
+**Last Updated:** December 18, 2025
+**Version:** v1.5.0 (with TimescaleDB Monitoring)
 **Maintained By:** Lakshya (M.Tech CSE AI&ML)

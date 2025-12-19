@@ -1,0 +1,129 @@
+---
+# TimescaleDB for Time-Series Metrics Storage
+# Stores: API logs, node metrics, PostgreSQL metrics, system alerts
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: timescaledb-secret
+  namespace: default
+type: Opaque
+stringData:
+  POSTGRES_USER: metrics
+  POSTGRES_PASSWORD: MetricsDB2025!
+  POSTGRES_DB: metrics_db
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: timescaledb-pvc
+  namespace: default
+  annotations:
+    longhorn.io/volume-attributes: '{"numberOfReplicas": "1"}'
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: longhorn
+  resources:
+    requests:
+      storage: 10Gi
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: timescaledb
+  namespace: default
+  labels:
+    app: timescaledb
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: timescaledb
+  template:
+    metadata:
+      labels:
+        app: timescaledb
+    spec:
+      containers:
+        - name: timescaledb
+          image: timescale/timescaledb:latest-pg16
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: timescaledb-secret
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: timescaledb-storage
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - metrics
+                - -d
+                - metrics_db
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - metrics
+                - -d
+                - metrics_db
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: timescaledb-storage
+          persistentVolumeClaim:
+            claimName: timescaledb-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb
+  namespace: default
+  labels:
+    app: timescaledb
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: timescaledb
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: timescaledb-external
+  namespace: default
+  labels:
+    app: timescaledb
+spec:
+  type: NodePort
+  ports:
+    - port: 5432
+      targetPort: 5432
+      nodePort: 30433
+      protocol: TCP
+  selector:
+    app: timescaledb

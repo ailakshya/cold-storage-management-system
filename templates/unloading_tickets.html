@@ -110,10 +110,67 @@
                     <form id="approvalForm" class="hidden" onsubmit="approveGatePass(event)">
                         <input type="hidden" id="gatePassId">
 
+                        <!-- Customer Details -->
                         <div class="mb-4 p-4 bg-yellow-50 neu-border">
-                            <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="thock_number">Thok NO</span>:</p>
-                            <p class="text-xl font-bold text-purple-700" id="selectedTruckNumber">-</p>
-                            <p class="text-xs text-gray-600 mt-2" id="selectedCustomer"></p>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="thock_number">Thok NO</span>:</p>
+                                    <p class="text-xl font-bold text-purple-700" id="selectedTruckNumber">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="phone">Phone</span>:</p>
+                                    <p class="text-lg font-bold text-blue-600" id="selectedPhone">-</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="customer_name">Customer</span>:</p>
+                                    <p class="font-bold" id="selectedCustomerName">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="village">Village</span>:</p>
+                                    <p class="font-bold text-green-700" id="selectedVillage">-</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Storage Details -->
+                        <div class="mb-4 p-4 bg-blue-50 neu-border">
+                            <p class="text-sm font-semibold text-gray-700 mb-2"><span data-i18n="storage_details">Storage Details</span>:</p>
+                            <div class="grid grid-cols-3 gap-4">
+                                <div>
+                                    <p class="text-xs text-gray-600"><span data-i18n="rooms">Rooms</span>:</p>
+                                    <p class="font-bold text-lg text-blue-600" id="selectedRooms">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600"><span data-i18n="floors">Floors</span>:</p>
+                                    <p class="font-bold text-lg text-green-600" id="selectedFloors">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600"><span data-i18n="gatars">Gatars</span>:</p>
+                                    <p class="font-bold text-lg text-purple-600" id="selectedGatars">-</p>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mt-3">
+                                <div>
+                                    <p class="text-xs text-gray-600"><span data-i18n="quantity_breakdown">Quantity Breakdown</span>:</p>
+                                    <p class="font-mono text-sm font-bold" id="selectedQtyBreakdown">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600"><span data-i18n="remark">Remark</span>:</p>
+                                    <p class="font-bold text-red-600" id="selectedRemark">-</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Pickup History (OUT) -->
+                        <div class="mb-4 p-4 bg-red-50 neu-border" id="pickupHistorySection" style="display: none;">
+                            <p class="text-sm font-semibold text-gray-700 mb-2">
+                                <i class="bi bi-clock-history text-red-600"></i> <span data-i18n="pickup_history">Pickup History (OUT)</span>
+                            </p>
+                            <div id="pickupHistoryList" class="text-sm max-h-32 overflow-y-auto">
+                                <!-- Will be populated by JavaScript -->
+                            </div>
                         </div>
 
                         <div class="mb-4 p-3 bg-white neu-border">
@@ -721,8 +778,20 @@
             // Fill form
             document.getElementById('gatePassId').value = gatePass.id;
             document.getElementById('selectedTruckNumber').textContent = gatePass.thock_number;
-            document.getElementById('selectedCustomer').textContent =
-                `${gatePass.customer_name} - ${gatePass.customer_phone}`;
+            document.getElementById('selectedPhone').textContent = gatePass.customer_phone || '-';
+            document.getElementById('selectedCustomerName').textContent = gatePass.customer_name || '-';
+            document.getElementById('selectedVillage').textContent = gatePass.customer_village || '-';
+            document.getElementById('selectedRooms').textContent = gatePass.rooms || '-';
+            document.getElementById('selectedFloors').textContent = gatePass.floors || '-';
+            document.getElementById('selectedGatars').textContent = gatePass.gatars || '-';
+            document.getElementById('selectedRemark').textContent = gatePass.remark || '-';
+
+            // Format quantity breakdown: "302 (30, 30, 30, ...)"
+            const totalQty = gatePass.total_qty || gatePass.requested_quantity;
+            const breakdown = gatePass.qty_breakdown || '';
+            document.getElementById('selectedQtyBreakdown').textContent =
+                breakdown ? `${totalQty} (${breakdown})` : `${totalQty}`;
+
             document.getElementById('requestedQty').textContent = gatePass.requested_quantity;
             document.getElementById('approvedQuantity').value = gatePass.requested_quantity;
 
@@ -732,28 +801,36 @@
                 box.classList.add('bg-gray-100', 'text-gray-400');
             });
 
-            // Highlight selected room
-            if (gatePass.room_no) {
-                const roomBox = document.querySelector(`.room-${gatePass.room_no.toLowerCase()}`);
-                if (roomBox) {
-                    roomBox.classList.remove('bg-gray-100', 'text-gray-400');
-                    roomBox.classList.add('bg-red-500', 'text-white');
-                }
+            // Highlight rooms from aggregated data
+            if (gatePass.rooms) {
+                const roomList = gatePass.rooms.split(',').map(r => r.trim().toLowerCase());
+                roomList.forEach(room => {
+                    let roomClass = `.room-${room}`;
+                    if (room === 'g' || room === 'gallery') roomClass = '.room-g';
+                    const roomBox = document.querySelector(roomClass);
+                    if (roomBox) {
+                        roomBox.classList.remove('bg-gray-100', 'text-gray-400');
+                        roomBox.classList.add('bg-red-500', 'text-white');
+                    }
+                });
             }
 
-            // Highlight selected floor
-            if (gatePass.floor) {
-                const floorBox = document.querySelector(`.floor-${gatePass.floor}`);
-                if (floorBox) {
-                    floorBox.classList.remove('bg-gray-100', 'text-gray-400');
-                    floorBox.classList.add('bg-red-500', 'text-white');
-                }
+            // Highlight floors from aggregated data
+            if (gatePass.floors) {
+                const floorList = gatePass.floors.split(',').map(f => f.trim());
+                floorList.forEach(floor => {
+                    const floorBox = document.querySelector(`.floor-${floor}`);
+                    if (floorBox) {
+                        floorBox.classList.remove('bg-gray-100', 'text-gray-400');
+                        floorBox.classList.add('bg-red-500', 'text-white');
+                    }
+                });
             }
 
-            // Display gatar
+            // Display gatar in the location box
             const gatarElement = document.getElementById('selectedGatar');
-            if (gatePass.gate_no) {
-                gatarElement.textContent = gatePass.gate_no;
+            if (gatePass.gatars) {
+                gatarElement.textContent = gatePass.gatars;
                 gatarElement.classList.remove('bg-gray-100', 'text-gray-700');
                 gatarElement.classList.add('bg-red-500', 'text-white');
             } else {
@@ -764,6 +841,80 @@
 
             // Load pickup gatar options
             loadPickupGatars(gatePass.thock_number);
+
+            // Load pickup history by thock number (shows all historical pickups)
+            loadPickupHistory(gatePass.thock_number);
+        }
+
+        // Format date/time for display
+        function formatDateTime(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Load and display pickup history for a thock number (across all gate passes)
+        async function loadPickupHistory(thockNumber) {
+            try {
+                const res = await fetch(`/api/gate-passes/pickups/by-thock?thock_number=${encodeURIComponent(thockNumber)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const pickups = await res.json();
+                    displayPickupHistory(pickups);
+                } else {
+                    document.getElementById('pickupHistorySection').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading pickup history:', error);
+                document.getElementById('pickupHistorySection').style.display = 'none';
+            }
+        }
+
+        function displayPickupHistory(pickups) {
+            const section = document.getElementById('pickupHistorySection');
+            const list = document.getElementById('pickupHistoryList');
+
+            if (!pickups || pickups.length === 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+            list.innerHTML = pickups.map(p => {
+                // Format gatar breakdown if available
+                let gatarHtml = '';
+                if (p.gatar_breakdown && p.gatar_breakdown.length > 0) {
+                    const gatarList = p.gatar_breakdown.map(g =>
+                        `<span class="bg-purple-100 text-purple-700 px-1 rounded">G${g.gatar_no}: ${g.quantity}</span>`
+                    ).join(' ');
+                    gatarHtml = `<div class="text-xs mt-1">${gatarList}</div>`;
+                }
+
+                return `
+                <div class="py-2 border-b border-red-200 last:border-0">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <span class="font-bold text-red-600">${p.pickup_quantity} bags</span>
+                            <span class="text-gray-600 ml-2">by ${p.picked_up_by_user_name || 'Unknown'}</span>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            ${formatDateTime(p.pickup_time)}
+                        </div>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        <span class="bg-gray-100 px-1 rounded">Room ${p.room_no || '-'}</span>
+                        <span class="bg-gray-100 px-1 rounded ml-1">Floor ${p.floor || '-'}</span>
+                        ${p.remarks ? `<span class="text-blue-600 ml-2">${p.remarks}</span>` : ''}
+                    </div>
+                    ${gatarHtml}
+                </div>
+            `}).join('');
         }
 
         function clearSelection() {
@@ -781,6 +932,19 @@
 
             // Reset form
             document.getElementById('approvalForm').reset();
+
+            // Reset new fields
+            document.getElementById('selectedPhone').textContent = '-';
+            document.getElementById('selectedCustomerName').textContent = '-';
+            document.getElementById('selectedVillage').textContent = '-';
+            document.getElementById('selectedRooms').textContent = '-';
+            document.getElementById('selectedFloors').textContent = '-';
+            document.getElementById('selectedGatars').textContent = '-';
+            document.getElementById('selectedRemark').textContent = '-';
+            document.getElementById('selectedQtyBreakdown').textContent = '-';
+
+            // Hide pickup history
+            document.getElementById('pickupHistorySection').style.display = 'none';
 
             // Reset location boxes
             document.querySelectorAll('.location-box').forEach(box => {
@@ -1012,12 +1176,32 @@
             event.preventDefault();
 
             const gatePassId = parseInt(document.getElementById('pickupGatePassId').value);
+
+            // Build gatar breakdown array from selected gatars
+            const gatarBreakdown = [];
+            Object.keys(selectedPickupGatars).forEach(idx => {
+                const qty = selectedPickupGatars[idx];
+                if (qty > 0) {
+                    const cell = document.getElementById(`gatar-cell-${idx}`);
+                    if (cell) {
+                        const gatarNo = parseInt(cell.dataset.gate);
+                        if (!isNaN(gatarNo) && gatarNo > 0) {
+                            gatarBreakdown.push({
+                                gatar_no: gatarNo,
+                                quantity: qty
+                            });
+                        }
+                    }
+                }
+            });
+
             const pickupData = {
                 gate_pass_id: gatePassId,
                 pickup_quantity: parseInt(document.getElementById('pickupQuantity').value),
                 room_no: document.getElementById('pickupRoomNo').value,
                 floor: document.getElementById('pickupFloor').value,
-                remarks: document.getElementById('pickupRemarks').value
+                remarks: document.getElementById('pickupRemarks').value,
+                gatar_breakdown: gatarBreakdown.length > 0 ? gatarBreakdown : undefined
             };
 
             try {
