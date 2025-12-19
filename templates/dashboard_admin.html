@@ -292,10 +292,7 @@
         }
 
         function openCustomerExport() {
-            const phone = prompt(i18n.t('enter_customer_phone', 'Enter customer phone number:'));
-            if (phone && phone.trim()) {
-                window.open(`/customer-export?phone=${encodeURIComponent(phone.trim())}`, '_blank');
-            }
+            window.location.href = '/customer-export';
         }
 
         // Load dashboard statistics
