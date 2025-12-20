@@ -72,50 +72,50 @@
         .status-partially_completed { background: #fed7aa; color: #9a3412; }
     </style>
 </head>
-<body class="p-4">
+<body class="p-3 md:p-4">
     <div class="max-w-6xl mx-auto">
         <!-- Header -->
-        <div class="neu-card mb-6">
-            <div class="flex justify-between items-center">
+        <div class="neu-card mb-4 md:mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
                 <div>
-                    <h1 class="text-2xl font-bold text-gray-800"><span data-i18n="welcome">Welcome</span>, <span id="customerName"></span></h1>
-                    <p class="text-gray-600"><span data-i18n="phone">Phone</span>: <span id="customerPhone"></span></p>
+                    <h1 class="text-xl md:text-2xl font-bold text-gray-800"><span data-i18n="welcome">Welcome</span>, <span id="customerName"></span></h1>
+                    <p class="text-gray-600 text-sm md:text-base"><span data-i18n="phone">Phone</span>: <span id="customerPhone"></span></p>
                 </div>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 md:gap-3 w-full md:w-auto justify-end">
                     <select id="langSelector" onchange="i18n.setLanguage(this.value)"
                             class="lang-selector px-3 py-2 text-sm font-medium cursor-pointer">
                         <option value="en">EN</option>
                         <option value="hi">हिं</option>
                     </select>
-                    <button onclick="logout()" class="neu-button bg-red-500" data-i18n="logout">Logout</button>
+                    <button onclick="logout()" class="neu-button bg-red-500 text-sm md:text-base" data-i18n="logout">Logout</button>
                 </div>
             </div>
         </div>
 
         <!-- Payment Summary -->
         <div class="neu-card">
-            <h2 class="text-xl font-bold mb-4 text-gray-800" data-i18n="payment_summary">Payment Summary</h2>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div class="p-4 bg-blue-50 rounded-lg">
-                    <p class="text-sm text-gray-600" data-i18n="total_rent">Total Rent</p>
-                    <p class="text-2xl font-bold text-blue-600">₹<span id="totalRent">0</span></p>
+            <h2 class="text-lg md:text-xl font-bold mb-3 md:mb-4 text-gray-800" data-i18n="payment_summary">Payment Summary</h2>
+            <div class="grid grid-cols-3 gap-2 md:gap-4">
+                <div class="p-2 md:p-4 bg-blue-50 rounded-lg">
+                    <p class="text-xs md:text-sm text-gray-600" data-i18n="total_rent">Total Rent</p>
+                    <p class="text-lg md:text-2xl font-bold text-blue-600">₹<span id="totalRent">0</span></p>
                 </div>
-                <div class="p-4 bg-green-50 rounded-lg">
-                    <p class="text-sm text-gray-600" data-i18n="total_paid">Total Paid</p>
-                    <p class="text-2xl font-bold text-green-600">₹<span id="totalPaid">0</span></p>
+                <div class="p-2 md:p-4 bg-green-50 rounded-lg">
+                    <p class="text-xs md:text-sm text-gray-600" data-i18n="total_paid">Total Paid</p>
+                    <p class="text-lg md:text-2xl font-bold text-green-600">₹<span id="totalPaid">0</span></p>
                 </div>
-                <div class="p-4 bg-orange-50 rounded-lg">
-                    <p class="text-sm text-gray-600" data-i18n="balance">Balance</p>
-                    <p class="text-2xl font-bold" id="balanceAmount">₹<span id="totalBalance">0</span></p>
+                <div class="p-2 md:p-4 bg-orange-50 rounded-lg">
+                    <p class="text-xs md:text-sm text-gray-600" data-i18n="balance">Balance</p>
+                    <p class="text-lg md:text-2xl font-bold" id="balanceAmount">₹<span id="totalBalance">0</span></p>
                 </div>
             </div>
         </div>
 
         <!-- Trucks List -->
         <div class="neu-card">
-            <h2 class="text-xl font-bold mb-4 text-gray-800" data-i18n="your_trucks">Your Trucks</h2>
+            <h2 class="text-lg md:text-xl font-bold mb-3 md:mb-4 text-gray-800" data-i18n="your_trucks">Your Trucks</h2>
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full min-w-[500px] text-sm md:text-base">
                     <thead>
                         <tr class="border-b-2">
                             <th class="text-left p-2" data-i18n="truck_number">Truck Number</th>
@@ -135,38 +135,38 @@
 
         <!-- Gate Pass Request Form -->
         <div class="neu-card">
-            <h2 class="text-xl font-bold mb-4 text-gray-800" data-i18n="request_gate_pass">Request Gate Pass</h2>
-            <form id="gatePassForm" onsubmit="submitGatePassRequest(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <h2 class="text-lg md:text-xl font-bold mb-3 md:mb-4 text-gray-800" data-i18n="request_gate_pass">Request Gate Pass</h2>
+            <form id="gatePassForm" onsubmit="submitGatePassRequest(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 <div>
-                    <label class="block font-semibold mb-2" data-i18n="select_truck">Select Truck</label>
+                    <label class="block font-semibold mb-2 text-sm md:text-base" data-i18n="select_truck">Select Truck</label>
                     <select id="thockSelect" class="neu-input" required>
                         <option value="" data-i18n="select_truck_option">-- Select Truck --</option>
                     </select>
                 </div>
                 <div>
-                    <label class="block font-semibold mb-2" data-i18n="quantity">Quantity</label>
+                    <label class="block font-semibold mb-2 text-sm md:text-base" data-i18n="quantity">Quantity</label>
                     <input type="number" id="quantity" class="neu-input" min="1" required>
                     <p class="text-xs text-gray-500 mt-1"><span data-i18n="max">Max</span>: <span id="maxQuantity">0</span></p>
                 </div>
                 <div>
-                    <label class="block font-semibold mb-2" data-i18n="recipient_name_required">Recipient Name *</label>
+                    <label class="block font-semibold mb-2 text-sm md:text-base" data-i18n="recipient_name_required">Recipient Name *</label>
                     <input type="text" id="recipientName" class="neu-input" data-i18n-placeholder="who_will_receive" placeholder="Who will receive items" required>
                 </div>
                 <div>
-                    <label class="block font-semibold mb-2" data-i18n="remarks_optional">Remarks (optional)</label>
+                    <label class="block font-semibold mb-2 text-sm md:text-base" data-i18n="remarks_optional">Remarks (optional)</label>
                     <input type="text" id="remarks" class="neu-input" data-i18n-placeholder="add_any_notes" placeholder="Add any notes">
                 </div>
-                <div class="md:col-span-4">
-                    <button type="submit" class="neu-button w-full md:w-auto" data-i18n="submit_request">Submit Request</button>
+                <div class="md:col-span-2 lg:col-span-4">
+                    <button type="submit" class="neu-button w-full" data-i18n="submit_request">Submit Request</button>
                 </div>
             </form>
         </div>
 
         <!-- Gate Pass History -->
         <div class="neu-card">
-            <h2 class="text-xl font-bold mb-4 text-gray-800" data-i18n="gate_pass_history">Gate Pass History</h2>
+            <h2 class="text-lg md:text-xl font-bold mb-3 md:mb-4 text-gray-800" data-i18n="gate_pass_history">Gate Pass History</h2>
             <div class="overflow-x-auto">
-                <table class="w-full">
+                <table class="w-full min-w-[600px] text-sm md:text-base">
                     <thead>
                         <tr class="border-b-2">
                             <th class="text-left p-2" data-i18n="date">Date</th>
