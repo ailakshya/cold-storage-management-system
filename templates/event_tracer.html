@@ -292,18 +292,34 @@
                 // Combined activities array
                 let activities = [];
 
+                // Calculate pickups by thock number for original stored quantity
+                const pickupsByThock = {};
+                pickups.forEach(p => {
+                    const thock = p.thock_number;
+                    if (thock) {
+                        pickupsByThock[thock] = (pickupsByThock[thock] || 0) + (p.pickup_quantity || 0);
+                    }
+                });
+
                 // Process main entries with room entries (IN type)
                 const truckMap = new Map();
                 entries.forEach(entry => {
                     const truckNum = entry.thock_number;
                     if (!truckMap.has(truckNum)) {
+                        // Calculate original stored quantity
+                        // Use actual_quantity (current room_entries sum)
+                        // If 0 and there are pickups, use pickup total as original
+                        const currentQty = entry.actual_quantity || 0;
+                        const pickupQty = pickupsByThock[truckNum] || 0;
+                        const originalStored = currentQty > 0 ? currentQty : pickupQty;
+
                         truckMap.set(truckNum, {
                             type: 'in',
                             thock_number: truckNum,
                             customer_name: entry.name,
                             phone: entry.phone,
                             village: entry.village,
-                            quantity: entry.expected_quantity || 0,
+                            quantity: originalStored,
                             main_entry_time: entry.created_at,
                             main_entry_user: userMap[entry.created_by_user_id] || `User #${entry.created_by_user_id}`,
                             room: null,
