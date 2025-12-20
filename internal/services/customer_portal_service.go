@@ -3,17 +3,19 @@ package services
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
 )
 
 type CustomerPortalService struct {
-	CustomerRepo     *repositories.CustomerRepository
-	EntryRepo        *repositories.EntryRepository
-	RoomEntryRepo    *repositories.RoomEntryRepository
-	GatePassRepo     *repositories.GatePassRepository
-	RentPaymentRepo  *repositories.RentPaymentRepository
+	CustomerRepo      *repositories.CustomerRepository
+	EntryRepo         *repositories.EntryRepository
+	RoomEntryRepo     *repositories.RoomEntryRepository
+	GatePassRepo      *repositories.GatePassRepository
+	RentPaymentRepo   *repositories.RentPaymentRepository
+	SystemSettingRepo *repositories.SystemSettingRepository
 }
 
 func NewCustomerPortalService(
@@ -22,13 +24,15 @@ func NewCustomerPortalService(
 	roomEntryRepo *repositories.RoomEntryRepository,
 	gatePassRepo *repositories.GatePassRepository,
 	rentPaymentRepo *repositories.RentPaymentRepository,
+	systemSettingRepo *repositories.SystemSettingRepository,
 ) *CustomerPortalService {
 	return &CustomerPortalService{
-		CustomerRepo:    customerRepo,
-		EntryRepo:       entryRepo,
-		RoomEntryRepo:   roomEntryRepo,
-		GatePassRepo:    gatePassRepo,
-		RentPaymentRepo: rentPaymentRepo,
+		CustomerRepo:      customerRepo,
+		EntryRepo:         entryRepo,
+		RoomEntryRepo:     roomEntryRepo,
+		GatePassRepo:      gatePassRepo,
+		RentPaymentRepo:   rentPaymentRepo,
+		SystemSettingRepo: systemSettingRepo,
 	}
 }
 
@@ -61,6 +65,17 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 	customer, err := s.CustomerRepo.Get(ctx, customerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	// Get rent_per_item setting from system settings
+	var systemRentPerItem float64 = 160.0 // Default fallback
+	if s.SystemSettingRepo != nil {
+		rentSetting, err := s.SystemSettingRepo.Get(ctx, "rent_per_item")
+		if err == nil && rentSetting != nil {
+			if parsed, parseErr := strconv.ParseFloat(rentSetting.SettingValue, 64); parseErr == nil {
+				systemRentPerItem = parsed
+			}
+		}
 	}
 
 	// Get all entries for this customer
@@ -100,23 +115,17 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 			entryTotalPaid += payment.AmountPaid
 		}
 
-		// Get the latest payment to get total_rent and balance
-		var entryTotalRent, entryBalance float64
-		if len(payments) > 0 {
-			entryTotalRent = payments[0].TotalRent
-			entryBalance = payments[0].Balance
-		} else {
-			// If no payments, calculate based on expected quantity
-			// Assuming rent is stored somewhere, or we need to calculate
-			// For now, set to 0 if no payments exist
-			entryTotalRent = 0
-			entryBalance = 0
-		}
+		// Calculate rent based on current inventory (items still in storage)
+		// Use system rent_per_item setting
+		rentPerItem := systemRentPerItem
 
-		// Calculate rent per item
-		var rentPerItem float64
-		if entry.ExpectedQuantity > 0 && entryTotalRent > 0 {
-			rentPerItem = entryTotalRent / float64(entry.ExpectedQuantity)
+		// Calculate total rent based on current inventory
+		entryTotalRent := float64(currentInventory) * rentPerItem
+
+		// Calculate balance (rent - paid)
+		entryBalance := entryTotalRent - entryTotalPaid
+		if entryBalance < 0 {
+			entryBalance = 0
 		}
 
 		// Calculate effective available inventory (current - already committed in pending gate passes)

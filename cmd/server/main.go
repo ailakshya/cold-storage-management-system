@@ -174,6 +174,7 @@ func main() {
 			roomEntryRepo,
 			gatePassRepo,
 			rentPaymentRepo,
+			systemSettingRepo,
 		)
 
 		// Initialize customer portal handler
