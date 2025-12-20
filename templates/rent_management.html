@@ -106,50 +106,50 @@
 
         <!-- Summary Cards -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
-            <div class="neu-border bg-gradient-to-br from-green-400 to-green-600 text-white p-6">
+            <div class="neu-border bg-gradient-to-br from-green-400 to-green-600 text-white p-3 md:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm opacity-90">Total Customers</p>
-                        <p class="text-3xl font-bold mt-2" id="totalCustomers">0</p>
+                        <p class="text-xs md:text-sm opacity-90">Total Customers</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="totalCustomers">0</p>
                     </div>
-                    <i class="bi bi-people text-5xl opacity-50"></i>
+                    <i class="bi bi-people text-3xl md:text-5xl opacity-50"></i>
                 </div>
             </div>
 
-            <div class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-6">
+            <div class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-3 md:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm opacity-90">Total Thoks</p>
-                        <p class="text-3xl font-bold mt-2" id="totalThocks">0</p>
+                        <p class="text-xs md:text-sm opacity-90">Total Thoks</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="totalThocks">0</p>
                     </div>
-                    <i class="bi bi-truck text-5xl opacity-50"></i>
+                    <i class="bi bi-truck text-3xl md:text-5xl opacity-50"></i>
                 </div>
             </div>
 
-            <div class="neu-border bg-gradient-to-br from-yellow-400 to-yellow-600 text-white p-6">
+            <div class="neu-border bg-gradient-to-br from-yellow-400 to-yellow-600 text-white p-3 md:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm opacity-90">Outstanding Amount</p>
-                        <p class="text-3xl font-bold mt-2" id="totalOutstanding">₹0</p>
+                        <p class="text-xs md:text-sm opacity-90">Outstanding</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="totalOutstanding">₹0</p>
                     </div>
-                    <i class="bi bi-cash-stack text-5xl opacity-50"></i>
+                    <i class="bi bi-cash-stack text-3xl md:text-5xl opacity-50"></i>
                 </div>
             </div>
 
-            <div class="neu-border bg-gradient-to-br from-purple-400 to-purple-600 text-white p-6">
+            <div class="neu-border bg-gradient-to-br from-purple-400 to-purple-600 text-white p-3 md:p-6">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm opacity-90">Total Collected</p>
-                        <p class="text-3xl font-bold mt-2" id="totalCollected">₹0</p>
+                        <p class="text-xs md:text-sm opacity-90">Collected</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="totalCollected">₹0</p>
                     </div>
-                    <i class="bi bi-check-circle text-5xl opacity-50"></i>
+                    <i class="bi bi-check-circle text-3xl md:text-5xl opacity-50"></i>
                 </div>
             </div>
         </div>
 
         <!-- Search Bar -->
-        <div class="neu-border bg-white p-4 mb-6">
-            <div class="flex gap-4">
+        <div class="neu-border bg-white p-3 md:p-4 mb-4 md:mb-6">
+            <div class="flex flex-col md:flex-row gap-3 md:gap-4">
                 <div class="flex-1">
                     <input
                         type="text"
@@ -159,7 +159,7 @@
                         oninput="filterCustomers()"
                     >
                 </div>
-                <button onclick="loadCustomerAccounts()" class="neu-button bg-blue-500 text-white">
+                <button onclick="loadCustomerAccounts()" class="neu-button bg-blue-500 text-white w-full md:w-auto">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
             </div>
@@ -175,8 +175,8 @@
     </div>
 
     <!-- Payment Modal -->
-    <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="bg-white neu-border p-8 max-w-md w-full mx-4">
+    <div id="paymentModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white neu-border p-4 md:p-8 max-w-md w-full mx-2 md:mx-4 max-h-[90vh] overflow-y-auto">
             <h3 class="text-2xl font-bold mb-6">Collect Payment</h3>
 
             <div class="mb-4">
