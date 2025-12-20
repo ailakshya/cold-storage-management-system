@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Node Provisioning - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .status-pending { background: #6b7280; }
+        .status-connecting { background: #3b82f6; }
+        .status-installing { background: #f59e0b; }
+        .status-joining { background: #8b5cf6; }
+        .status-ready { background: #10b981; }
+        .status-failed { background: #ef4444; }
+        .status-removed { background: #374151; }
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+        .log-container {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            background: #1a1a2e;
+            color: #00ff00;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .log-success { color: #10b981; }
+        .log-error { color: #ef4444; }
+        .log-running { color: #3b82f6; }
+    </style>
+</head>
+<body class="bg-gray-100 p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="neu-border bg-white p-4 md:p-6 mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h1 class="text-2xl md:text-4xl font-bold flex items-center gap-3">
+                        <i class="bi bi-hdd-stack"></i>
+                        Node Provisioning
+                    </h1>
+                    <p class="text-gray-600 text-sm md:text-base">Manage K3s cluster nodes - Add, Remove, Provision</p>
+                </div>
+                <div class="flex gap-2">
+                    <a href="/infrastructure" class="neu-border bg-gray-200 text-black px-4 py-2 text-sm">
+                        <i class="bi bi-arrow-left"></i> Back
+                    </a>
+                    <button onclick="showAddNodeModal()" class="neu-border bg-green-500 text-white px-4 py-2 text-sm">
+                        <i class="bi bi-plus-lg"></i> Add Node
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+            <div class="neu-border bg-white p-4">
+                <div class="text-sm text-gray-600 mb-1">Total Nodes</div>
+                <div id="totalNodes" class="text-2xl font-bold">0</div>
+            </div>
+            <div class="neu-border bg-white p-4">
+                <div class="text-sm text-gray-600 mb-1">Ready</div>
+                <div id="readyNodes" class="text-2xl font-bold text-green-600">0</div>
+            </div>
+            <div class="neu-border bg-white p-4">
+                <div class="text-sm text-gray-600 mb-1">Pending</div>
+                <div id="pendingNodes" class="text-2xl font-bold text-yellow-600">0</div>
+            </div>
+            <div class="neu-border bg-white p-4">
+                <div class="text-sm text-gray-600 mb-1">Failed</div>
+                <div id="failedNodes" class="text-2xl font-bold text-red-600">0</div>
+            </div>
+            <div class="neu-border bg-white p-4">
+                <div class="text-sm text-gray-600 mb-1">Control Plane</div>
+                <div id="controlPlaneNodes" class="text-2xl font-bold text-blue-600">0</div>
+            </div>
+        </div>
+
+        <!-- Nodes Table -->
+        <div class="neu-border bg-white p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">
+                <i class="bi bi-server"></i> Cluster Nodes
+            </h2>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b-2 border-black">
+                            <th class="text-left p-2">IP Address</th>
+                            <th class="text-left p-2">Hostname</th>
+                            <th class="text-left p-2">Role</th>
+                            <th class="text-left p-2">Status</th>
+                            <th class="text-left p-2">K3s Version</th>
+                            <th class="text-left p-2">Resources</th>
+                            <th class="text-left p-2">Last Seen</th>
+                            <th class="text-left p-2">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nodesTable">
+                        <tr>
+                            <td colspan="8" class="text-center p-8 text-gray-500">
+                                <i class="bi bi-arrow-clockwise animate-spin text-2xl"></i>
+                                <p class="mt-2">Loading nodes...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Configuration Section -->
+        <div class="neu-border bg-white p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4">
+                <i class="bi bi-gear"></i> Cluster Configuration
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="configSection">
+                <div class="p-4 bg-gray-50 rounded">
+                    <div class="text-sm text-gray-600">Cluster VIP</div>
+                    <div class="font-bold" id="config-cluster_vip">--</div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded">
+                    <div class="text-sm text-gray-600">K3s Server URL</div>
+                    <div class="font-bold" id="config-k3s_server_url">--</div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded">
+                    <div class="text-sm text-gray-600">Offsite DB Host</div>
+                    <div class="font-bold" id="config-offsite_db_host">--</div>
+                </div>
+                <div class="p-4 bg-gray-50 rounded">
+                    <div class="text-sm text-gray-600">Default SSH User</div>
+                    <div class="font-bold" id="config-default_ssh_user">--</div>
+                </div>
+            </div>
+            <button onclick="showConfigModal()" class="mt-4 neu-border bg-blue-500 text-white px-4 py-2 text-sm">
+                <i class="bi bi-pencil"></i> Edit Configuration
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Node Modal -->
+    <div id="addNodeModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="neu-border bg-white p-6 max-w-lg w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="bi bi-plus-circle"></i> Add New Node
+            </h3>
+            <form id="addNodeForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">IP Address *</label>
+                    <input type="text" id="nodeIP" class="w-full neu-border p-2"
+                           placeholder="192.168.15.xxx" required pattern="^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">SSH User</label>
+                    <input type="text" id="nodeSSHUser" class="w-full neu-border p-2"
+                           placeholder="root" value="root">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">SSH Port</label>
+                    <input type="number" id="nodeSSHPort" class="w-full neu-border p-2"
+                           placeholder="22" value="22">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Role</label>
+                    <select id="nodeRole" class="w-full neu-border p-2">
+                        <option value="worker">Worker</option>
+                        <option value="control-plane">Control Plane</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">SSH Password (for initial key copy)</label>
+                    <input type="password" id="nodePassword" class="w-full neu-border p-2"
+                           placeholder="Leave empty if key already exists">
+                </div>
+                <div class="mb-4">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="autoSetup" checked>
+                        <span class="text-sm">Auto-provision after adding (recommended)</span>
+                    </label>
+                </div>
+                <div id="addNodeError" class="text-red-600 text-sm mb-4 hidden"></div>
+                <div class="flex gap-2 justify-end">
+                    <button type="button" onclick="hideAddNodeModal()"
+                            class="neu-border bg-gray-200 px-4 py-2">Cancel</button>
+                    <button type="button" onclick="testConnection()"
+                            class="neu-border bg-yellow-500 text-white px-4 py-2">
+                        <i class="bi bi-wifi"></i> Test
+                    </button>
+                    <button type="submit" class="neu-border bg-green-500 text-white px-4 py-2">
+                        <i class="bi bi-plus-lg"></i> Add Node
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Provision Progress Modal -->
+    <div id="provisionModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="neu-border bg-white p-6 max-w-2xl w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="bi bi-gear-wide-connected"></i> Provisioning Node: <span id="provisionNodeIP">--</span>
+            </h3>
+            <div class="mb-4">
+                <div class="flex justify-between text-sm mb-1">
+                    <span id="provisionStep">Initializing...</span>
+                    <span id="provisionProgress">0%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded h-4">
+                    <div id="provisionBar" class="bg-blue-500 h-4 rounded transition-all duration-300" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="log-container p-4 rounded" id="provisionLogs">
+                <div class="text-gray-500">Waiting for provisioning to start...</div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="hideProvisionModal()" class="neu-border bg-gray-200 px-4 py-2">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Actions Modal -->
+    <div id="actionsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="neu-border bg-white p-6 max-w-lg w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="bi bi-tools"></i> Node Actions: <span id="actionNodeIP">--</span>
+            </h3>
+            <div class="grid grid-cols-2 gap-3" id="actionButtons">
+                <button onclick="drainNode()" class="neu-border bg-yellow-500 text-white p-3">
+                    <i class="bi bi-box-arrow-right"></i><br>Drain
+                </button>
+                <button onclick="cordonNode()" class="neu-border bg-orange-500 text-white p-3">
+                    <i class="bi bi-sign-stop"></i><br>Cordon
+                </button>
+                <button onclick="uncordonNode()" class="neu-border bg-blue-500 text-white p-3">
+                    <i class="bi bi-play-circle"></i><br>Uncordon
+                </button>
+                <button onclick="rebootNode()" class="neu-border bg-purple-500 text-white p-3">
+                    <i class="bi bi-arrow-repeat"></i><br>Reboot
+                </button>
+                <button onclick="viewLogs()" class="neu-border bg-gray-600 text-white p-3">
+                    <i class="bi bi-file-text"></i><br>View Logs
+                </button>
+                <button onclick="removeNode()" class="neu-border bg-red-500 text-white p-3">
+                    <i class="bi bi-trash"></i><br>Remove
+                </button>
+            </div>
+            <div id="actionResult" class="mt-4 p-3 hidden"></div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="hideActionsModal()" class="neu-border bg-gray-200 px-4 py-2">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Node Logs Modal -->
+    <div id="logsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="neu-border bg-white p-6 max-w-3xl w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="bi bi-terminal"></i> System Logs: <span id="logsNodeIP">--</span>
+            </h3>
+            <div class="log-container p-4 rounded" id="nodeLogs" style="max-height: 400px;">
+                <div class="text-gray-500">Loading logs...</div>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button onclick="hideLogsModal()" class="neu-border bg-gray-200 px-4 py-2">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Config Edit Modal -->
+    <div id="configModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="neu-border bg-white p-6 max-w-lg w-full mx-4">
+            <h3 class="text-xl font-bold mb-4">
+                <i class="bi bi-gear-fill"></i> Edit Configuration
+            </h3>
+            <form id="configForm">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Configuration Key</label>
+                    <select id="configKey" class="w-full neu-border p-2">
+                        <option value="cluster_vip">Cluster VIP</option>
+                        <option value="k3s_server_url">K3s Server URL</option>
+                        <option value="k3s_token">K3s Token</option>
+                        <option value="offsite_db_host">Offsite DB Host</option>
+                        <option value="offsite_db_port">Offsite DB Port</option>
+                        <option value="default_ssh_user">Default SSH User</option>
+                        <option value="nas_mount_path">NAS Mount Path</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Value</label>
+                    <input type="text" id="configValue" class="w-full neu-border p-2" required>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button type="button" onclick="hideConfigModal()"
+                            class="neu-border bg-gray-200 px-4 py-2">Cancel</button>
+                    <button type="submit" class="neu-border bg-blue-500 text-white px-4 py-2">
+                        <i class="bi bi-check-lg"></i> Save
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let currentNodeId = null;
+        let provisionInterval = null;
+
+        if (!token) {
+            window.location.href = '/login';
+        }
+
+        // Load nodes on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadNodes();
+            loadConfigs();
+        });
+
+        async function loadNodes() {
+            try {
+                const response = await fetch('/api/infrastructure/nodes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Failed to load nodes');
+                const nodes = await response.json();
+                renderNodes(nodes || []);
+            } catch (error) {
+                console.error('Error loading nodes:', error);
+                document.getElementById('nodesTable').innerHTML = `
+                    <tr><td colspan="8" class="text-center p-8 text-red-600">
+                        <i class="bi bi-exclamation-triangle text-2xl"></i>
+                        <p class="mt-2">Failed to load nodes: ${error.message}</p>
+                    </td></tr>`;
+            }
+        }
+
+        function renderNodes(nodes) {
+            const table = document.getElementById('nodesTable');
+
+            // Update stats
+            document.getElementById('totalNodes').textContent = nodes.length;
+            document.getElementById('readyNodes').textContent = nodes.filter(n => n.status === 'ready').length;
+            document.getElementById('pendingNodes').textContent = nodes.filter(n => ['pending', 'connecting', 'installing', 'joining'].includes(n.status)).length;
+            document.getElementById('failedNodes').textContent = nodes.filter(n => n.status === 'failed').length;
+            document.getElementById('controlPlaneNodes').textContent = nodes.filter(n => n.role === 'control-plane').length;
+
+            if (nodes.length === 0) {
+                table.innerHTML = `
+                    <tr><td colspan="8" class="text-center p-8 text-gray-500">
+                        <i class="bi bi-inbox text-4xl"></i>
+                        <p class="mt-2">No nodes configured. Click "Add Node" to get started.</p>
+                    </td></tr>`;
+                return;
+            }
+
+            table.innerHTML = nodes.map(node => `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 font-mono">${node.ip_address}</td>
+                    <td class="p-2">${node.hostname || '--'}</td>
+                    <td class="p-2">
+                        <span class="px-2 py-1 text-xs rounded ${node.role === 'control-plane' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}">
+                            ${node.role}
+                        </span>
+                    </td>
+                    <td class="p-2">
+                        <span class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full status-${node.status} ${['connecting', 'installing', 'joining'].includes(node.status) ? 'pulse' : ''}"></span>
+                            ${node.status}
+                        </span>
+                        ${node.error_message ? `<span class="text-xs text-red-600 block">${node.error_message}</span>` : ''}
+                    </td>
+                    <td class="p-2">${node.k3s_version || '--'}</td>
+                    <td class="p-2 text-xs">
+                        ${node.cpu_cores ? `${node.cpu_cores} CPU` : '--'}<br>
+                        ${node.memory_mb ? `${Math.round(node.memory_mb/1024)}GB RAM` : ''}
+                    </td>
+                    <td class="p-2 text-xs">${node.last_seen_at ? new Date(node.last_seen_at).toLocaleString() : '--'}</td>
+                    <td class="p-2">
+                        <div class="flex gap-1">
+                            ${node.status === 'pending' ? `
+                                <button onclick="startProvision(${node.id}, '${node.ip_address}')"
+                                        class="px-2 py-1 text-xs bg-green-500 text-white rounded">
+                                    <i class="bi bi-play-fill"></i> Provision
+                                </button>
+                            ` : ''}
+                            ${['connecting', 'installing', 'joining'].includes(node.status) ? `
+                                <button onclick="showProvisionProgress(${node.id}, '${node.ip_address}')"
+                                        class="px-2 py-1 text-xs bg-blue-500 text-white rounded">
+                                    <i class="bi bi-eye"></i> Progress
+                                </button>
+                            ` : ''}
+                            <button onclick="showActionsModal(${node.id}, '${node.ip_address}')"
+                                    class="px-2 py-1 text-xs bg-gray-500 text-white rounded">
+                                <i class="bi bi-three-dots"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function loadConfigs() {
+            try {
+                const response = await fetch('/api/infrastructure/config', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Failed to load config');
+                const configs = await response.json();
+                (configs || []).forEach(config => {
+                    const el = document.getElementById(`config-${config.key}`);
+                    if (el) {
+                        el.textContent = config.is_secret ? '********' : (config.value || '--');
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading configs:', error);
+            }
+        }
+
+        // Modal functions
+        function showAddNodeModal() {
+            document.getElementById('addNodeModal').classList.remove('hidden');
+            document.getElementById('addNodeModal').classList.add('flex');
+        }
+
+        function hideAddNodeModal() {
+            document.getElementById('addNodeModal').classList.add('hidden');
+            document.getElementById('addNodeModal').classList.remove('flex');
+            document.getElementById('addNodeForm').reset();
+            document.getElementById('addNodeError').classList.add('hidden');
+        }
+
+        function showProvisionModal() {
+            document.getElementById('provisionModal').classList.remove('hidden');
+            document.getElementById('provisionModal').classList.add('flex');
+        }
+
+        function hideProvisionModal() {
+            document.getElementById('provisionModal').classList.add('hidden');
+            document.getElementById('provisionModal').classList.remove('flex');
+            if (provisionInterval) {
+                clearInterval(provisionInterval);
+                provisionInterval = null;
+            }
+        }
+
+        function showActionsModal(nodeId, ip) {
+            currentNodeId = nodeId;
+            document.getElementById('actionNodeIP').textContent = ip;
+            document.getElementById('actionsModal').classList.remove('hidden');
+            document.getElementById('actionsModal').classList.add('flex');
+            document.getElementById('actionResult').classList.add('hidden');
+        }
+
+        function hideActionsModal() {
+            document.getElementById('actionsModal').classList.add('hidden');
+            document.getElementById('actionsModal').classList.remove('flex');
+            currentNodeId = null;
+        }
+
+        function showLogsModal(ip) {
+            document.getElementById('logsNodeIP').textContent = ip;
+            document.getElementById('logsModal').classList.remove('hidden');
+            document.getElementById('logsModal').classList.add('flex');
+        }
+
+        function hideLogsModal() {
+            document.getElementById('logsModal').classList.add('hidden');
+            document.getElementById('logsModal').classList.remove('flex');
+        }
+
+        function showConfigModal() {
+            document.getElementById('configModal').classList.remove('hidden');
+            document.getElementById('configModal').classList.add('flex');
+        }
+
+        function hideConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+            document.getElementById('configModal').classList.remove('flex');
+            document.getElementById('configForm').reset();
+        }
+
+        // Test SSH connection
+        async function testConnection() {
+            const ip = document.getElementById('nodeIP').value;
+            const user = document.getElementById('nodeSSHUser').value || 'root';
+            const port = parseInt(document.getElementById('nodeSSHPort').value) || 22;
+            const password = document.getElementById('nodePassword').value;
+
+            if (!ip) {
+                alert('Please enter IP address');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/infrastructure/nodes/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ ip_address: ip, ssh_user: user, ssh_port: port, password })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    alert('Connection successful!');
+                } else {
+                    alert('Connection failed: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Test failed: ' + error.message);
+            }
+        }
+
+        // Add node
+        document.getElementById('addNodeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const ip = document.getElementById('nodeIP').value;
+            const user = document.getElementById('nodeSSHUser').value || 'root';
+            const port = parseInt(document.getElementById('nodeSSHPort').value) || 22;
+            const role = document.getElementById('nodeRole').value;
+            const password = document.getElementById('nodePassword').value;
+            const autoSetup = document.getElementById('autoSetup').checked;
+
+            try {
+                const response = await fetch('/api/infrastructure/nodes', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ip_address: ip,
+                        ssh_user: user,
+                        ssh_port: port,
+                        role: role,
+                        password: password,
+                        auto_setup: autoSetup
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const node = await response.json();
+                hideAddNodeModal();
+                loadNodes();
+
+                if (autoSetup) {
+                    showProvisionProgress(node.id, ip);
+                }
+            } catch (error) {
+                document.getElementById('addNodeError').textContent = error.message;
+                document.getElementById('addNodeError').classList.remove('hidden');
+            }
+        });
+
+        // Start provisioning
+        async function startProvision(nodeId, ip) {
+            try {
+                await fetch(`/api/infrastructure/nodes/${nodeId}/provision`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                showProvisionProgress(nodeId, ip);
+            } catch (error) {
+                alert('Failed to start provisioning: ' + error.message);
+            }
+        }
+
+        // Show provision progress
+        function showProvisionProgress(nodeId, ip) {
+            currentNodeId = nodeId;
+            document.getElementById('provisionNodeIP').textContent = ip;
+            document.getElementById('provisionLogs').innerHTML = '';
+            showProvisionModal();
+
+            // Poll for progress
+            provisionInterval = setInterval(async () => {
+                try {
+                    const [statusRes, logsRes] = await Promise.all([
+                        fetch(`/api/infrastructure/nodes/${nodeId}/provision/status`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        }),
+                        fetch(`/api/infrastructure/nodes/${nodeId}/provision/logs`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        })
+                    ]);
+
+                    const status = await statusRes.json();
+                    const logs = await logsRes.json();
+
+                    // Update progress bar
+                    if (status.active) {
+                        document.getElementById('provisionStep').textContent = status.status || 'Processing...';
+                        // Estimate progress based on status
+                        const progressMap = {
+                            'connecting': 10,
+                            'installing': 50,
+                            'joining': 80,
+                            'ready': 100
+                        };
+                        const progress = progressMap[status.status] || 0;
+                        document.getElementById('provisionProgress').textContent = progress + '%';
+                        document.getElementById('provisionBar').style.width = progress + '%';
+                    } else {
+                        document.getElementById('provisionStep').textContent = status.status || 'Completed';
+                        if (status.status === 'ready') {
+                            document.getElementById('provisionProgress').textContent = '100%';
+                            document.getElementById('provisionBar').style.width = '100%';
+                            document.getElementById('provisionBar').classList.remove('bg-blue-500');
+                            document.getElementById('provisionBar').classList.add('bg-green-500');
+                        } else if (status.status === 'failed') {
+                            document.getElementById('provisionBar').classList.remove('bg-blue-500');
+                            document.getElementById('provisionBar').classList.add('bg-red-500');
+                        }
+                        clearInterval(provisionInterval);
+                        provisionInterval = null;
+                        loadNodes();
+                    }
+
+                    // Update logs
+                    if (logs && logs.length) {
+                        document.getElementById('provisionLogs').innerHTML = logs.map(log => `
+                            <div class="mb-1 log-${log.status}">
+                                <span class="text-gray-500">[${new Date(log.started_at).toLocaleTimeString()}]</span>
+                                <span class="font-bold">${log.step}</span>: ${log.message || ''}
+                                ${log.output ? `<pre class="ml-4 text-xs opacity-75">${log.output}</pre>` : ''}
+                            </div>
+                        `).join('');
+                    }
+                } catch (error) {
+                    console.error('Error polling provision status:', error);
+                }
+            }, 2000);
+        }
+
+        // Node actions
+        async function drainNode() {
+            if (!confirm('Drain all pods from this node?')) return;
+            await nodeAction('drain', 'Draining');
+        }
+
+        async function cordonNode() {
+            await nodeAction('cordon', 'Cordoning');
+        }
+
+        async function uncordonNode() {
+            await nodeAction('uncordon', 'Uncordoning');
+        }
+
+        async function rebootNode() {
+            if (!confirm('Reboot this node? This will temporarily take it offline.')) return;
+            await nodeAction('reboot', 'Rebooting');
+        }
+
+        async function removeNode() {
+            if (!confirm('Remove this node from the cluster? This action cannot be undone.')) return;
+            try {
+                const response = await fetch(`/api/infrastructure/nodes/${currentNodeId}?force=true`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error(await response.text());
+                showActionResult('Node removed successfully', 'success');
+                hideActionsModal();
+                loadNodes();
+            } catch (error) {
+                showActionResult('Failed: ' + error.message, 'error');
+            }
+        }
+
+        async function viewLogs() {
+            const ip = document.getElementById('actionNodeIP').textContent;
+            try {
+                const response = await fetch(`/api/infrastructure/nodes/${currentNodeId}/logs?lines=100`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error(await response.text());
+                const result = await response.json();
+                hideActionsModal();
+                showLogsModal(ip);
+                document.getElementById('nodeLogs').innerHTML = `<pre>${result.logs || 'No logs available'}</pre>`;
+            } catch (error) {
+                showActionResult('Failed to get logs: ' + error.message, 'error');
+            }
+        }
+
+        async function nodeAction(action, label) {
+            try {
+                const response = await fetch(`/api/infrastructure/nodes/${currentNodeId}/${action}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error(await response.text());
+                const result = await response.json();
+                showActionResult(result.message || `${label} successful`, 'success');
+                loadNodes();
+            } catch (error) {
+                showActionResult('Failed: ' + error.message, 'error');
+            }
+        }
+
+        function showActionResult(message, type) {
+            const el = document.getElementById('actionResult');
+            el.textContent = message;
+            el.className = `mt-4 p-3 rounded ${type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+            el.classList.remove('hidden');
+        }
+
+        // Config update
+        document.getElementById('configForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const key = document.getElementById('configKey').value;
+            const value = document.getElementById('configValue').value;
+
+            try {
+                const response = await fetch('/api/infrastructure/config', {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ key, value })
+                });
+                if (!response.ok) throw new Error(await response.text());
+                hideConfigModal();
+                loadConfigs();
+                alert('Configuration updated successfully');
+            } catch (error) {
+                alert('Failed to update config: ' + error.message);
+            }
+        });
+    </script>
+</body>
+</html>

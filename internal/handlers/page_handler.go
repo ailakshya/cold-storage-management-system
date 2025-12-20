@@ -155,6 +155,11 @@ func (h *PageHandler) InfrastructureMonitoringPage(w http.ResponseWriter, r *htt
 	h.templates.ExecuteTemplate(w, "infrastructure_monitoring.html", nil)
 }
 
+// NodeProvisioningPage serves the node provisioning and cluster management page
+func (h *PageHandler) NodeProvisioningPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "node_provisioning.html", nil)
+}
+
 // MonitoringDashboardPage serves the enhanced monitoring dashboard
 func (h *PageHandler) MonitoringDashboardPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "monitoring_dashboard.html", nil)

@@ -256,8 +256,17 @@ func main() {
 		seasonService := services.NewSeasonService(seasonRequestRepo, userRepo, pool, tsdbPool, jwtManager)
 		seasonHandler := handlers.NewSeasonHandler(seasonService)
 
+		// Initialize node provisioning (infrastructure management)
+		infraRepo := repositories.NewInfrastructureRepository(pool)
+		nodeProvisioningService := services.NewNodeProvisioningService(infraRepo)
+		nodeProvisioningHandler := handlers.NewNodeProvisioningHandler(nodeProvisioningService)
+
+		// Initialize deployment service (one-click deploy from UI)
+		deploymentService := services.NewDeploymentService(infraRepo)
+		deploymentHandler := handlers.NewDeploymentHandler(deploymentService)
+
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

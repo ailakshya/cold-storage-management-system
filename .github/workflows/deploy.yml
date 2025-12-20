@@ -13,7 +13,6 @@ on:
 
 env:
   IMAGE_NAME: lakshyajaat/cold-backend
-  K3S_NODES: "192.168.15.110 192.168.15.111 192.168.15.112 192.168.15.113 192.168.15.114"
 
 jobs:
   build-and-deploy:
@@ -23,6 +22,22 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Discover K3s nodes
+        id: nodes
+        run: |
+          # Dynamically discover all K3s node IPs from Kubernetes API
+          K3S_NODES=$(kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{" "}{end}' | xargs)
+
+          if [ -z "$K3S_NODES" ]; then
+            echo "ERROR: No nodes discovered from Kubernetes!"
+            exit 1
+          fi
+
+          NODE_COUNT=$(echo "$K3S_NODES" | wc -w)
+          echo "nodes=$K3S_NODES" >> $GITHUB_OUTPUT
+          echo "node_count=$NODE_COUNT" >> $GITHUB_OUTPUT
+          echo "=== Discovered $NODE_COUNT nodes: $K3S_NODES ==="
 
       - name: Generate version
         id: version
@@ -84,8 +99,11 @@ jobs:
           }
 
           echo "=== Deploying to all nodes ==="
+          K3S_NODES="${{ steps.nodes.outputs.nodes }}"
+          NODE_COUNT=${{ steps.nodes.outputs.node_count }}
+
           FAILED=0
-          for NODE in ${{ env.K3S_NODES }}; do
+          for NODE in ${K3S_NODES}; do
             deploy_to_node ${NODE} &
           done
 
@@ -94,12 +112,18 @@ jobs:
             wait $job || FAILED=$((FAILED + 1))
           done
 
-          if [ $FAILED -gt 2 ]; then
-            echo "✗ Too many nodes failed (${FAILED}/5). Aborting."
+          # Dynamic failure threshold: allow up to 40% of nodes to fail
+          MAX_FAILURES=$((NODE_COUNT * 40 / 100))
+          if [ $MAX_FAILURES -lt 1 ]; then
+            MAX_FAILURES=1
+          fi
+
+          if [ $FAILED -gt $MAX_FAILURES ]; then
+            echo "✗ Too many nodes failed (${FAILED}/${NODE_COUNT}). Max allowed: ${MAX_FAILURES}. Aborting."
             exit 1
           fi
 
-          echo "=== Nodes updated (${FAILED} failed, continuing) ==="
+          echo "=== Nodes updated (${FAILED}/${NODE_COUNT} failed, continuing) ==="
 
       - name: Update deployments
         run: |

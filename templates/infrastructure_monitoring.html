@@ -225,6 +225,184 @@
             <div id="backendPods" class="space-y-2"></div>
         </div>
 
+        <!-- One-Click Deployment Section -->
+        <div class="neu-border bg-white p-6 mb-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <h2 class="text-xl md:text-2xl font-bold">
+                    <i class="bi bi-rocket-takeoff"></i> One-Click Deployment
+                </h2>
+                <div class="flex flex-wrap gap-2">
+                    <button onclick="loadDeploymentStatus()" class="neu-border bg-blue-100 text-blue-800 px-3 py-2 text-sm">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button onclick="showDeployHistory()" class="neu-border bg-gray-100 text-gray-800 px-3 py-2 text-sm">
+                        <i class="bi bi-clock-history"></i> History
+                    </button>
+                </div>
+            </div>
+
+            <!-- Deployment Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <!-- Employee Deployment -->
+                <div class="neu-border bg-blue-50 p-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-bold text-lg">cold-backend-employee</h3>
+                            <p class="text-sm text-gray-600">Employee Portal (Port 8080)</p>
+                        </div>
+                        <div id="employeeVersionBadge" class="neu-border bg-white px-3 py-1 text-sm font-mono">
+                            Loading...
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="deployNew('employee')" class="neu-border bg-blue-500 text-white px-4 py-2 text-sm flex-1">
+                            <i class="bi bi-cloud-upload"></i> Deploy
+                        </button>
+                        <button onclick="rollback('employee')" class="neu-border bg-gray-500 text-white px-4 py-2 text-sm">
+                            <i class="bi bi-arrow-counterclockwise"></i> Rollback
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer Deployment -->
+                <div class="neu-border bg-green-50 p-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h3 class="font-bold text-lg">cold-backend-customer</h3>
+                            <p class="text-sm text-gray-600">Customer Portal (Port 8081)</p>
+                        </div>
+                        <div id="customerVersionBadge" class="neu-border bg-white px-3 py-1 text-sm font-mono">
+                            Loading...
+                        </div>
+                    </div>
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="deployNew('customer')" class="neu-border bg-green-500 text-white px-4 py-2 text-sm flex-1">
+                            <i class="bi bi-cloud-upload"></i> Deploy
+                        </button>
+                        <button onclick="rollback('customer')" class="neu-border bg-gray-500 text-white px-4 py-2 text-sm">
+                            <i class="bi bi-arrow-counterclockwise"></i> Rollback
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deploy Both Button -->
+            <div class="neu-border bg-purple-50 p-4">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div>
+                        <h3 class="font-bold">Deploy Both Portals</h3>
+                        <p class="text-sm text-gray-600">Build once, deploy to employee and customer portals simultaneously</p>
+                    </div>
+                    <button onclick="deployNew('both')" class="neu-border bg-purple-600 text-white px-6 py-3">
+                        <i class="bi bi-rocket-takeoff"></i> Deploy All
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deployment Progress Modal -->
+        <div id="deployModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="neu-border bg-white p-6 max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">
+                        <i class="bi bi-gear-wide-connected"></i> Deployment in Progress
+                    </h3>
+                    <button onclick="closeDeployModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="bi bi-x-lg text-xl"></i>
+                    </button>
+                </div>
+
+                <div class="mb-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span id="deployStepText">Initializing...</span>
+                        <span id="deployProgressText">0%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-4 neu-border">
+                        <div id="deployProgressBar" class="bg-blue-600 h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div id="deployLog" class="bg-gray-900 text-green-400 font-mono text-sm p-4 rounded max-h-64 overflow-y-auto">
+                    <div class="text-gray-500">Waiting for deployment to start...</div>
+                </div>
+
+                <div id="deployResult" class="hidden mt-4 p-4 rounded">
+                    <!-- Success/Error message will appear here -->
+                </div>
+
+                <div class="mt-4 flex gap-2 justify-end">
+                    <button id="deployCloseBtn" onclick="closeDeployModal()" class="neu-border bg-gray-200 px-4 py-2 text-sm hidden">
+                        Close
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deploy Version Input Modal -->
+        <div id="versionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="neu-border bg-white p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold mb-4">
+                    <i class="bi bi-tag"></i> Deploy New Version
+                </h3>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Version Tag</label>
+                    <input type="text" id="versionInput" placeholder="v1.5.x (auto-generated if empty)"
+                           class="neu-border w-full px-4 py-2 font-mono">
+                    <p class="text-xs text-gray-500 mt-1">Leave empty to auto-generate based on timestamp</p>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-2">Deploy Target</label>
+                    <select id="deployTargetSelect" class="neu-border w-full px-4 py-2">
+                        <option value="both">Both (Employee + Customer)</option>
+                        <option value="employee">Employee Portal Only</option>
+                        <option value="customer">Customer Portal Only</option>
+                    </select>
+                </div>
+                <div class="mb-4">
+                    <label class="flex items-center gap-2">
+                        <input type="checkbox" id="skipBuildCheck" class="w-4 h-4">
+                        <span class="text-sm">Skip build (use existing image)</span>
+                    </label>
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button onclick="closeVersionModal()" class="neu-border bg-gray-200 px-4 py-2">Cancel</button>
+                    <button onclick="startDeploy()" class="neu-border bg-blue-500 text-white px-4 py-2">
+                        <i class="bi bi-rocket-takeoff"></i> Deploy
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deployment History Modal -->
+        <div id="historyModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+            <div class="neu-border bg-white p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold">
+                        <i class="bi bi-clock-history"></i> Deployment History
+                    </h3>
+                    <button onclick="closeHistoryModal()" class="text-gray-500 hover:text-gray-700">
+                        <i class="bi bi-x-lg text-xl"></i>
+                    </button>
+                </div>
+                <div id="historyContent" class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="bg-gray-100 border-b-2 border-black">
+                                <th class="px-4 py-2 text-left">Version</th>
+                                <th class="px-4 py-2 text-left">Status</th>
+                                <th class="px-4 py-2 text-left">Deployed By</th>
+                                <th class="px-4 py-2 text-left">Started At</th>
+                                <th class="px-4 py-2 text-left">Duration</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr><td colspan="5" class="text-center py-4">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Backup Server Health & Capacity (192.168.15.195) -->
         <div class="neu-border bg-white p-6 mb-6">
             <h2 class="text-2xl font-bold mb-4">
@@ -1139,6 +1317,278 @@
         // Initial load and auto-refresh every 30 seconds
         refreshAll();
         setInterval(refreshAll, 30000);
+
+        // ============================================
+        // Deployment Functions
+        // ============================================
+
+        let currentDeployTarget = 'both';
+        let deploymentConfigId = 1; // Default deployment config ID
+
+        // Load deployment status (current versions)
+        async function loadDeploymentStatus() {
+            try {
+                const response = await fetch('/api/deployments', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.deployments && data.deployments.length > 0) {
+                    const config = data.deployments[0];
+                    deploymentConfigId = config.id;
+                    document.getElementById('employeeVersionBadge').textContent = config.current_version || 'Unknown';
+                    document.getElementById('customerVersionBadge').textContent = config.current_version || 'Unknown';
+                }
+            } catch (error) {
+                console.error('Failed to load deployment status:', error);
+                document.getElementById('employeeVersionBadge').textContent = 'Error';
+                document.getElementById('customerVersionBadge').textContent = 'Error';
+            }
+        }
+
+        // Show version modal for deployment
+        function deployNew(target) {
+            currentDeployTarget = target;
+            document.getElementById('deployTargetSelect').value = target;
+            document.getElementById('versionInput').value = '';
+            document.getElementById('skipBuildCheck').checked = false;
+            document.getElementById('versionModal').classList.remove('hidden');
+        }
+
+        function closeVersionModal() {
+            document.getElementById('versionModal').classList.add('hidden');
+        }
+
+        function closeDeployModal() {
+            document.getElementById('deployModal').classList.add('hidden');
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('historyModal').classList.add('hidden');
+        }
+
+        // Start deployment with SSE streaming
+        async function startDeploy() {
+            const version = document.getElementById('versionInput').value.trim();
+            const target = document.getElementById('deployTargetSelect').value;
+            const skipBuild = document.getElementById('skipBuildCheck').checked;
+
+            // Build targets array
+            let deployTargets = [];
+            if (target === 'both') {
+                deployTargets = ['employee', 'customer'];
+            } else {
+                deployTargets = [target];
+            }
+
+            closeVersionModal();
+
+            // Show deployment modal
+            document.getElementById('deployModal').classList.remove('hidden');
+            document.getElementById('deployLog').innerHTML = '<div class="text-gray-500">Connecting to deployment server...</div>';
+            document.getElementById('deployProgressBar').style.width = '0%';
+            document.getElementById('deployProgressText').textContent = '0%';
+            document.getElementById('deployStepText').textContent = 'Initializing...';
+            document.getElementById('deployResult').classList.add('hidden');
+            document.getElementById('deployCloseBtn').classList.add('hidden');
+
+            try {
+                // Start deployment with SSE
+                const response = await fetch(`/api/deployments/${deploymentConfigId}/deploy`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        version: version,
+                        skip_build: skipBuild,
+                        deploy_targets: deployTargets
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.substring(6));
+                                handleDeployProgress(data);
+                            } catch (e) {
+                                console.error('Failed to parse SSE data:', e);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Deployment failed:', error);
+                showDeployError('Connection failed: ' + error.message);
+            }
+        }
+
+        function handleDeployProgress(data) {
+            const logEl = document.getElementById('deployLog');
+            const progressBar = document.getElementById('deployProgressBar');
+            const progressText = document.getElementById('deployProgressText');
+            const stepText = document.getElementById('deployStepText');
+
+            if (data.type === 'started') {
+                logEl.innerHTML = `<div class="text-blue-400">[${new Date().toLocaleTimeString()}] Deployment started (ID: ${data.history_id})</div>`;
+            } else if (data.type === 'progress') {
+                // Update progress bar
+                progressBar.style.width = `${data.progress}%`;
+                progressText.textContent = `${data.progress}%`;
+
+                // Update step text
+                const stepNames = {
+                    'building': 'Building...',
+                    'distributing': 'Distributing to nodes...',
+                    'updating': 'Updating Kubernetes...',
+                    'verifying': 'Verifying health...',
+                    'complete': 'Complete!',
+                    'failed': 'Failed'
+                };
+                stepText.textContent = stepNames[data.step] || data.step;
+
+                // Add log entry
+                const color = data.error ? 'text-red-400' : 'text-green-400';
+                logEl.innerHTML += `<div class="${color}">[${new Date().toLocaleTimeString()}] ${data.message}</div>`;
+
+                if (data.error) {
+                    logEl.innerHTML += `<div class="text-red-500">[ERROR] ${data.error}</div>`;
+                }
+
+                // Auto-scroll to bottom
+                logEl.scrollTop = logEl.scrollHeight;
+            } else if (data.type === 'done') {
+                showDeploySuccess();
+            }
+        }
+
+        function showDeploySuccess() {
+            const resultEl = document.getElementById('deployResult');
+            resultEl.classList.remove('hidden');
+            resultEl.className = 'mt-4 p-4 rounded bg-green-100 border-2 border-green-500';
+            resultEl.innerHTML = `
+                <div class="flex items-center gap-2 text-green-700">
+                    <i class="bi bi-check-circle-fill text-2xl"></i>
+                    <div>
+                        <div class="font-bold">Deployment Successful!</div>
+                        <div class="text-sm">All services have been updated.</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('deployCloseBtn').classList.remove('hidden');
+            loadDeploymentStatus(); // Refresh version badges
+        }
+
+        function showDeployError(message) {
+            const resultEl = document.getElementById('deployResult');
+            resultEl.classList.remove('hidden');
+            resultEl.className = 'mt-4 p-4 rounded bg-red-100 border-2 border-red-500';
+            resultEl.innerHTML = `
+                <div class="flex items-center gap-2 text-red-700">
+                    <i class="bi bi-x-circle-fill text-2xl"></i>
+                    <div>
+                        <div class="font-bold">Deployment Failed</div>
+                        <div class="text-sm">${message}</div>
+                    </div>
+                </div>
+            `;
+            document.getElementById('deployCloseBtn').classList.remove('hidden');
+        }
+
+        // Rollback function
+        async function rollback(target) {
+            if (!confirm(`Are you sure you want to rollback the ${target} deployment to the previous version?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/deployments/${deploymentConfigId}/rollback`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ targets: [target] })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Rollback initiated successfully!');
+                    loadDeploymentStatus();
+                } else {
+                    alert('Rollback failed: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Rollback failed: ' + error.message);
+            }
+        }
+
+        // Show deployment history
+        async function showDeployHistory() {
+            document.getElementById('historyModal').classList.remove('hidden');
+            document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="5" class="text-center py-4">Loading...</td></tr>';
+
+            try {
+                const response = await fetch(`/api/deployments/${deploymentConfigId}/history?limit=20`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.history && data.history.length > 0) {
+                    document.getElementById('historyTableBody').innerHTML = data.history.map(h => {
+                        const statusClass = {
+                            'success': 'bg-green-100 text-green-800',
+                            'failed': 'bg-red-100 text-red-800',
+                            'building': 'bg-blue-100 text-blue-800',
+                            'deploying': 'bg-yellow-100 text-yellow-800',
+                            'rolled_back': 'bg-orange-100 text-orange-800'
+                        }[h.status] || 'bg-gray-100 text-gray-800';
+
+                        const startTime = new Date(h.started_at).toLocaleString();
+                        const duration = h.completed_at ?
+                            Math.round((new Date(h.completed_at) - new Date(h.started_at)) / 1000) + 's' :
+                            'In progress...';
+
+                        return `
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="px-4 py-2 font-mono">${h.version}</td>
+                                <td class="px-4 py-2">
+                                    <span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${h.status}</span>
+                                </td>
+                                <td class="px-4 py-2">${h.deployed_by_name || 'System'}</td>
+                                <td class="px-4 py-2">${startTime}</td>
+                                <td class="px-4 py-2">${duration}</td>
+                            </tr>
+                        `;
+                    }).join('');
+                } else {
+                    document.getElementById('historyTableBody').innerHTML = '<tr><td colspan="5" class="text-center py-4 text-gray-500">No deployment history found</td></tr>';
+                }
+            } catch (error) {
+                document.getElementById('historyTableBody').innerHTML = `<tr><td colspan="5" class="text-center py-4 text-red-500">Error: ${error.message}</td></tr>`;
+            }
+        }
+
+        // Load deployment status on page load
+        loadDeploymentStatus();
     </script>
 </body>
 </html>

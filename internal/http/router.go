@@ -29,6 +29,8 @@ func NewRouter(
 	operationModeMiddleware *middleware.OperationModeMiddleware,
 	monitoringHandler *handlers.MonitoringHandler,
 	apiLoggingMiddleware *middleware.APILoggingMiddleware,
+	nodeProvisioningHandler *handlers.NodeProvisioningHandler,
+	deploymentHandler *handlers.DeploymentHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -80,6 +82,7 @@ func NewRouter(
 	r.HandleFunc("/admin/report", pageHandler.AdminReportPage).Methods("GET")
 	r.HandleFunc("/admin/logs", pageHandler.AdminLogsPage).Methods("GET")
 	r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
+	r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 
@@ -243,6 +246,39 @@ func NewRouter(
 	infraAPI.HandleFunc("/recover-stuck-pods", infraHandler.RecoverStuckPods).Methods("POST")
 	infraAPI.HandleFunc("/recovery-status", infraHandler.GetRecoveryStatus).Methods("GET")
 
+	// Protected API routes - Node Provisioning (admin only)
+	if nodeProvisioningHandler != nil {
+		nodeAPI := r.PathPrefix("/api/infrastructure/nodes").Subrouter()
+		nodeAPI.Use(authMiddleware.Authenticate)
+		nodeAPI.Use(authMiddleware.RequireRole("admin"))
+
+		// Node management
+		nodeAPI.HandleFunc("", nodeProvisioningHandler.ListNodes).Methods("GET")
+		nodeAPI.HandleFunc("", nodeProvisioningHandler.AddNode).Methods("POST")
+		nodeAPI.HandleFunc("/test-connection", nodeProvisioningHandler.TestConnection).Methods("POST")
+		nodeAPI.HandleFunc("/{id}", nodeProvisioningHandler.GetNode).Methods("GET")
+		nodeAPI.HandleFunc("/{id}", nodeProvisioningHandler.RemoveNode).Methods("DELETE")
+
+		// Provisioning
+		nodeAPI.HandleFunc("/{id}/provision", nodeProvisioningHandler.ProvisionNode).Methods("POST")
+		nodeAPI.HandleFunc("/{id}/provision/status", nodeProvisioningHandler.GetProvisionStatus).Methods("GET")
+		nodeAPI.HandleFunc("/{id}/provision/logs", nodeProvisioningHandler.GetProvisionLogs).Methods("GET")
+
+		// Node operations
+		nodeAPI.HandleFunc("/{id}/drain", nodeProvisioningHandler.DrainNode).Methods("POST")
+		nodeAPI.HandleFunc("/{id}/cordon", nodeProvisioningHandler.CordonNode).Methods("POST")
+		nodeAPI.HandleFunc("/{id}/uncordon", nodeProvisioningHandler.UncordonNode).Methods("POST")
+		nodeAPI.HandleFunc("/{id}/reboot", nodeProvisioningHandler.RebootNode).Methods("POST")
+		nodeAPI.HandleFunc("/{id}/logs", nodeProvisioningHandler.GetNodeLogs).Methods("GET")
+
+		// Configuration management
+		configAPI := r.PathPrefix("/api/infrastructure/config").Subrouter()
+		configAPI.Use(authMiddleware.Authenticate)
+		configAPI.Use(authMiddleware.RequireRole("admin"))
+		configAPI.HandleFunc("", nodeProvisioningHandler.ListConfigs).Methods("GET")
+		configAPI.HandleFunc("", nodeProvisioningHandler.UpdateConfig).Methods("PUT")
+	}
+
 	// Protected API routes - Monitoring (TimescaleDB metrics)
 	if monitoringHandler != nil {
 		monitoringAPI := r.PathPrefix("/api/monitoring").Subrouter()
@@ -279,6 +315,26 @@ func NewRouter(
 		// Backup History
 		monitoringAPI.HandleFunc("/backups", monitoringHandler.GetRecentBackups).Methods("GET")
 		monitoringAPI.HandleFunc("/backup-db", monitoringHandler.GetBackupDBStatus).Methods("GET")
+	}
+
+	// Protected API routes - Deployments (admin only)
+	if deploymentHandler != nil {
+		deployAPI := r.PathPrefix("/api/deployments").Subrouter()
+		deployAPI.Use(authMiddleware.Authenticate)
+		deployAPI.Use(authMiddleware.RequireRole("admin"))
+
+		// Deployment configurations
+		deployAPI.HandleFunc("", deploymentHandler.ListDeployments).Methods("GET")
+		deployAPI.HandleFunc("/{id}", deploymentHandler.GetDeployment).Methods("GET")
+		deployAPI.HandleFunc("/{id}/history", deploymentHandler.GetDeploymentHistory).Methods("GET")
+
+		// Deployment operations
+		deployAPI.HandleFunc("/{id}/deploy", deploymentHandler.Deploy).Methods("POST")           // SSE streaming
+		deployAPI.HandleFunc("/{id}/deploy-sync", deploymentHandler.DeploySync).Methods("POST") // Non-streaming
+		deployAPI.HandleFunc("/{id}/rollback", deploymentHandler.Rollback).Methods("POST")
+
+		// Deployment status
+		deployAPI.HandleFunc("/status/{historyId}", deploymentHandler.GetDeploymentStatus).Methods("GET") // SSE
 	}
 
 	// Health endpoints (no auth required - for Kubernetes probes)
