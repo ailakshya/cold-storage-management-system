@@ -375,9 +375,15 @@
             const tbody = document.getElementById('trucksTable');
 
             tbody.innerHTML = thocks.map((thock, index) => {
-                const quantity = thock.expected_quantity || 0;
-                const rent = quantity * rentPerItem;
+                // Use actual_quantity for calculations (ONLY), expected_quantity for display reference
+                const actualQty = thock.actual_quantity || 0;
+                const expectedQty = thock.expected_quantity || 0;
+                const rent = actualQty * rentPerItem; // Calculate rent on ACTUAL stored quantity
                 const thockColor = getThockColor(thock.thock_number);
+                // Display: "23 → 22" if different, or just quantity
+                const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                    ? `${expectedQty} → ${actualQty}`
+                    : (actualQty > 0 ? actualQty : expectedQty);
 
                 return `
                     <tr class="border-b border-gray-200">
@@ -385,7 +391,7 @@
                             <input type="checkbox" class="thock-checkbox" data-index="${index}" onchange="calculateTotal()">
                         </td>
                         <td class="p-2 font-bold ${thockColor}">${thock.thock_number}</td>
-                        <td class="p-2">${quantity}</td>
+                        <td class="p-2">${qtyDisplay}</td>
                         <td class="p-2">₹${rentPerItem.toFixed(2)}</td>
                         <td class="p-2 font-bold">₹${rent.toFixed(2)}</td>
                     </tr>
@@ -419,7 +425,8 @@
             document.querySelectorAll('.thock-checkbox:checked').forEach(checkbox => {
                 const index = parseInt(checkbox.dataset.index);
                 const thock = allThocks[index];
-                total += (thock.expected_quantity || 0) * rentPerItem;
+                // Use actual_quantity for rent calculation (what's actually stored)
+                total += (thock.actual_quantity || 0) * rentPerItem;
             });
 
             document.getElementById('totalRent').textContent = '₹' + total.toLocaleString('en-IN', {minimumFractionDigits: 2});
@@ -483,10 +490,10 @@
             const employee = getEmployeeFromToken();
             const employeeName = employee?.email?.split('@')[0] || 'N/A';
 
-            // Calculate total
+            // Calculate total using actual_quantity (what's actually stored)
             let totalRent = 0;
             selectedThocks.forEach(thock => {
-                totalRent += (thock.expected_quantity || 0) * rentPerItem;
+                totalRent += (thock.actual_quantity || 0) * rentPerItem;
             });
 
             // Fetch previous payments to calculate cumulative balance
@@ -565,12 +572,18 @@
 
         function generateInvoiceHTML(thocks, totalRent, amountReceived, balance, employeeName, invoiceDate) {
             const thocksRows = thocks.map(thock => {
-                const quantity = thock.expected_quantity || 0;
-                const rent = quantity * rentPerItem;
+                // Use actual_quantity for rent calculation, show both in display
+                const actualQty = thock.actual_quantity || 0;
+                const expectedQty = thock.expected_quantity || 0;
+                const rent = actualQty * rentPerItem; // Rent based on actual stored
+                // Display: "23 → 22" if different
+                const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                    ? `${expectedQty} → ${actualQty}`
+                    : (actualQty > 0 ? actualQty : expectedQty);
                 return `
                     <tr>
                         <td>${thock.thock_number}</td>
-                        <td>${quantity}</td>
+                        <td>${qtyDisplay}</td>
                         <td>₹${rentPerItem.toFixed(2)}</td>
                         <td>₹${rent.toFixed(2)}</td>
                     </tr>

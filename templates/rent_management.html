@@ -454,13 +454,21 @@
                     }
 
                     const customer = customerMap.get(phone);
-                    const quantity = entry.expected_quantity || 0;
+                    // Use actual_quantity for rent calculations
+                    const actualQty = entry.actual_quantity || 0;
+                    const expectedQty = entry.expected_quantity || 0;
+                    const quantity = actualQty > 0 ? actualQty : expectedQty; // Use actual if stored
                     const rent = quantity * rentPerItem;
+                    // Display: "23 → 22" if different
+                    const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                        ? `${expectedQty} → ${actualQty}`
+                        : quantity;
 
                     customer.thocks.push({
                         id: entry.id,
                         thock_number: entry.thock_number,
                         quantity: quantity,
+                        qtyDisplay: qtyDisplay, // For UI display
                         rent: rent,
                         date: new Date(entry.created_at).toLocaleDateString('en-IN'),
                         type: 'incoming'  // Mark as incoming entry
@@ -738,10 +746,12 @@
                                                 const rentClass = isOutgoing ? 'text-red-700' : '';
                                                 const typeLabel = isOutgoing ? ' ⬅️ OUT' : ' ➡️ IN';
 
+                                                // Use qtyDisplay for incoming entries (shows "23 → 22" if different)
+                                                const displayQty = thock.qtyDisplay || Math.abs(thock.quantity);
                                                 return `
                                                 <tr class="border-b border-gray-200 ${rowClass}">
                                                     <td class="p-3 font-bold ${thockColorClass}">${thock.thock_number}${typeLabel}</td>
-                                                    <td class="p-3 ${quantityClass}">${Math.abs(thock.quantity)}</td>
+                                                    <td class="p-3 ${quantityClass}">${displayQty}</td>
                                                     <td class="p-3 font-bold ${rentClass}">₹${Math.abs(thock.rent).toLocaleString('en-IN', {minimumFractionDigits: 2})}</td>
                                                     <td class="p-3 text-sm">${thock.date}</td>
                                                 </tr>

@@ -267,10 +267,15 @@
             const requestPassText = i18n.t('request_pass', 'Request Pass');
             const maxText = i18n.t('max', 'Max');
             dashboardData.trucks.forEach(truck => {
+                // Display both expected and actual if different
+                // current_inventory is the actual stored quantity from room_entries
+                const qtyDisplay = truck.expected_quantity !== truck.current_inventory
+                    ? `${truck.expected_quantity} → ${truck.current_inventory}`
+                    : truck.current_inventory;
                 const row = `
                     <tr class="border-b">
                         <td class="p-2 font-semibold">${truck.thock_number}</td>
-                        <td class="p-2">${truck.expected_quantity}</td>
+                        <td class="p-2">${qtyDisplay}</td>
                         <td class="p-2">${truck.current_inventory}</td>
                         <td class="p-2 font-bold text-green-600">${truck.can_take_out}</td>
                         <td class="p-2 ${truck.balance > 0 ? 'text-red-600' : 'text-green-600'}">

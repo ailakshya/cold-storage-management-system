@@ -10,7 +10,8 @@ type Entry struct {
 	Village          string    `json:"village"`
 	SO               string    `json:"so"` // Son Of / Father's Name
 	ExpectedQuantity int       `json:"expected_quantity"`
-	ThockCategory    string    `json:"thock_category"` // 'seed' or 'sell'
+	ActualQuantity   int       `json:"actual_quantity"` // Sum of room_entries.quantity for this entry
+	ThockCategory    string    `json:"thock_category"`  // 'seed' or 'sell'
 	ThockNumber      string    `json:"thock_number"`
 	CreatedByUserID  int       `json:"created_by_user_id"`
 	CreatedAt        time.Time `json:"created_at"`

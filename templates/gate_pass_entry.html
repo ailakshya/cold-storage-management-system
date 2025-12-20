@@ -784,7 +784,13 @@
                 truckList.innerHTML = '<div class="search-item" style="color: #999;">' + i18n.t('no_matching_trucks', 'No matching truck numbers') + '</div>';
             } else {
                 truckList.innerHTML = displayTrucks.map(entry => {
-                    const displayText = `${entry.thock_number} - ${entry.expected_quantity} ${i18n.t('items', 'items')}`;
+                    // Display both expected and actual if different
+                    const actualQty = entry.actual_quantity || 0;
+                    const expectedQty = entry.expected_quantity || 0;
+                    const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                        ? `${expectedQty} → ${actualQty}`
+                        : (actualQty > 0 ? actualQty : expectedQty);
+                    const displayText = `${entry.thock_number} - ${qtyDisplay} ${i18n.t('items', 'items')}`;
                     return `<div class="search-item" onclick='selectThockNumber("${entry.thock_number}")'>${displayText}</div>`;
                 }).join('');
 

@@ -468,16 +468,24 @@
                     year: 'numeric'
                 });
 
-                // Calculate total amount
+                // Calculate total amount using actual_quantity (what's actually stored)
                 let totalRent = 0;
                 const items = customerEntries.map(e => {
-                    const quantity = e.expected_quantity || 0;
+                    // Use actual_quantity for calculations
+                    const actualQty = e.actual_quantity || 0;
+                    const expectedQty = e.expected_quantity || 0;
+                    const quantity = actualQty > 0 ? actualQty : expectedQty;
                     const amount = quantity * rentPerItem;
                     totalRent += amount;
+                    // Display: "23 → 22" if different
+                    const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                        ? `${expectedQty} → ${actualQty}`
+                        : quantity;
                     return {
                         entry_id: e.id,
                         thock_number: e.thock_number,
                         quantity: quantity,
+                        qtyDisplay: qtyDisplay, // For UI display
                         rate: rentPerItem,
                         amount: amount
                     };
@@ -545,19 +553,26 @@
             document.getElementById('invoiceDate' + suffix).textContent = invoiceDate;
             document.getElementById('employeeName' + suffix).textContent = employeeName;
 
-            // Populate items table
+            // Populate items table using actual_quantity for calculations
             let totalRent = 0;
             const itemsTableHtml = customerEntries.map((e, index) => {
-                const quantity = e.expected_quantity || 0;
+                // Use actual_quantity for calculations
+                const actualQty = e.actual_quantity || 0;
+                const expectedQty = e.expected_quantity || 0;
+                const quantity = actualQty > 0 ? actualQty : expectedQty;
                 const rent = quantity * rentPerItem;
                 totalRent += rent;
                 const thockColor = getThockColor(e.thock_number);
+                // Display: "23 → 22" if different
+                const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                    ? `${expectedQty} → ${actualQty}`
+                    : quantity;
 
                 return `
                     <tr>
                         <td>${index + 1}</td>
                         <td style="color: ${thockColor === 'text-green-600' ? 'green' : 'orange'}; font-weight: bold;">${e.thock_number}</td>
-                        <td>${quantity}</td>
+                        <td>${qtyDisplay}</td>
                         <td>0</td>
                         <td>${quantity}</td>
                         <td>₹${rent.toFixed(2)}</td>

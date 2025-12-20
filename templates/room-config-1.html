@@ -1056,18 +1056,23 @@
             tbody.innerHTML = entries.map(entry => {
                 const thockColor = getThockColor(entry.thock_number);
                 const entrySO = entry.so || '';
+                const actualQty = entry.actual_quantity || 0;
+                // Display: "23 → 22" if different, or just "22" if same/not stored yet
+                const qtyDisplay = actualQty > 0
+                    ? (entry.expected_quantity !== actualQty ? `${entry.expected_quantity} → ${actualQty}` : `${actualQty}`)
+                    : `${entry.expected_quantity}`;
                 return `
-                    <tr class="border-b border-gray-200 clickable-row" onclick="selectEntry(${entry.id}, '${entry.thock_number}', '${entry.name}', ${entry.expected_quantity}, '${entrySO}')">
+                    <tr class="border-b border-gray-200 clickable-row" onclick="selectEntry(${entry.id}, '${entry.thock_number}', '${entry.name}', ${entry.expected_quantity}, '${entrySO}', ${actualQty})">
                         <td class="p-2 font-bold ${thockColor}">${entry.thock_number}</td>
                         <td class="p-2">${entry.name}</td>
-                        <td class="p-2">${entry.expected_quantity}</td>
+                        <td class="p-2">${qtyDisplay}</td>
                     </tr>
                 `;
             }).join('');
         }
 
-        function selectEntry(entryId, thockNumber, name, expectedQty, so = '') {
-            selectedEntry = { entryId, thockNumber, name, expectedQty, so };
+        function selectEntry(entryId, thockNumber, name, expectedQty, so = '', actualQty = 0) {
+            selectedEntry = { entryId, thockNumber, name, expectedQty, so, actualQty };
 
             // Detect entry type and update room availability
             currentEntryType = getEntryType(thockNumber);
@@ -1077,10 +1082,13 @@
             document.getElementById('entryId').value = entryId;
             document.getElementById('selectedThockNumber').textContent = thockNumber;
 
-            // Show entry type badge
+            // Show entry type badge with both expected and actual if different
             const typeLabel = currentEntryType === 'seed' ? 'बीज' : 'बिक्री';
             const typeColor = currentEntryType === 'seed' ? 'bg-green-500' : 'bg-orange-500';
-            document.getElementById('selectedEntryDetails').innerHTML = `${name} - Expected: ${expectedQty} <span class="${typeColor} text-white text-xs px-2 py-1 rounded ml-2">${typeLabel}</span>`;
+            const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                ? `Expected: ${expectedQty} → Actual: ${actualQty}`
+                : `Expected: ${expectedQty}`;
+            document.getElementById('selectedEntryDetails').innerHTML = `${name} - ${qtyDisplay} <span class="${typeColor} text-white text-xs px-2 py-1 rounded ml-2">${typeLabel}</span>`;
 
             // Display S/O (Son Of / Father's Name)
             const soElement = document.getElementById('selectedEntrySO');

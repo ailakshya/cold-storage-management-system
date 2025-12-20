@@ -232,9 +232,15 @@
                 const customer = customerMap[entry.phone];
                 customer.thock_count++;
 
-                // Use expected_quantity from entry (what customer brought) for rent calculation
-                const quantity = entry.expected_quantity || 0;
+                // Use actual_quantity for rent calculation (what's actually stored)
+                const actualQty = entry.actual_quantity || 0;
+                const expectedQty = entry.expected_quantity || 0;
+                const quantity = actualQty > 0 ? actualQty : expectedQty;
                 const rent = quantity * rentRate;
+                // Display: "23 → 22" if different
+                const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
+                    ? `${expectedQty} → ${actualQty}`
+                    : quantity;
 
                 customer.total_quantity += quantity;
                 customer.total_rent += rent;
@@ -243,6 +249,7 @@
                     thock_number: entry.thock_number,
                     category: entry.thock_category,
                     quantity: quantity,
+                    qtyDisplay: qtyDisplay, // For UI display
                     rent: rent,
                     is_outgoing: false,
                     date: entry.created_at
