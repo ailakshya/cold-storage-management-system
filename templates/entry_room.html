@@ -100,19 +100,19 @@
         }
     </style>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-8">
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-8 neu-border bg-white p-6">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 neu-border bg-white p-4 md:p-6 gap-4">
             <div>
                 <div class="flex items-center gap-3">
-                    <i class="bi bi-box-arrow-in-right text-4xl text-orange-600"></i>
+                    <i class="bi bi-box-arrow-in-right text-3xl md:text-4xl text-orange-600"></i>
                     <div>
-                        <h1 class="text-3xl font-bold" data-i18n="entry_room_title">Entry Room</h1>
-                        <p class="text-gray-600" data-i18n="register_new_entry">Register new entry</p>
+                        <h1 class="text-2xl md:text-3xl font-bold" data-i18n="entry_room_title">Entry Room</h1>
+                        <p class="text-gray-600 text-sm md:text-base" data-i18n="register_new_entry">Register new entry</p>
                     </div>
                 </div>
             </div>
-            <div class="flex gap-3 items-center">
+            <div class="flex gap-3 items-center w-full md:w-auto justify-end">
                 <!-- Language Selector -->
                 <select id="langSelector" onchange="i18n.setLanguage(this.value)"
                         class="lang-selector bg-white px-3 py-2 text-sm font-medium cursor-pointer">
@@ -126,7 +126,7 @@
         </header>
 
         <!-- Main Content Grid: Form (Left) + Recent Room Entries (Right) -->
-        <div class="grid grid-cols-2 gap-8 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-8">
             <!-- User Details & Entry Form (Left) -->
             <div id="entryForm" class="neu-border bg-white p-6">
                 <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -217,7 +217,7 @@
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
                         <span data-i18n="select_category">Select Category</span> *
                     </label>
-                    <div class="grid grid-cols-2 gap-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <label class="neu-border p-3 bg-green-50 cursor-pointer hover:bg-green-100 transition-colors">
                             <input
                                 type="radio"
@@ -286,9 +286,9 @@
             </div>
 
             <!-- Recent Room Entries (Right) -->
-            <div class="neu-border bg-white p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold flex items-center gap-2">
+            <div class="neu-border bg-white p-4 md:p-6">
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                    <h2 class="text-xl md:text-2xl font-bold flex items-center gap-2">
                         <i class="bi bi-door-open text-blue-600"></i>
                         <span data-i18n="recent_room_entries">Recent Room Entries</span>
                     </h2>

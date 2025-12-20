@@ -68,19 +68,19 @@
         }
     </style>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-8">
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-8 neu-border bg-white p-6">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 neu-border bg-white p-4 md:p-6 gap-4">
             <div>
                 <div class="flex items-center gap-3">
-                    <i class="bi bi-ticket-perforated text-4xl text-purple-600"></i>
+                    <i class="bi bi-ticket-perforated text-3xl md:text-4xl text-purple-600"></i>
                     <div>
-                        <h1 class="text-3xl font-bold" data-i18n="unloading_title">Unloading Tickets</h1>
-                        <p class="text-gray-600" data-i18n="approve_process_passes">Approve and process gate passes</p>
+                        <h1 class="text-2xl md:text-3xl font-bold" data-i18n="unloading_title">Unloading Tickets</h1>
+                        <p class="text-gray-600 text-sm md:text-base" data-i18n="approve_process_passes">Approve and process gate passes</p>
                     </div>
                 </div>
             </div>
-            <div class="flex gap-3 items-center">
+            <div class="flex gap-3 items-center w-full md:w-auto justify-end">
                 <!-- Language Selector -->
                 <select id="langSelector" onchange="i18n.setLanguage(this.value)"
                         class="lang-selector bg-white px-3 py-2 text-sm font-medium cursor-pointer">
@@ -93,9 +93,9 @@
             </div>
         </header>
 
-        <div class="grid grid-cols-10 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-10 gap-4 lg:gap-6">
             <!-- Left: Approval Form (60%) -->
-            <div class="col-span-6">
+            <div class="lg:col-span-6">
                 <div class="neu-border bg-white p-6">
                     <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
                         <i class="bi bi-check2-circle text-green-600"></i>
@@ -112,7 +112,7 @@
 
                         <!-- Customer Details -->
                         <div class="mb-4 p-4 bg-yellow-50 neu-border">
-                            <div class="grid grid-cols-2 gap-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="thock_number">Thok NO</span>:</p>
                                     <p class="text-xl font-bold text-purple-700" id="selectedTruckNumber">-</p>
@@ -122,7 +122,7 @@
                                     <p class="text-lg font-bold text-blue-600" id="selectedPhone">-</p>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 gap-4 mt-3">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                                 <div>
                                     <p class="text-sm font-semibold text-gray-700 mb-1"><span data-i18n="customer_name">Customer</span>:</p>
                                     <p class="font-bold" id="selectedCustomerName">-</p>
@@ -137,7 +137,7 @@
                         <!-- Storage Details -->
                         <div class="mb-4 p-4 bg-blue-50 neu-border">
                             <p class="text-sm font-semibold text-gray-700 mb-2"><span data-i18n="storage_details">Storage Details</span>:</p>
-                            <div class="grid grid-cols-3 gap-4">
+                            <div class="grid grid-cols-3 md:grid-cols-3 gap-4">
                                 <div>
                                     <p class="text-xs text-gray-600"><span data-i18n="rooms">Rooms</span>:</p>
                                     <p class="font-bold text-lg text-blue-600" id="selectedRooms">-</p>
@@ -151,7 +151,7 @@
                                     <p class="font-bold text-lg text-purple-600" id="selectedGatars">-</p>
                                 </div>
                             </div>
-                            <div class="grid grid-cols-2 gap-4 mt-3">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
                                 <div>
                                     <p class="text-xs text-gray-600"><span data-i18n="quantity_breakdown">Quantity Breakdown</span>:</p>
                                     <p class="font-mono text-sm font-bold" id="selectedQtyBreakdown">-</p>
@@ -245,11 +245,11 @@
                                 <label class="block text-sm font-semibold text-gray-700">
                                     <i class="bi bi-geo-alt"></i> <span data-i18n="select_pickup_gatar">Select Pickup Gatar(s)</span> *
                                 </label>
-                                <div class="flex gap-1">
-                                    <button type="button" onclick="selectAllPickupGatars()" class="px-2 py-1 bg-blue-500 text-white rounded text-xs font-bold">
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="selectAllPickupGatars()" class="px-3 py-2 bg-blue-500 text-white rounded text-sm font-bold">
                                         <i class="bi bi-check-all"></i> <span data-i18n="select_all">All</span>
                                     </button>
-                                    <button type="button" onclick="clearAllPickupGatars()" class="px-2 py-1 bg-red-100 text-red-600 rounded text-xs font-bold">
+                                    <button type="button" onclick="clearAllPickupGatars()" class="px-3 py-2 bg-red-100 text-red-600 rounded text-sm font-bold">
                                         <i class="bi bi-x-circle"></i> <span data-i18n="clear">Clear</span>
                                     </button>
                                 </div>
@@ -334,14 +334,14 @@
             </div>
 
             <!-- Right: Pending Tickets (40%) -->
-            <div class="col-span-4">
+            <div class="lg:col-span-4">
                 <div class="neu-border bg-white p-4">
                     <div class="flex justify-between items-center mb-3">
                         <h2 class="text-xl font-bold flex items-center gap-2">
                             <i class="bi bi-list-check text-yellow-600"></i>
                             <span data-i18n="pending_gate_passes">Pending Gate Passes</span>
                         </h2>
-                        <button onclick="loadPendingGatePasses()" class="neu-button bg-blue-500 text-white text-xs px-2 py-1">
+                        <button onclick="loadPendingGatePasses()" class="neu-button bg-blue-500 text-white text-sm px-3 py-2">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
                     </div>
@@ -368,8 +368,8 @@
     </div>
 
     <!-- Record Pickup Modal -->
-    <div id="pickupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div class="neu-border bg-white p-8 max-w-md w-full mx-4">
+    <div id="pickupModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="neu-border bg-white p-4 md:p-8 max-w-md w-full mx-2 md:mx-4 max-h-[90vh] overflow-y-auto">
             <h3 class="text-2xl font-bold mb-6 flex items-center gap-2">
                 <i class="bi bi-box-arrow-up text-green-600"></i>
                 <span data-i18n="record_pickup_title">Record Pickup</span>
@@ -377,8 +377,8 @@
             <form id="pickupForm" onsubmit="submitPickup(event)">
                 <input type="hidden" id="pickupGatePassId">
 
-                <div class="mb-4 p-4 bg-blue-50 neu-border">
-                    <div class="grid grid-cols-2 gap-4">
+                <div class="mb-4 p-3 md:p-4 bg-blue-50 neu-border">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                             <p class="text-sm text-gray-600"><span data-i18n="thock">Thok</span>:</p>
                             <p class="font-bold text-xl" id="pickupThockNumber"></p>
@@ -419,7 +419,7 @@
                     >
                 </div>
 
-                <div class="grid grid-cols-2 gap-4 mb-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block text-sm font-semibold text-gray-700 mb-2" data-i18n="room_no">Room No</label>
                         <select id="pickupRoomNo" class="w-full neu-input">
@@ -617,7 +617,7 @@
                                         <i class="bi bi-hand-index-thumb mr-1"></i> CLICK TO SELECT, THEN ENTER QTY
                                     </span>
                                 </div>
-                                <div class="grid grid-cols-5 gap-2 max-h-60 overflow-y-auto">
+                                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 max-h-60 overflow-y-auto">
                     `;
 
                     // Generate individual clickable cells for EACH gatar number

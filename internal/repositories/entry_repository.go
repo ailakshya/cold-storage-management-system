@@ -35,6 +35,7 @@ func (r *EntryRepository) Create(ctx context.Context, e *models.Entry) error {
 
 	// Atomic query: COUNT and INSERT happen together in a single transaction
 	// This prevents race conditions where two requests get the same count
+	// Note: Parameters cast explicitly to avoid type inference issues
 	query := `
 		WITH next_num AS (
 			SELECT COALESCE(COUNT(*), 0) + $1 as num
@@ -42,8 +43,8 @@ func (r *EntryRepository) Create(ctx context.Context, e *models.Entry) error {
 			WHERE thock_category = $2
 		)
 		INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, created_by_user_id)
-		SELECT $3, $4, $5, $6, $7, $8, $9,
-			CASE WHEN $9 = 'seed'
+		SELECT $3, $4, $5, $6, $7, $8::integer, $9::text,
+			CASE WHEN $9::text = 'seed'
 				THEN LPAD(num::text, 4, '0') || '/' || $8::text
 				ELSE num::text || '/' || $8::text
 			END,

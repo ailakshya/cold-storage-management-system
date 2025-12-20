@@ -84,19 +84,19 @@
         }
     </style>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-8">
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
-        <header class="flex justify-between items-center mb-8 neu-border bg-white p-6">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 neu-border bg-white p-4 md:p-6 gap-4">
             <div>
                 <div class="flex items-center gap-3">
-                    <i class="bi bi-box-arrow-right text-4xl text-red-600"></i>
+                    <i class="bi bi-box-arrow-right text-3xl md:text-4xl text-red-600"></i>
                     <div>
-                        <h1 class="text-3xl font-bold" data-i18n="gate_pass_title">Gate Pass Entry</h1>
-                        <p class="text-gray-600" data-i18n="issue_gate_pass_subtitle">Issue gate pass for item withdrawal</p>
+                        <h1 class="text-2xl md:text-3xl font-bold" data-i18n="gate_pass_title">Gate Pass Entry</h1>
+                        <p class="text-gray-600 text-sm md:text-base" data-i18n="issue_gate_pass_subtitle">Issue gate pass for item withdrawal</p>
                     </div>
                 </div>
             </div>
-            <div class="flex gap-3 items-center">
+            <div class="flex gap-3 items-center w-full md:w-auto justify-end">
                 <select id="langSelector" onchange="i18n.setLanguage(this.value)"
                         class="lang-selector bg-white px-3 py-2 text-sm font-medium cursor-pointer">
                     <option value="en">EN</option>
@@ -109,7 +109,7 @@
         </header>
 
         <!-- Main Content Grid: Form (Left) + Recent Gate Passes (Right) -->
-        <div class="grid grid-cols-2 gap-8 mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-8">
             <!-- Gate Pass Form (Left) -->
             <div class="neu-border bg-white p-6">
                 <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -239,15 +239,15 @@
             </div>
 
             <!-- Recent Gate Passes (Right) -->
-            <div class="neu-border bg-white p-6">
+            <div class="neu-border bg-white p-4 md:p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-2xl font-bold flex items-center gap-2">
+                    <h2 class="text-xl md:text-2xl font-bold flex items-center gap-2">
                         <i class="bi bi-clock-history text-red-600"></i>
                         <span data-i18n="recent_gate_passes">Recent Gate Passes</span>
                     </h2>
                 </div>
-                <div id="recentGatePasses" class="overflow-auto" style="max-height: 700px;">
-                    <table class="w-full text-sm">
+                <div id="recentGatePasses" class="overflow-x-auto" style="max-height: 700px;">
+                    <table class="w-full text-sm min-w-[600px]">
                         <thead class="sticky top-0 bg-white">
                             <tr class="border-b-2 border-black">
                                 <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok NO</th>
@@ -272,13 +272,13 @@
         </div>
 
         <!-- Customer Requests Pending Approval -->
-        <div class="mt-8 neu-border bg-white p-6" id="customerRequestsSection">
-            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+        <div class="mt-6 md:mt-8 neu-border bg-white p-4 md:p-6" id="customerRequestsSection">
+            <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center gap-2">
                 <i class="bi bi-person-check text-blue-600"></i>
                 <span data-i18n="customer_requests_pending">Customer Requests Pending Approval</span>
             </h2>
-            <div id="customerRequestsContainer" class="overflow-auto" style="max-height: 500px;">
-                <table class="w-full text-sm">
+            <div id="customerRequestsContainer" class="overflow-x-auto" style="max-height: 500px;">
+                <table class="w-full text-sm min-w-[600px]">
                     <thead class="sticky top-0 bg-white">
                         <tr class="border-b-2 border-black">
                             <th class="text-left p-2 font-bold" data-i18n="date">Date</th>
