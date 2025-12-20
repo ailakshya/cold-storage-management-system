@@ -978,14 +978,12 @@
         }
 
         // Confirm no remark needed for less quantity
+        // Keep "less" checked so it's recorded in the remark
         function confirmNoRemark() {
             noRemarkConfirmed = true;
             document.getElementById('quantityWarning').classList.add('hidden');
-            // Uncheck "Less" remark when user confirms no remark
-            const lessCheckbox = document.querySelector('input[name="remarkType"][value="less"]');
-            if (lessCheckbox) {
-                lessCheckbox.checked = false;
-            }
+            // Keep "Less" checkbox checked - we want to record "less" in the remark
+            // The "No Remark" button just confirms user acknowledged the warning
         }
 
         // Load data on page load
