@@ -34,6 +34,10 @@ func NewRouter(
 ) *mux.Router {
 	r := mux.NewRouter()
 
+	// Apply security middlewares first
+	r.Use(middleware.HTTPSRedirect)
+	r.Use(middleware.SecurityHeaders)
+
 	// Apply API logging middleware to all routes (if enabled)
 	if apiLoggingMiddleware != nil {
 		r.Use(apiLoggingMiddleware.Handler)
@@ -47,9 +51,9 @@ func NewRouter(
 	r.HandleFunc("/login", pageHandler.LoginPage).Methods("GET")
 	r.HandleFunc("/logout", pageHandler.LogoutPage).Methods("GET")
 
-	// Public API routes - Authentication
-	r.HandleFunc("/auth/signup", authHandler.Signup).Methods("POST")
-	r.HandleFunc("/auth/login", authHandler.Login).Methods("POST")
+	// Public API routes - Authentication (with rate limiting)
+	r.HandleFunc("/auth/signup", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(authHandler.Signup)).ServeHTTP).Methods("POST")
+	r.HandleFunc("/auth/login", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(authHandler.Login)).ServeHTTP).Methods("POST")
 
 	// Protected HTML pages - Client-side authentication via localStorage
 	// These pages load without server-side auth and use JavaScript to check localStorage
@@ -93,17 +97,17 @@ func NewRouter(
 	settingsAPI.HandleFunc("", systemSettingHandler.ListSettings).Methods("GET")
 	settingsAPI.HandleFunc("/operation_mode", systemSettingHandler.GetOperationMode).Methods("GET")
 	settingsAPI.HandleFunc("/{key}", systemSettingHandler.GetSetting).Methods("GET")
-	settingsAPI.HandleFunc("/{key}", systemSettingHandler.UpdateSetting).Methods("PUT")
+	settingsAPI.HandleFunc("/{key}", authMiddleware.RequireAdmin(http.HandlerFunc(systemSettingHandler.UpdateSetting)).ServeHTTP).Methods("PUT")
 
 	// Protected API routes - Users
 	usersAPI := r.PathPrefix("/api/users").Subrouter()
 	usersAPI.Use(authMiddleware.Authenticate)
 	usersAPI.HandleFunc("", userHandler.ListUsers).Methods("GET")
-	usersAPI.HandleFunc("", userHandler.CreateUser).Methods("POST")
+	usersAPI.HandleFunc("", authMiddleware.RequireAdmin(http.HandlerFunc(userHandler.CreateUser)).ServeHTTP).Methods("POST")
 	usersAPI.HandleFunc("/{id}", userHandler.GetUser).Methods("GET")
-	usersAPI.HandleFunc("/{id}", userHandler.UpdateUser).Methods("PUT")
-	usersAPI.HandleFunc("/{id}", userHandler.DeleteUser).Methods("DELETE")
-	usersAPI.HandleFunc("/{id}/toggle-active", userHandler.ToggleActiveStatus).Methods("PATCH")
+	usersAPI.HandleFunc("/{id}", authMiddleware.RequireAdmin(http.HandlerFunc(userHandler.UpdateUser)).ServeHTTP).Methods("PUT")
+	usersAPI.HandleFunc("/{id}", authMiddleware.RequireAdmin(http.HandlerFunc(userHandler.DeleteUser)).ServeHTTP).Methods("DELETE")
+	usersAPI.HandleFunc("/{id}/toggle-active", authMiddleware.RequireAdmin(http.HandlerFunc(userHandler.ToggleActiveStatus)).ServeHTTP).Methods("PATCH")
 
 	// Protected API routes - Customers
 	customersAPI := r.PathPrefix("/api/customers").Subrouter()
@@ -236,17 +240,19 @@ func NewRouter(
 	infraHandler := handlers.NewInfrastructureHandler()
 	infraAPI := r.PathPrefix("/api/infrastructure").Subrouter()
 	infraAPI.Use(authMiddleware.Authenticate)
+	// Read-only endpoints - any authenticated user can view
 	infraAPI.HandleFunc("/backup-status", infraHandler.GetBackupStatus).Methods("GET")
 	infraAPI.HandleFunc("/k3s-status", infraHandler.GetK3sStatus).Methods("GET")
 	infraAPI.HandleFunc("/postgresql-status", infraHandler.GetPostgreSQLStatus).Methods("GET")
 	infraAPI.HandleFunc("/postgresql-pods", infraHandler.GetPostgreSQLPods).Methods("GET")
 	infraAPI.HandleFunc("/vip-status", infraHandler.GetVIPStatus).Methods("GET")
 	infraAPI.HandleFunc("/backend-pods", infraHandler.GetBackendPods).Methods("GET")
-	infraAPI.HandleFunc("/trigger-backup", infraHandler.TriggerBackup).Methods("POST")
-	infraAPI.HandleFunc("/backup-schedule", infraHandler.UpdateBackupSchedule).Methods("POST")
-	infraAPI.HandleFunc("/failover", infraHandler.ExecuteFailover).Methods("POST")
-	infraAPI.HandleFunc("/recover-stuck-pods", infraHandler.RecoverStuckPods).Methods("POST")
 	infraAPI.HandleFunc("/recovery-status", infraHandler.GetRecoveryStatus).Methods("GET")
+	// Dangerous operations - admin only
+	infraAPI.HandleFunc("/trigger-backup", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.TriggerBackup)).ServeHTTP).Methods("POST")
+	infraAPI.HandleFunc("/backup-schedule", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.UpdateBackupSchedule)).ServeHTTP).Methods("POST")
+	infraAPI.HandleFunc("/failover", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.ExecuteFailover)).ServeHTTP).Methods("POST")
+	infraAPI.HandleFunc("/recover-stuck-pods", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.RecoverStuckPods)).ServeHTTP).Methods("POST")
 
 	// Protected API routes - Node Provisioning (admin only)
 	if nodeProvisioningHandler != nil {
@@ -339,13 +345,14 @@ func NewRouter(
 		deployAPI.HandleFunc("/status/{historyId}", deploymentHandler.GetDeploymentStatus).Methods("GET") // SSE
 	}
 
-	// Health endpoints (no auth required - for Kubernetes probes)
+	// Health endpoints (basic health for K8s probes, detailed requires auth)
 	r.HandleFunc("/health", healthHandler.BasicHealth).Methods("GET")
 	r.HandleFunc("/health/ready", healthHandler.ReadinessHealth).Methods("GET")
-	r.HandleFunc("/health/detailed", healthHandler.DetailedHealth).Methods("GET")
+	// Detailed health exposes internal info - require admin
+	r.HandleFunc("/health/detailed", authMiddleware.Authenticate(authMiddleware.RequireAdmin(http.HandlerFunc(healthHandler.DetailedHealth))).ServeHTTP).Methods("GET")
 
-	// Metrics endpoint (Prometheus format)
-	r.Handle("/metrics", promhttp.Handler())
+	// Metrics endpoint - require admin authentication to protect internal metrics
+	r.Handle("/metrics", authMiddleware.Authenticate(authMiddleware.RequireAdmin(promhttp.Handler())))
 
 	return r
 }
@@ -359,6 +366,10 @@ func NewCustomerRouter(
 ) *mux.Router {
 	r := mux.NewRouter()
 
+	// Apply security middlewares
+	r.Use(middleware.HTTPSRedirect)
+	r.Use(middleware.SecurityHeaders)
+
 	// Serve static files
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
@@ -367,12 +378,12 @@ func NewCustomerRouter(
 	r.HandleFunc("/login", pageHandler.CustomerPortalLoginPage).Methods("GET")
 	r.HandleFunc("/dashboard", pageHandler.CustomerPortalDashboardPage).Methods("GET")
 
-	// Public API - Simple authentication (phone + truck number)
-	r.HandleFunc("/auth/login", customerPortalHandler.SimpleLogin).Methods("POST")
+	// Public API - Simple authentication with rate limiting
+	r.HandleFunc("/auth/login", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(customerPortalHandler.SimpleLogin)).ServeHTTP).Methods("POST")
 
-	// Public API - OTP authentication (for future use when SMS is ready)
-	r.HandleFunc("/auth/send-otp", customerPortalHandler.SendOTP).Methods("POST")
-	r.HandleFunc("/auth/verify-otp", customerPortalHandler.VerifyOTP).Methods("POST")
+	// Public API - OTP authentication with rate limiting
+	r.HandleFunc("/auth/send-otp", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(customerPortalHandler.SendOTP)).ServeHTTP).Methods("POST")
+	r.HandleFunc("/auth/verify-otp", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(customerPortalHandler.VerifyOTP)).ServeHTTP).Methods("POST")
 	r.HandleFunc("/auth/validate-session", customerPortalHandler.ValidateSession).Methods("GET")
 	r.HandleFunc("/auth/logout", customerPortalHandler.Logout).Methods("POST")
 
@@ -382,13 +393,11 @@ func NewCustomerRouter(
 	customerAPI.HandleFunc("/dashboard", customerPortalHandler.GetDashboard).Methods("GET")
 	customerAPI.HandleFunc("/gate-pass-requests", customerPortalHandler.CreateGatePassRequest).Methods("POST")
 
-	// Health endpoints (no auth required - for Kubernetes probes)
+	// Health endpoints - only basic health for K8s probes on customer portal
+	// Detailed health and metrics are NOT exposed on customer portal for security
 	r.HandleFunc("/health", healthHandler.BasicHealth).Methods("GET")
 	r.HandleFunc("/health/ready", healthHandler.ReadinessHealth).Methods("GET")
-	r.HandleFunc("/health/detailed", healthHandler.DetailedHealth).Methods("GET")
-
-	// Metrics endpoint (Prometheus format)
-	r.Handle("/metrics", promhttp.Handler())
+	// Note: /health/detailed and /metrics are intentionally NOT exposed on customer portal
 
 	return r
 }

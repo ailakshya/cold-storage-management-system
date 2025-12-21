@@ -4,7 +4,8 @@ server:
     - "http://localhost:3000"
     - "http://localhost:5173"
     - "http://192.168.15.195:5173"
-    - "*"  # Allow all origins (development only)
+    - "http://192.168.15.200:8080"
+    # SECURITY: Never use "*" in production - specify exact origins
   cors_allowed_methods:
     - "GET"
     - "POST"
@@ -16,11 +17,11 @@ server:
     - "Authorization"
 
 database:
-  host: localhost
+  host: ${DB_HOST}
   port: 5432
-  user: postgres
-  password: postgres
-  name: cold_db
+  user: ${DB_USER}
+  password: ${DB_PASSWORD}
+  name: ${DB_NAME}
 
 jwt:
   secret: ${JWT_SECRET}

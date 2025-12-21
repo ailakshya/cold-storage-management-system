@@ -44,7 +44,8 @@ func connectTimescaleDB() *pgxpool.Pool {
 	}
 	password := os.Getenv("METRICS_DB_PASSWORD")
 	if password == "" {
-		password = "MetricsDB2025!"
+		log.Printf("[TimescaleDB] METRICS_DB_PASSWORD not set, skipping metrics DB connection")
+		return nil
 	}
 	database := os.Getenv("METRICS_DB_NAME")
 	if database == "" {

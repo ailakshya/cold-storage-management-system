@@ -570,6 +570,17 @@
         let allExpiredPasses = [];
         let editLogFilter = 'all';  // Filter: 'all', 'quantity', 'room', 'floor', 'gate', 'remark'
 
+        // Security: Escape HTML to prevent XSS attacks
+        function escapeHtml(unsafe) {
+            if (unsafe === null || unsafe === undefined) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
         // Capitalize first letter function
         function capitalizeText(text) {
             if (!text || text.length === 0) return text;
@@ -825,21 +836,22 @@
                         minute: '2-digit'
                     }) : 'Never';
 
+                const safeRole = escapeHtml(data.user.role);
                 return `
                     <tr class="border-b border-gray-200 hover:bg-yellow-50">
-                        <td class="p-3 font-semibold">${capitalizeText(data.user.name)}</td>
-                        <td class="p-3">#${data.user.id}</td>
+                        <td class="p-3 font-semibold">${escapeHtml(capitalizeText(data.user.name))}</td>
+                        <td class="p-3">#${parseInt(data.user.id)}</td>
                         <td class="p-3">
-                            <span class="px-2 py-1 rounded text-white ${data.user.role === 'admin' ? 'bg-red-500' : data.user.role === 'accountant' ? 'bg-green-500' : 'bg-blue-500'}">
-                                ${data.user.role.toUpperCase()}
+                            <span class="px-2 py-1 rounded text-white ${safeRole === 'admin' ? 'bg-red-500' : safeRole === 'accountant' ? 'bg-green-500' : 'bg-blue-500'}">
+                                ${safeRole.toUpperCase()}
                             </span>
                         </td>
-                        <td class="p-3 text-center"><span class="text-lg font-bold text-green-600">${data.entriesCreated}</span></td>
-                        <td class="p-3 text-center"><span class="text-lg font-bold text-blue-600">${data.roomsAssigned}</span></td>
-                        <td class="p-3 text-center"><span class="text-lg font-bold text-yellow-600">${data.paymentsProcessed}</span></td>
-                        <td class="p-3 text-center"><span class="text-lg font-bold text-purple-600">${data.gatePassesIssued}</span></td>
-                        <td class="p-3 text-center"><span class="text-lg font-bold text-orange-600">${data.gatePassesApproved}</span></td>
-                        <td class="p-3 text-sm">${lastActiveStr}</td>
+                        <td class="p-3 text-center"><span class="text-lg font-bold text-green-600">${parseInt(data.entriesCreated)}</span></td>
+                        <td class="p-3 text-center"><span class="text-lg font-bold text-blue-600">${parseInt(data.roomsAssigned)}</span></td>
+                        <td class="p-3 text-center"><span class="text-lg font-bold text-yellow-600">${parseInt(data.paymentsProcessed)}</span></td>
+                        <td class="p-3 text-center"><span class="text-lg font-bold text-purple-600">${parseInt(data.gatePassesIssued)}</span></td>
+                        <td class="p-3 text-center"><span class="text-lg font-bold text-orange-600">${parseInt(data.gatePassesApproved)}</span></td>
+                        <td class="p-3 text-sm">${escapeHtml(lastActiveStr)}</td>
                     </tr>
                 `;
             }).join('');

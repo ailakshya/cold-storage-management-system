@@ -8,13 +8,51 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
+
+// Security validation patterns
+var (
+	// Kubernetes pod name: lowercase alphanumeric, dashes, dots; start/end with alphanumeric
+	validPodNameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9.-]{0,251}[a-z0-9]$|^[a-z0-9]$`)
+	// Namespace: lowercase alphanumeric and dashes
+	validNamespaceRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,61}[a-z0-9]$|^[a-z0-9]$`)
+)
+
+// validatePodName checks if pod name is valid Kubernetes format
+func validatePodName(name string) error {
+	if name == "" {
+		return fmt.Errorf("pod name cannot be empty")
+	}
+	if len(name) > 253 {
+		return fmt.Errorf("pod name too long (max 253 characters)")
+	}
+	if !validPodNameRegex.MatchString(name) {
+		return fmt.Errorf("invalid pod name format: must be lowercase alphanumeric with dashes/dots")
+	}
+	return nil
+}
+
+// validateNamespace checks if namespace is valid Kubernetes format
+func validateNamespace(ns string) error {
+	if ns == "" {
+		return nil // empty namespace is allowed (uses default)
+	}
+	if len(ns) > 63 {
+		return fmt.Errorf("namespace too long (max 63 characters)")
+	}
+	if !validNamespaceRegex.MatchString(ns) {
+		return fmt.Errorf("invalid namespace format")
+	}
+	return nil
+}
 
 type InfrastructureHandler struct{}
 
@@ -424,8 +462,23 @@ func (h *InfrastructureHandler) getMetricsDBStatus() map[string]interface{} {
 	status := "Running"
 	role := "Unknown"
 
+	// Get credentials from environment - NEVER hardcode
+	dbUser := os.Getenv("METRICS_DB_USER")
+	if dbUser == "" {
+		dbUser = "postgres"
+	}
+	dbPassword := os.Getenv("METRICS_DB_PASSWORD")
+	if dbPassword == "" {
+		status = "Error"
+		return h.buildMetricsDBResponse(host, port, dbSize, connections, cacheHit, replLag, status, role)
+	}
+	dbName := os.Getenv("METRICS_DB_NAME")
+	if dbName == "" {
+		dbName = "cold_db"
+	}
+
 	// Connect directly to streaming replica via network
-	connStr := fmt.Sprintf("host=%s port=%s user=postgres password=postgres dbname=cold_db sslmode=disable connect_timeout=5", host, port)
+	connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable connect_timeout=5", host, port, dbUser, dbPassword, dbName)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -623,9 +676,15 @@ func (h *InfrastructureHandler) ExecuteFailover(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	// Validate pod name to prevent command injection
+	if err := validatePodName(req.TargetPod); err != nil {
+		http.Error(w, "Invalid pod name: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Execute failover by deleting current primary
 	// CloudNativePG will automatically promote a replica
-	cmd := exec.Command("kubectl", "delete", "pod", req.TargetPod)
+	cmd := exec.Command("kubectl", "delete", "pod", req.TargetPod, "-n", "default")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {

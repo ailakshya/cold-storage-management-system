@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +15,67 @@ import (
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
 )
+
+// Security validation patterns
+var (
+	// Version must be alphanumeric with dots, dashes, underscores (e.g., v1.5.42, 1.0.0-beta)
+	validVersionRegex = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9._-]{0,63}$`)
+	// Image repo must be valid Docker image name format
+	validImageRepoRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._/-]{0,127}$`)
+	// Deployment target must be alphanumeric with dashes
+	validTargetRegex = regexp.MustCompile(`^[a-z0-9-]{1,63}$`)
+)
+
+// validateVersion checks if version string is safe
+func validateVersion(version string) error {
+	if version == "" {
+		return fmt.Errorf("version cannot be empty")
+	}
+	if !validVersionRegex.MatchString(version) {
+		return fmt.Errorf("invalid version format: must be alphanumeric with dots, dashes, underscores")
+	}
+	return nil
+}
+
+// validateImageRepo checks if image repository name is safe
+func validateImageRepo(repo string) error {
+	if repo == "" {
+		return fmt.Errorf("image repository cannot be empty")
+	}
+	if !validImageRepoRegex.MatchString(repo) {
+		return fmt.Errorf("invalid image repository format")
+	}
+	return nil
+}
+
+// validateBuildPath checks if build path is safe (no path traversal)
+func validateBuildPath(path string) error {
+	if path == "" {
+		return fmt.Errorf("build path cannot be empty")
+	}
+	// Must be absolute path
+	if !filepath.IsAbs(path) {
+		return fmt.Errorf("build path must be absolute")
+	}
+	// Clean path and check for traversal
+	cleanPath := filepath.Clean(path)
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("path traversal not allowed")
+	}
+	// Verify path exists
+	if _, err := os.Stat(cleanPath); err != nil {
+		return fmt.Errorf("build path does not exist: %w", err)
+	}
+	return nil
+}
+
+// validateDeployTarget checks if deployment target is safe
+func validateDeployTarget(target string) error {
+	if !validTargetRegex.MatchString(target) {
+		return fmt.Errorf("invalid deployment target: %s", target)
+	}
+	return nil
+}
 
 // DeploymentService handles build and deployment operations
 type DeploymentService struct {
@@ -93,9 +156,31 @@ func (s *DeploymentService) Deploy(ctx context.Context, configID int, opts Deplo
 		opts.Version = fmt.Sprintf("v1.5.%d", time.Now().Unix())
 	}
 
+	// Validate version
+	if err := validateVersion(opts.Version); err != nil {
+		return 0, nil, fmt.Errorf("invalid version: %w", err)
+	}
+
+	// Validate image repo
+	if err := validateImageRepo(config.ImageRepo); err != nil {
+		return 0, nil, fmt.Errorf("invalid image repo in config: %w", err)
+	}
+
+	// Validate build path
+	if err := validateBuildPath(config.BuildContext); err != nil {
+		return 0, nil, fmt.Errorf("invalid build context in config: %w", err)
+	}
+
 	// Default deploy targets
 	if len(opts.DeployTargets) == 0 {
 		opts.DeployTargets = []string{"employee", "customer"}
+	}
+
+	// Validate deploy targets
+	for _, target := range opts.DeployTargets {
+		if err := validateDeployTarget(target); err != nil {
+			return 0, nil, err
+		}
 	}
 
 	// Create history record
@@ -360,39 +445,104 @@ func (s *DeploymentService) CancelDeployment(historyID int) error {
 // Helper functions
 
 func (s *DeploymentService) buildBinary(buildPath, buildCommand string) (string, error) {
-	if buildCommand == "" {
-		buildCommand = "CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-w -s' -o server ./cmd/server"
+	// Validate build path to prevent path traversal
+	if err := validateBuildPath(buildPath); err != nil {
+		return "", fmt.Errorf("invalid build path: %w", err)
 	}
 
-	cmd := exec.Command("bash", "-c", fmt.Sprintf("cd %s && %s", buildPath, buildCommand))
+	// Use hardcoded safe build command - do NOT allow user-provided commands
+	// This prevents command injection via buildCommand parameter
+	cmd := exec.Command("go", "build", "-ldflags=-w -s", "-o", "server", "./cmd/server")
+	cmd.Dir = filepath.Clean(buildPath)
+	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64")
+
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
 func (s *DeploymentService) buildDockerImage(buildPath, imageRepo, version string) (string, error) {
-	dockerfile := fmt.Sprintf("%s/Dockerfile.ci", buildPath)
+	// Validate all inputs
+	if err := validateBuildPath(buildPath); err != nil {
+		return "", fmt.Errorf("invalid build path: %w", err)
+	}
+	if err := validateImageRepo(imageRepo); err != nil {
+		return "", fmt.Errorf("invalid image repo: %w", err)
+	}
+	if err := validateVersion(version); err != nil {
+		return "", fmt.Errorf("invalid version: %w", err)
+	}
+
+	cleanPath := filepath.Clean(buildPath)
+	dockerfile := filepath.Join(cleanPath, "Dockerfile.ci")
 
 	// Check if Dockerfile.ci exists, fallback to Dockerfile
 	if _, err := os.Stat(dockerfile); os.IsNotExist(err) {
-		dockerfile = fmt.Sprintf("%s/Dockerfile", buildPath)
+		dockerfile = filepath.Join(cleanPath, "Dockerfile")
 	}
 
-	cmd := exec.Command("docker", "build",
-		"-f", dockerfile,
-		"-t", fmt.Sprintf("%s:%s", imageRepo, version),
-		buildPath)
+	// Use exec.Command with separate arguments - no shell interpolation
+	imageTag := fmt.Sprintf("%s:%s", imageRepo, version)
+	cmd := exec.Command("docker", "build", "-f", dockerfile, "-t", imageTag, cleanPath)
 	output, err := cmd.CombinedOutput()
 	return string(output), err
 }
 
 func (s *DeploymentService) saveDockerImage(imageRepo, version string) error {
+	// Validate inputs
+	if err := validateImageRepo(imageRepo); err != nil {
+		return fmt.Errorf("invalid image repo: %w", err)
+	}
+	if err := validateVersion(version); err != nil {
+		return fmt.Errorf("invalid version: %w", err)
+	}
+
 	tarFile := fmt.Sprintf("/tmp/cold-backend-%s.tar.gz", version)
-	cmd := exec.Command("bash", "-c",
-		fmt.Sprintf("docker save %s:%s | gzip > %s", imageRepo, version, tarFile))
-	return cmd.Run()
+	imageTag := fmt.Sprintf("%s:%s", imageRepo, version)
+
+	// Use pipe between commands instead of shell - prevents injection
+	dockerSave := exec.Command("docker", "save", imageTag)
+	gzip := exec.Command("gzip")
+
+	// Create output file
+	outFile, err := os.Create(tarFile)
+	if err != nil {
+		return fmt.Errorf("failed to create tar file: %w", err)
+	}
+	defer outFile.Close()
+
+	// Pipe docker save output to gzip
+	gzip.Stdin, err = dockerSave.StdoutPipe()
+	if err != nil {
+		return fmt.Errorf("failed to create pipe: %w", err)
+	}
+	gzip.Stdout = outFile
+
+	// Start both commands
+	if err := gzip.Start(); err != nil {
+		return fmt.Errorf("failed to start gzip: %w", err)
+	}
+	if err := dockerSave.Run(); err != nil {
+		return fmt.Errorf("docker save failed: %w", err)
+	}
+	if err := gzip.Wait(); err != nil {
+		return fmt.Errorf("gzip failed: %w", err)
+	}
+
+	return nil
 }
 
 func (s *DeploymentService) distributeToNode(node *models.ClusterNode, tarFile, version string) error {
+	// Validate version to ensure tarFile path is safe
+	if err := validateVersion(version); err != nil {
+		return fmt.Errorf("invalid version: %w", err)
+	}
+
+	// Validate tarFile path - must be in /tmp/ and match expected format
+	expectedTarFile := fmt.Sprintf("/tmp/cold-backend-%s.tar.gz", version)
+	if tarFile != expectedTarFile {
+		return fmt.Errorf("invalid tar file path")
+	}
+
 	// Get SSH key from default path or node config
 	sshKeyPath := os.Getenv("SSH_KEY_PATH")
 	if sshKeyPath == "" {
@@ -409,7 +559,8 @@ func (s *DeploymentService) distributeToNode(node *models.ClusterNode, tarFile, 
 		return fmt.Errorf("copy failed: %w", err)
 	}
 
-	// Import image
+	// Import image - use validated tarFile path
+	// The command is safe because tarFile is constructed from validated version
 	importCmd := fmt.Sprintf("gunzip -c %s | k3s ctr -n k8s.io images import - && rm -f %s", tarFile, tarFile)
 	if _, err := s.ssh.Execute(nil, node.IPAddress, importCmd); err != nil {
 		return fmt.Errorf("import failed: %w", err)

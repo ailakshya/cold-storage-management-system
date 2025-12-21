@@ -166,6 +166,17 @@
         let allCustomers = [];
         let deleteCustomerId = null;
 
+        // Security: Escape HTML to prevent XSS attacks
+        function escapeHtml(unsafe) {
+            if (unsafe === null || unsafe === undefined) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
         // Capitalize first letter
         function capitalizeFirstLetter(input) {
             const value = input.value;
@@ -214,20 +225,20 @@
             }
 
             tbody.innerHTML = customers.map(customer => `
-                <tr class="border-b-2 border-gray-200 clickable-row" onclick="editCustomer(${customer.id})">
-                    <td class="p-4 font-mono text-gray-600">#${customer.id}</td>
-                    <td class="p-4 font-bold">${customer.name || '-'}</td>
+                <tr class="border-b-2 border-gray-200 clickable-row" onclick="editCustomer(${parseInt(customer.id)})">
+                    <td class="p-4 font-mono text-gray-600">#${parseInt(customer.id)}</td>
+                    <td class="p-4 font-bold">${escapeHtml(customer.name) || '-'}</td>
                     <td class="p-4">
-                        <span class="bg-blue-100 px-2 py-1 rounded font-mono">${customer.phone}</span>
+                        <span class="bg-blue-100 px-2 py-1 rounded font-mono">${escapeHtml(customer.phone)}</span>
                     </td>
-                    <td class="p-4">${customer.so || '-'}</td>
-                    <td class="p-4">${customer.village || '-'}</td>
+                    <td class="p-4">${escapeHtml(customer.so) || '-'}</td>
+                    <td class="p-4">${escapeHtml(customer.village) || '-'}</td>
                     <td class="p-4 text-right">
-                        <button onclick="event.stopPropagation(); editCustomer(${customer.id})"
+                        <button onclick="event.stopPropagation(); editCustomer(${parseInt(customer.id)})"
                                 class="bg-blue-500 text-white px-4 py-2 neu-brutal text-sm mr-2">
                             <i class="bi bi-pencil"></i> Edit
                         </button>
-                        <button onclick="event.stopPropagation(); showDeleteModal(${customer.id}, '${customer.name}')"
+                        <button onclick="event.stopPropagation(); showDeleteModal(${parseInt(customer.id)}, '${escapeHtml(customer.name)}')"
                                 class="bg-red-500 text-white px-4 py-2 neu-brutal text-sm">
                             <i class="bi bi-trash"></i>
                         </button>
