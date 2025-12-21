@@ -64,11 +64,13 @@ func connectTimescaleDB() *pgxpool.Pool {
 		return nil
 	}
 
-	// Connection pool settings
+	// Connection pool settings - OPTIMIZED
 	config.MaxConns = 10
-	config.MinConns = 2
+	config.MinConns = 3                            // Keep more warm connections
 	config.MaxConnLifetime = 1 * time.Hour
-	config.MaxConnIdleTime = 30 * time.Minute
+	config.MaxConnIdleTime = 15 * time.Minute      // Faster cleanup
+	config.HealthCheckPeriod = 30 * time.Second    // Frequent health checks
+	config.ConnConfig.ConnectTimeout = 5 * time.Second  // Fast timeout
 
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
