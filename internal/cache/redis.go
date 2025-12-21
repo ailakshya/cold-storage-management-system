@@ -16,11 +16,16 @@ var client *redis.Client
 func Init() error {
 	host := os.Getenv("REDIS_HOST")
 	if host == "" {
-		host = "redis.default.svc.cluster.local"
+		host = "redis"  // K8s service name
 	}
 	port := os.Getenv("REDIS_PORT")
 	if port == "" {
 		port = "6379"
+	}
+
+	// Handle case where REDIS_HOST contains full URL
+	if len(host) > 6 && host[:6] == "tcp://" {
+		host = "redis"
 	}
 
 	client = redis.NewClient(&redis.Options{
