@@ -200,7 +200,7 @@
             allRoomEntries = await roomEntriesRes.json();
             allPayments = await paymentsRes.json();
             const users = await usersRes.json();
-            users.forEach(u => userMap[u.id] = u.name);
+            (users || []).forEach(u => userMap[u.id] = u.name);
 
             // Build customer accounts from entries and payments
             allAccounts = buildCustomerAccounts(allEntries, allRoomEntries, allPayments);
@@ -212,7 +212,7 @@
             const customerMap = {};
 
             // Group entries by customer phone
-            entries.forEach(entry => {
+            (entries || []).forEach(entry => {
                 if (!entry.phone) return;
 
                 if (!customerMap[entry.phone]) {
@@ -257,7 +257,7 @@
             });
 
             // Add payments to customers
-            payments.forEach(payment => {
+            (payments || []).forEach(payment => {
                 if (customerMap[payment.customer_phone]) {
                     customerMap[payment.customer_phone].total_paid += payment.amount_paid || 0;
                 }
