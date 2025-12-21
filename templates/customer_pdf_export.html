@@ -333,9 +333,9 @@
                 });
                 const payments = paymentsRes.ok ? await paymentsRes.json() : [];
 
-                const customerEntries = allEntries.filter(e => e.phone === phone);
+                const customerEntries = (allEntries || []).filter(e => e.phone === phone);
                 const customerThockNumbers = customerEntries.map(e => e.thock_number);
-                const customerRoomEntries = allRoomEntries.filter(re =>
+                const customerRoomEntries = (allRoomEntries || []).filter(re =>
                     customerThockNumbers.includes(re.thock_number)
                 );
 
@@ -442,12 +442,12 @@
 
                 // Add detailed section for each customer
                 filteredAccounts.forEach((customer, index) => {
-                    const customerEntries = allEntries.filter(e => e.phone === customer.phone);
+                    const customerEntries = (allEntries || []).filter(e => e.phone === customer.phone);
                     const customerThockNumbers = customerEntries.map(e => e.thock_number);
-                    const customerRoomEntries = allRoomEntries.filter(re =>
+                    const customerRoomEntries = (allRoomEntries || []).filter(re =>
                         customerThockNumbers.includes(re.thock_number)
                     );
-                    const customerPayments = allPayments.filter(p => p.customer_phone === customer.phone);
+                    const customerPayments = (allPayments || []).filter(p => p.customer_phone === customer.phone);
 
                     html += `<div class="page-break"></div>`;
                     html += renderCustomerSection(customer, customerEntries, customerRoomEntries, customerPayments, index + 1);
