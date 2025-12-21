@@ -527,7 +527,17 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                if (!response.ok) return;
+                if (!response.ok) {
+                    // Token might be expired - redirect to login
+                    if (response.status === 401) {
+                        console.error('Token expired - redirecting to login');
+                        alert(i18n.t('session_expired', 'Session expired. Please login again.'));
+                        window.location.href = '/login';
+                        return;
+                    }
+                    console.error('Failed to load customers:', response.status);
+                    return;
+                }
 
                 const customers = await response.json() || [];
 
@@ -538,6 +548,8 @@
                     village: customer.village || '',
                     so: customer.so || '' // Now customers have S/O field!
                 }));
+
+                console.log(`Loaded ${customerPhones.length} customers for autocomplete`);
             } catch (error) {
                 console.error('Error loading customer phones:', error);
                 customerPhones = []; // Set to empty array on error
