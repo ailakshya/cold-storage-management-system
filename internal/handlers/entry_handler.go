@@ -124,3 +124,26 @@ func (h *EntryHandler) GetCountByCategory(w http.ResponseWriter, r *http.Request
 		"next":     next,
 	})
 }
+
+func (h *EntryHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid entry ID", http.StatusBadRequest)
+		return
+	}
+
+	var req models.UpdateEntryRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Service.UpdateEntry(context.Background(), id, &req); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Entry updated successfully"})
+}

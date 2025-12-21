@@ -130,3 +130,26 @@ func (s *EntryService) GetCountByCategory(ctx context.Context, category string) 
 	}
 	return s.EntryRepo.GetCountByCategory(ctx, category)
 }
+
+func (s *EntryService) UpdateEntry(ctx context.Context, id int, req *models.UpdateEntryRequest) error {
+	// Get existing entry
+	entry, err := s.EntryRepo.Get(ctx, id)
+	if err != nil {
+		return errors.New("entry not found")
+	}
+
+	// Validate phone number
+	if len(req.Phone) != 10 {
+		return errors.New("phone number must be exactly 10 digits")
+	}
+
+	// Update fields
+	entry.Name = req.Name
+	entry.Phone = req.Phone
+	entry.Village = req.Village
+	entry.SO = req.SO
+	entry.ExpectedQuantity = req.ExpectedQuantity
+	entry.Remark = req.Remark
+
+	return s.EntryRepo.Update(ctx, entry)
+}

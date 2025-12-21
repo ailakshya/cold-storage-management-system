@@ -30,3 +30,13 @@ type CreateEntryRequest struct {
 	ThockCategory    string `json:"thock_category"`
 	Remark           string `json:"remark"` // Variety/varieties (comma-separated)
 }
+
+// UpdateEntryRequest represents the request body for updating an entry
+type UpdateEntryRequest struct {
+	Name             string `json:"name"`
+	Phone            string `json:"phone"`
+	Village          string `json:"village"`
+	SO               string `json:"so"`
+	ExpectedQuantity int    `json:"expected_quantity"`
+	Remark           string `json:"remark"`
+}

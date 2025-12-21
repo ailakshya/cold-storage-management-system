@@ -126,6 +126,7 @@ func NewRouter(
 	entriesAPI.HandleFunc("/count", entryHandler.GetCountByCategory).Methods("GET")
 	entriesAPI.HandleFunc("/unassigned", roomEntryHandler.GetUnassignedEntries).Methods("GET")
 	entriesAPI.HandleFunc("/{id}", entryHandler.GetEntry).Methods("GET")
+	entriesAPI.HandleFunc("/{id}", entryHandler.UpdateEntry).Methods("PUT")
 	entriesAPI.HandleFunc("/customer/{customer_id}", entryHandler.ListEntriesByCustomer).Methods("GET")
 
 	// Protected API routes - Room Entries (employees and admins only for creation/update, LOADING MODE ONLY)

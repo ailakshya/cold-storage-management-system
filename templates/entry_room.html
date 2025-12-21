@@ -427,15 +427,66 @@
                             <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
                             <th class="text-left p-2 font-bold" data-i18n="category">Category</th>
                             <th class="text-left p-2 font-bold" data-i18n="created">Created</th>
+                            <th class="text-right p-2 font-bold" data-i18n="actions">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="entriesTableBody">
                         <tr>
-                            <td colspan="7" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
+                            <td colspan="8" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+
+    <!-- Edit Entry Modal -->
+    <div id="editEntryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" style="display: none;">
+        <div class="bg-white neu-border p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="bi bi-pencil-square text-blue-600"></i>
+                    <span data-i18n="edit_entry">Edit Entry</span>
+                </h2>
+                <button onclick="closeEditEntryModal()" class="text-2xl text-gray-500 hover:text-black">&times;</button>
+            </div>
+            <form id="editEntryForm" onsubmit="saveEditedEntry(event)">
+                <input type="hidden" id="editEntryId">
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-semibold mb-1" data-i18n="name">Name</label>
+                        <input type="text" id="editEntryName" required class="w-full neu-input" placeholder="Name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1" data-i18n="phone">Phone</label>
+                        <input type="tel" id="editEntryPhone" required maxlength="10" minlength="10" pattern="[0-9]{10}" class="w-full neu-input" placeholder="10-digit phone">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1" data-i18n="village">Village</label>
+                        <input type="text" id="editEntryVillage" class="w-full neu-input" placeholder="Village">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1" data-i18n="so_label">S/O</label>
+                        <input type="text" id="editEntrySO" class="w-full neu-input" placeholder="Father's name">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1" data-i18n="expected_qty">Expected Quantity</label>
+                        <input type="number" id="editEntryQty" required min="1" class="w-full neu-input" placeholder="Quantity">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold mb-1" data-i18n="variety">Variety</label>
+                        <input type="text" id="editEntryRemark" class="w-full neu-input" placeholder="Variety (comma-separated)">
+                    </div>
+                </div>
+                <div class="flex gap-4 mt-6">
+                    <button type="submit" class="flex-1 neu-button bg-green-500 text-white">
+                        <i class="bi bi-check-circle"></i> <span data-i18n="save">Save</span>
+                    </button>
+                    <button type="button" onclick="closeEditEntryModal()" class="flex-1 neu-button bg-gray-300">
+                        <i class="bi bi-x-circle"></i> <span data-i18n="cancel">Cancel</span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -954,7 +1005,7 @@
             } catch (error) {
                 console.error('Error loading entries:', error);
                 document.getElementById('entriesTableBody').innerHTML =
-                    `<tr><td colspan="7" class="text-center p-4 text-red-500">${i18n.t('failed_load_entries', 'Failed to load entries')}</td></tr>`;
+                    `<tr><td colspan="8" class="text-center p-4 text-red-500">${i18n.t('failed_load_entries', 'Failed to load entries')}</td></tr>`;
             }
         }
 
@@ -962,7 +1013,7 @@
             const tbody = document.getElementById('entriesTableBody');
 
             if (entries.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-gray-500">${i18n.t('no_entries_yet', 'No entries yet')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center p-4 text-gray-500">${i18n.t('no_entries_yet', 'No entries yet')}</td></tr>`;
                 return;
             }
 
@@ -991,11 +1042,81 @@
                         <td class="p-2">${entry.expected_quantity}</td>
                         <td class="p-2"><span class="px-2 py-1 rounded text-xs font-bold ${categoryColor}">${entry.thock_category.toUpperCase()}</span></td>
                         <td class="p-2 text-xs">${formattedDate}</td>
+                        <td class="p-2 text-right">
+                            <button onclick="openEditEntryModal(${entry.id})" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
         }
 
+        // Edit Entry Modal Functions
+        async function openEditEntryModal(entryId) {
+            try {
+                const response = await fetch(`/api/entries/${entryId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) throw new Error('Failed to load entry');
+                const entry = await response.json();
+
+                document.getElementById('editEntryId').value = entry.id;
+                document.getElementById('editEntryName').value = entry.name || '';
+                document.getElementById('editEntryPhone').value = entry.phone || '';
+                document.getElementById('editEntryVillage').value = entry.village || '';
+                document.getElementById('editEntrySO').value = entry.so || '';
+                document.getElementById('editEntryQty').value = entry.expected_quantity || 1;
+                document.getElementById('editEntryRemark').value = entry.remark || '';
+
+                document.getElementById('editEntryModal').style.display = 'flex';
+            } catch (error) {
+                console.error('Error loading entry:', error);
+                alert('Failed to load entry details');
+            }
+        }
+
+        function closeEditEntryModal() {
+            document.getElementById('editEntryModal').style.display = 'none';
+            document.getElementById('editEntryForm').reset();
+        }
+
+        async function saveEditedEntry(event) {
+            event.preventDefault();
+
+            const entryId = document.getElementById('editEntryId').value;
+            const data = {
+                name: document.getElementById('editEntryName').value,
+                phone: document.getElementById('editEntryPhone').value,
+                village: document.getElementById('editEntryVillage').value,
+                so: document.getElementById('editEntrySO').value,
+                expected_quantity: parseInt(document.getElementById('editEntryQty').value),
+                remark: document.getElementById('editEntryRemark').value
+            };
+
+            try {
+                const response = await fetch(`/api/entries/${entryId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                closeEditEntryModal();
+                loadRecentEntries();
+                alert(i18n.t('entry_updated', 'Entry updated successfully!'));
+            } catch (error) {
+                console.error('Error updating entry:', error);
+                alert('Error: ' + error.message);
+            }
+        }
 
         function clearCustomerFields() {
             document.getElementById('userName').value = '';
