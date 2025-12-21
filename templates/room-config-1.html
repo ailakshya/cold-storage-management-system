@@ -116,6 +116,7 @@
                             <p class="text-2xl font-bold text-blue-700" id="selectedThockNumber">-</p>
                             <p class="text-xs text-gray-600 mt-1" id="selectedEntryDetails"></p>
                             <p class="text-sm text-purple-700 font-semibold mt-1" id="selectedEntrySO"></p>
+                            <p class="text-sm text-green-700 font-semibold mt-1" id="selectedEntryVariety"></p>
                         </div>
 
                         <!-- Room and Floor Selection Side by Side -->
@@ -1056,23 +1057,26 @@
             tbody.innerHTML = entries.map(entry => {
                 const thockColor = getThockColor(entry.thock_number);
                 const entrySO = entry.so || '';
+                const entryVariety = entry.remark || '';
                 const actualQty = entry.actual_quantity || 0;
                 // Display: "23 → 22" if different, or just "22" if same/not stored yet
                 const qtyDisplay = actualQty > 0
                     ? (entry.expected_quantity !== actualQty ? `${entry.expected_quantity} → ${actualQty}` : `${actualQty}`)
                     : `${entry.expected_quantity}`;
+                // Escape single quotes in variety for onclick
+                const escapedVariety = entryVariety.replace(/'/g, "\\'");
                 return `
-                    <tr class="border-b border-gray-200 clickable-row" onclick="selectEntry(${entry.id}, '${entry.thock_number}', '${entry.name}', ${entry.expected_quantity}, '${entrySO}', ${actualQty})">
+                    <tr class="border-b border-gray-200 clickable-row" onclick="selectEntry(${entry.id}, '${entry.thock_number}', '${entry.name}', ${entry.expected_quantity}, '${entrySO}', ${actualQty}, '${escapedVariety}')">
                         <td class="p-2 font-bold ${thockColor}">${entry.thock_number}</td>
-                        <td class="p-2">${entry.name}</td>
+                        <td class="p-2">${entry.name}${entryVariety ? '<br><span class="text-xs text-green-600"><i class="bi bi-tag"></i> ' + entryVariety + '</span>' : ''}</td>
                         <td class="p-2">${qtyDisplay}</td>
                     </tr>
                 `;
             }).join('');
         }
 
-        function selectEntry(entryId, thockNumber, name, expectedQty, so = '', actualQty = 0) {
-            selectedEntry = { entryId, thockNumber, name, expectedQty, so, actualQty };
+        function selectEntry(entryId, thockNumber, name, expectedQty, so = '', actualQty = 0, variety = '') {
+            selectedEntry = { entryId, thockNumber, name, expectedQty, so, actualQty, variety };
 
             // Detect entry type and update room availability
             currentEntryType = getEntryType(thockNumber);
@@ -1096,6 +1100,14 @@
                 soElement.textContent = `S/O: ${so}`;
             } else {
                 soElement.textContent = '';
+            }
+
+            // Display Variety/Remark
+            const varietyElement = document.getElementById('selectedEntryVariety');
+            if (variety && variety.trim() !== '') {
+                varietyElement.innerHTML = `<i class="bi bi-tag-fill mr-1"></i>Variety: ${variety}`;
+            } else {
+                varietyElement.textContent = '';
             }
 
             // Highlight selected row
@@ -1269,6 +1281,7 @@
             document.getElementById('selectedThockNumber').textContent = '-';
             document.getElementById('selectedEntryDetails').textContent = '';
             document.getElementById('selectedEntrySO').textContent = '';
+            document.getElementById('selectedEntryVariety').textContent = '';
             document.getElementById('customRemark').classList.add('hidden');
             selectedEntry = null;
 
