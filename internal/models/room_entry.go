@@ -15,6 +15,7 @@ type RoomEntry struct {
 	CreatedByUserID   int       `json:"created_by_user_id"`
 	CreatedAt         time.Time `json:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at"`
+	Variety           string    `json:"variety"` // From joined entries table (entries.remark)
 }
 
 type CreateRoomEntryRequest struct {

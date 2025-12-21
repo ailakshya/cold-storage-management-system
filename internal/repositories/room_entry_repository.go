@@ -26,19 +26,27 @@ func (r *RoomEntryRepository) Create(ctx context.Context, re *models.RoomEntry) 
 
 func (r *RoomEntryRepository) Get(ctx context.Context, id int) (*models.RoomEntry, error) {
 	row := r.DB.QueryRow(ctx,
-		`SELECT id, entry_id, thock_number, room_no, floor, gate_no, remark, quantity, COALESCE(quantity_breakdown, ''), created_by_user_id, created_at, updated_at
-         FROM room_entries WHERE id=$1`, id)
+		`SELECT re.id, re.entry_id, re.thock_number, re.room_no, re.floor, re.gate_no, re.remark, re.quantity,
+		        COALESCE(re.quantity_breakdown, ''), re.created_by_user_id, re.created_at, re.updated_at,
+		        COALESCE(e.remark, '') as variety
+         FROM room_entries re
+         LEFT JOIN entries e ON re.entry_id = e.id
+         WHERE re.id=$1`, id)
 
 	var re models.RoomEntry
 	err := row.Scan(&re.ID, &re.EntryID, &re.ThockNumber, &re.RoomNo, &re.Floor,
-		&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt)
+		&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt, &re.Variety)
 	return &re, err
 }
 
 func (r *RoomEntryRepository) List(ctx context.Context) ([]*models.RoomEntry, error) {
 	rows, err := r.DB.Query(ctx,
-		`SELECT id, entry_id, thock_number, room_no, floor, gate_no, remark, quantity, COALESCE(quantity_breakdown, ''), created_by_user_id, created_at, updated_at
-         FROM room_entries ORDER BY created_at DESC`)
+		`SELECT re.id, re.entry_id, re.thock_number, re.room_no, re.floor, re.gate_no, re.remark, re.quantity,
+		        COALESCE(re.quantity_breakdown, ''), re.created_by_user_id, re.created_at, re.updated_at,
+		        COALESCE(e.remark, '') as variety
+         FROM room_entries re
+         LEFT JOIN entries e ON re.entry_id = e.id
+         ORDER BY re.created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +56,7 @@ func (r *RoomEntryRepository) List(ctx context.Context) ([]*models.RoomEntry, er
 	for rows.Next() {
 		var re models.RoomEntry
 		err := rows.Scan(&re.ID, &re.EntryID, &re.ThockNumber, &re.RoomNo, &re.Floor,
-			&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt)
+			&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt, &re.Variety)
 		if err != nil {
 			return nil, err
 		}
@@ -59,12 +67,16 @@ func (r *RoomEntryRepository) List(ctx context.Context) ([]*models.RoomEntry, er
 
 func (r *RoomEntryRepository) GetByEntryID(ctx context.Context, entryID int) (*models.RoomEntry, error) {
 	row := r.DB.QueryRow(ctx,
-		`SELECT id, entry_id, thock_number, room_no, floor, gate_no, remark, quantity, COALESCE(quantity_breakdown, ''), created_by_user_id, created_at, updated_at
-         FROM room_entries WHERE entry_id=$1`, entryID)
+		`SELECT re.id, re.entry_id, re.thock_number, re.room_no, re.floor, re.gate_no, re.remark, re.quantity,
+		        COALESCE(re.quantity_breakdown, ''), re.created_by_user_id, re.created_at, re.updated_at,
+		        COALESCE(e.remark, '') as variety
+         FROM room_entries re
+         LEFT JOIN entries e ON re.entry_id = e.id
+         WHERE re.entry_id=$1`, entryID)
 
 	var re models.RoomEntry
 	err := row.Scan(&re.ID, &re.EntryID, &re.ThockNumber, &re.RoomNo, &re.Floor,
-		&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt)
+		&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt, &re.Variety)
 	return &re, err
 }
 
@@ -111,8 +123,12 @@ func (r *RoomEntryRepository) GetTotalQuantityByThockNumber(ctx context.Context,
 // ListByThockNumber returns all room entries for a specific truck
 func (r *RoomEntryRepository) ListByThockNumber(ctx context.Context, thockNumber string) ([]*models.RoomEntry, error) {
 	rows, err := r.DB.Query(ctx,
-		`SELECT id, entry_id, thock_number, room_no, floor, gate_no, remark, quantity, COALESCE(quantity_breakdown, ''), created_by_user_id, created_at, updated_at
-         FROM room_entries WHERE thock_number=$1 ORDER BY created_at DESC`, thockNumber)
+		`SELECT re.id, re.entry_id, re.thock_number, re.room_no, re.floor, re.gate_no, re.remark, re.quantity,
+		        COALESCE(re.quantity_breakdown, ''), re.created_by_user_id, re.created_at, re.updated_at,
+		        COALESCE(e.remark, '') as variety
+         FROM room_entries re
+         LEFT JOIN entries e ON re.entry_id = e.id
+         WHERE re.thock_number=$1 ORDER BY re.created_at DESC`, thockNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +138,7 @@ func (r *RoomEntryRepository) ListByThockNumber(ctx context.Context, thockNumber
 	for rows.Next() {
 		var re models.RoomEntry
 		err := rows.Scan(&re.ID, &re.EntryID, &re.ThockNumber, &re.RoomNo, &re.Floor,
-			&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt)
+			&re.GateNo, &re.Remark, &re.Quantity, &re.QuantityBreakdown, &re.CreatedByUserID, &re.CreatedAt, &re.UpdatedAt, &re.Variety)
 		if err != nil {
 			return nil, err
 		}
