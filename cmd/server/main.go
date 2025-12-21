@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cold-backend/internal/auth"
+	"cold-backend/internal/cache"
 	"cold-backend/internal/config"
 	"cold-backend/internal/database"
 	"cold-backend/internal/db"
@@ -110,6 +111,13 @@ func main() {
 	// Connect to database
 	pool := db.Connect(cfg)
 	defer pool.Close()
+
+	// Initialize Redis cache (optional - graceful fallback if unavailable)
+	if err := cache.Init(); err != nil {
+		log.Printf("[Redis] Cache unavailable: %v (login will use bcrypt only)", err)
+	} else {
+		log.Println("[Redis] Cache connected successfully")
+	}
 
 	// Run database migrations
 	// This automatically creates all required tables on startup

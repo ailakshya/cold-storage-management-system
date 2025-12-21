@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"cold-backend/internal/auth"
+	"cold-backend/internal/cache"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
 )
@@ -114,16 +115,31 @@ func (s *UserService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 		return nil, errors.New("email and password are required")
 	}
 
+	// Check Redis cache first (skip bcrypt if recently authenticated)
+	if cachedUserID, found := cache.GetCachedAuth(ctx, req.Email, req.Password); found {
+		user, err := s.Repo.Get(ctx, int(cachedUserID))
+		if err == nil && user != nil {
+			token, err := s.JWTManager.GenerateToken(user)
+			if err != nil {
+				return nil, err
+			}
+			return &models.AuthResponse{Token: token, User: user}, nil
+		}
+	}
+
 	// Get user by email
 	user, err := s.Repo.GetByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, errors.New("invalid email or password")
 	}
 
-	// Verify password
+	// Verify password (slow bcrypt operation)
 	if !auth.VerifyPassword(user.PasswordHash, req.Password) {
 		return nil, errors.New("invalid email or password")
 	}
+
+	// Cache successful auth for 15 minutes
+	cache.CacheAuth(ctx, req.Email, req.Password, int64(user.ID))
 
 	// Generate JWT token
 	token, err := s.JWTManager.GenerateToken(user)
