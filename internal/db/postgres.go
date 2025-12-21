@@ -26,14 +26,12 @@ func Connect(cfg *config.Config) *pgxpool.Pool {
 		log.Fatalf("db config parse failed: %v", err)
 	}
 
-	// Configure pool settings for production workload - OPTIMIZED for fast login
+	// Configure pool settings for production workload
 	poolConfig.MaxConns = 25                          // Maximum connections in pool
-	poolConfig.MinConns = 10                          // Keep MORE warm connections ready (was 5)
+	poolConfig.MinConns = 5                           // Keep warm connections ready
 	poolConfig.MaxConnLifetime = time.Hour            // Recycle connections hourly
-	poolConfig.MaxConnIdleTime = 15 * time.Minute     // Close idle connections after 15min (was 30)
-	poolConfig.HealthCheckPeriod = 30 * time.Second   // Check connection health every 30s (was 1min)
-
-	// Connection timeout settings for faster acquisition
+	poolConfig.MaxConnIdleTime = 30 * time.Minute     // Close idle connections after 30min
+	poolConfig.HealthCheckPeriod = time.Minute        // Check connection health every minute
 	poolConfig.ConnConfig.ConnectTimeout = 5 * time.Second  // Fast timeout for new connections
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
@@ -41,7 +39,7 @@ func Connect(cfg *config.Config) *pgxpool.Pool {
 		log.Fatalf("db connect failed: %v", err)
 	}
 
-	log.Printf("✓ Database connection pool: %d max, %d min warm, 30s health check, 5s connect timeout",
+	log.Printf("✓ Database connection pool: %d max, %d min warm",
 		poolConfig.MaxConns, poolConfig.MinConns)
 
 	// Run migrations
