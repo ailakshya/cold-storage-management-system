@@ -208,18 +208,19 @@ func (r *EntryRepository) Update(ctx context.Context, e *models.Entry, oldCatego
 		// Get count of entries in new category and generate new thock number
 		query := `
 			WITH next_num AS (
-				SELECT COALESCE(COUNT(*), 0) + $1 as num
+				SELECT COALESCE(COUNT(*), 0)::integer + $1::integer as num
 				FROM entries
-				WHERE thock_category = $2
+				WHERE thock_category = $2::text
 			)
 			UPDATE entries
-			SET name=$3, phone=$4, village=$5, so=$6, expected_quantity=$7, remark=$8, thock_category=$9,
-			    thock_number = CASE WHEN $9 = 'seed'
-			        THEN LPAD((SELECT num FROM next_num)::text, 4, '0') || '/' || $7::text
-			        ELSE (SELECT num FROM next_num)::text || '/' || $7::text
+			SET name=$3::text, phone=$4::text, village=$5::text, so=$6::text,
+			    expected_quantity=$7::integer, remark=$8::text, thock_category=$9::text,
+			    thock_number = CASE WHEN $9::text = 'seed'
+			        THEN LPAD((SELECT num FROM next_num)::text, 4, '0') || '/' || $7::integer::text
+			        ELSE (SELECT num FROM next_num)::text || '/' || $7::integer::text
 			    END,
 			    updated_at=NOW()
-			WHERE id=$10`
+			WHERE id=$10::integer`
 		_, err := r.DB.Exec(ctx, query, baseOffset, e.ThockCategory, e.Name, e.Phone, e.Village, e.SO,
 			e.ExpectedQuantity, e.Remark, e.ThockCategory, e.ID)
 		return err
@@ -227,21 +228,22 @@ func (r *EntryRepository) Update(ctx context.Context, e *models.Entry, oldCatego
 		// Only quantity changed - update the quantity part of thock_number
 		query := `
 			UPDATE entries
-			SET name=$1, phone=$2, village=$3, so=$4, expected_quantity=$5, remark=$6, thock_category=$7,
+			SET name=$1::text, phone=$2::text, village=$3::text, so=$4::text,
+			    expected_quantity=$5::integer, remark=$6::text, thock_category=$7::text,
 			    thock_number = CASE WHEN thock_category = 'seed'
-			        THEN LPAD(SPLIT_PART(thock_number, '/', 1), 4, '0') || '/' || $5::text
-			        ELSE SPLIT_PART(thock_number, '/', 1) || '/' || $5::text
+			        THEN LPAD(SPLIT_PART(thock_number, '/', 1), 4, '0') || '/' || $5::integer::text
+			        ELSE SPLIT_PART(thock_number, '/', 1) || '/' || $5::integer::text
 			    END,
 			    updated_at=NOW()
-			WHERE id=$8`
+			WHERE id=$8::integer`
 		_, err := r.DB.Exec(ctx, query, e.Name, e.Phone, e.Village, e.SO,
 			e.ExpectedQuantity, e.Remark, e.ThockCategory, e.ID)
 		return err
 	} else {
 		// No category or quantity change - simple update
-		query := `UPDATE entries SET name=$1, phone=$2, village=$3, so=$4,
-		          expected_quantity=$5, remark=$6, thock_category=$7, updated_at=NOW()
-		          WHERE id=$8`
+		query := `UPDATE entries SET name=$1::text, phone=$2::text, village=$3::text, so=$4::text,
+		          expected_quantity=$5::integer, remark=$6::text, thock_category=$7::text, updated_at=NOW()
+		          WHERE id=$8::integer`
 		_, err := r.DB.Exec(ctx, query, e.Name, e.Phone, e.Village, e.SO,
 			e.ExpectedQuantity, e.Remark, e.ThockCategory, e.ID)
 		return err
