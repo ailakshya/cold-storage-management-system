@@ -133,6 +133,23 @@
             </div>
         </header>
 
+        <!-- Pending Guard Entries Section -->
+        <div id="guardEntriesSection" class="neu-border bg-yellow-50 p-4 mb-6 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold flex items-center gap-2">
+                    <i class="bi bi-truck text-orange-600"></i>
+                    <span data-i18n="pending_guard_entries">Pending Guard Entries</span>
+                    <span id="guardEntryCount" class="text-sm bg-red-500 text-white px-2 py-1 rounded">0</span>
+                </h3>
+                <button onclick="loadGuardEntries()" class="text-sm bg-gray-200 px-3 py-1 border-2 border-black">
+                    <i class="bi bi-arrow-clockwise"></i> <span data-i18n="refresh">Refresh</span>
+                </button>
+            </div>
+            <div id="guardEntriesList" class="max-h-64 overflow-y-auto space-y-2">
+                <!-- Guard entries will be populated here -->
+            </div>
+        </div>
+
         <!-- Main Content Grid: Form (Left) + Recent Room Entries (Right) -->
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 mb-8">
             <!-- User Details & Entry Form (Left) -->
@@ -908,6 +925,126 @@
         // Auto-refresh intervals
         let roomEntriesRefreshInterval = null;
         let entriesRefreshInterval = null;
+        let guardEntriesRefreshInterval = null;
+        let selectedGuardEntry = null;
+
+        // Guard Entries Functions
+        async function loadGuardEntries() {
+            try {
+                const res = await fetch('/api/guard/entries/pending', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) {
+                    console.log('Guard entries not available');
+                    return;
+                }
+
+                const entries = await res.json();
+                const section = document.getElementById('guardEntriesSection');
+                const list = document.getElementById('guardEntriesList');
+                const countEl = document.getElementById('guardEntryCount');
+
+                countEl.textContent = entries.length;
+
+                if (entries.length === 0) {
+                    section.classList.add('hidden');
+                    return;
+                }
+
+                section.classList.remove('hidden');
+
+                const lang = localStorage.getItem('lang') || 'en';
+                const categoryLabels = {
+                    seed: lang === 'hi' ? 'बीज' : 'Seed',
+                    sell: lang === 'hi' ? 'बिक्री' : 'Sell',
+                    both: lang === 'hi' ? 'दोनों' : 'Both'
+                };
+
+                list.innerHTML = entries.map(entry => {
+                    const time = new Date(entry.arrival_time).toLocaleTimeString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+
+                    return `
+                        <div class="flex flex-wrap items-center gap-2 p-3 bg-white border-2 border-black cursor-pointer hover:bg-yellow-100"
+                             onclick="selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.village}', '${entry.mobile}', '${entry.category}')">
+                            <span class="font-mono text-sm bg-orange-100 px-2 py-1 border border-black">${time}</span>
+                            <span class="font-bold">${entry.customer_name}</span>
+                            <span class="text-sm text-gray-600">${entry.village}</span>
+                            <span class="text-sm">${entry.mobile}</span>
+                            <span class="text-xs bg-blue-100 px-2 py-1 border border-black">${categoryLabels[entry.category]}</span>
+                            <span class="text-xs text-gray-500">${lang === 'hi' ? 'गार्ड' : 'Guard'}: ${entry.created_by_user_name || 'Unknown'}</span>
+                            <button class="ml-auto text-sm bg-green-200 px-3 py-1 border-2 border-black hover:bg-green-300"
+                                    onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.village}', '${entry.mobile}', '${entry.category}')">
+                                <i class="bi bi-arrow-right"></i> ${lang === 'hi' ? 'चुनें' : 'Select'}
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error loading guard entries:', error);
+            }
+        }
+
+        function selectGuardEntry(id, name, village, mobile, category) {
+            selectedGuardEntry = id;
+
+            // Fill the form with guard entry data
+            document.getElementById('userPhone').value = mobile;
+            document.getElementById('userName').value = name;
+            document.getElementById('userVillage').value = village;
+
+            // Set category based on guard entry
+            if (category === 'seed') {
+                document.querySelector('input[name="thockCategory"][value="seed"]').checked = true;
+            } else if (category === 'sell') {
+                document.querySelector('input[name="thockCategory"][value="sell"]').checked = true;
+            }
+            // If 'both', don't auto-select - employee chooses
+
+            // Update category info
+            updateCategoryInfo();
+
+            // Focus on quantity field
+            document.getElementById('expectedQuantity').focus();
+
+            // Highlight that we're processing a guard entry
+            const formSection = document.getElementById('entryForm');
+            formSection.style.backgroundColor = '#FEF3C7';
+            formSection.querySelector('h2').innerHTML = `
+                <i class="bi bi-truck text-orange-600"></i>
+                <span data-i18n="processing_guard_entry">Processing Guard Entry</span>
+                <span class="text-sm bg-orange-200 px-2 py-1 border border-black ml-2">#${id}</span>
+            `;
+        }
+
+        async function markGuardEntryProcessed() {
+            if (!selectedGuardEntry) return;
+
+            try {
+                await fetch(`/api/guard/entries/${selectedGuardEntry}/process`, {
+                    method: 'PUT',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                selectedGuardEntry = null;
+
+                // Reset form styling
+                const formSection = document.getElementById('entryForm');
+                formSection.style.backgroundColor = 'white';
+                formSection.querySelector('h2').innerHTML = `
+                    <i class="bi bi-person-check"></i>
+                    <span data-i18n="user_details_entry">User Details & Entry</span>
+                `;
+
+                // Reload guard entries
+                loadGuardEntries();
+            } catch (error) {
+                console.error('Error marking guard entry as processed:', error);
+            }
+        }
 
         // Load recent entries on page load
         window.addEventListener('load', async function() {
@@ -918,9 +1055,13 @@
             loadRecentEntries();
             loadRoomEntries();
             loadCustomerPhones(); // Load customer phones for dropdown
+            loadGuardEntries(); // Load pending guard entries
 
             // Start auto-refresh for room entries (every 5 seconds)
             startAutoRefresh();
+
+            // Auto-refresh guard entries every 30 seconds
+            guardEntriesRefreshInterval = setInterval(loadGuardEntries, 30000);
         });
 
         async function updateCategoryInfo() {
@@ -1253,6 +1394,9 @@
                 const thockNumber = result.thock_number || 'AUTO-' + result.id;
                 console.log('Truck number:', thockNumber);
                 showSuccess(thockNumber);
+
+                // Mark guard entry as processed if we were processing one
+                markGuardEntryProcessed();
             } catch (error) {
                 alert(i18n.t('error_creating_entry', 'Error creating entry') + ': ' + error.message);
                 // Re-enable button on error

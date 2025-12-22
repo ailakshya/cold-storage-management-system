@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-page-title="page_title_guard_register">Guard Register - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .form-input {
+            border: 2px solid #000;
+            padding: 0.75rem 1rem;
+            font-size: 1.1rem;
+            width: 100%;
+        }
+        .form-input:focus {
+            outline: none;
+            box-shadow: 3px 3px 0 #000;
+        }
+        .form-label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        .category-btn {
+            padding: 1rem 1.5rem;
+            border: 3px solid #000;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .category-btn:hover {
+            transform: translate(-1px, -1px);
+            box-shadow: 3px 3px 0 #000;
+        }
+        .category-btn.selected {
+            transform: translate(-2px, -2px);
+            box-shadow: 4px 4px 0 #000;
+        }
+        .guard-badge {
+            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0;
+            border: 2px solid #000;
+            box-shadow: 3px 3px 0 #000;
+        }
+        .entry-row {
+            border: 2px solid #000;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: white;
+        }
+        .status-pending {
+            background: #FEF3C7;
+            color: #92400E;
+        }
+        .status-processed {
+            background: #D1FAE5;
+            color: #065F46;
+        }
+    </style>
+</head>
+<body class="bg-[#FFF3E0] min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 neu-border bg-white p-4 md:p-6 gap-4">
+            <div class="flex items-center gap-3">
+                <i class="bi bi-truck text-3xl text-orange-600"></i>
+                <div>
+                    <h1 class="text-2xl md:text-3xl font-bold" data-i18n="guard_register">Guard Register</h1>
+                    <p class="text-gray-600 text-sm" data-i18n="register_vehicle_arrival">Register Vehicle Arrival</p>
+                </div>
+            </div>
+            <nav class="flex gap-3 items-center">
+                <select id="langSelector" onchange="i18n.setLanguage(this.value)"
+                        class="border-2 border-black bg-white px-3 py-2 text-sm font-medium cursor-pointer shadow-[2px_2px_0px_#000]">
+                    <option value="en">EN</option>
+                    <option value="hi">हिं</option>
+                </select>
+                <button class="neu-border bg-orange-100 px-4 py-2" onclick="navigate('/guard/dashboard')">
+                    <i class="bi bi-arrow-left"></i> <span data-i18n="back">Back</span>
+                </button>
+            </nav>
+        </header>
+
+        <!-- Token Color Display -->
+        <div id="tokenColorBanner" class="neu-border p-3 mb-6 text-center flex items-center justify-center gap-4">
+            <span class="font-bold" data-i18n="token_color">Token Color:</span>
+            <span id="tokenColorDisplay" class="text-xl font-bold py-2 px-6 border-2 border-black">Loading...</span>
+        </div>
+
+        <!-- Registration Form -->
+        <div class="neu-border bg-white p-4 md:p-6 mb-6">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <i class="bi bi-plus-circle text-green-600"></i>
+                <span data-i18n="new_registration">New Registration</span>
+            </h3>
+
+            <form id="registerForm" onsubmit="submitEntry(event)">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Customer Name -->
+                    <div>
+                        <label class="form-label" data-i18n="customer_name">Customer Name (नाम)</label>
+                        <input type="text" id="customerName" class="form-input" required
+                               placeholder="Enter customer name" data-i18n-placeholder="enter_customer_name">
+                    </div>
+
+                    <!-- Village -->
+                    <div>
+                        <label class="form-label" data-i18n="village">Village (गाँव)</label>
+                        <input type="text" id="village" class="form-input" required
+                               placeholder="Enter village name" data-i18n-placeholder="enter_village">
+                    </div>
+
+                    <!-- Mobile -->
+                    <div>
+                        <label class="form-label" data-i18n="mobile">Mobile (मोबाइल)</label>
+                        <input type="tel" id="mobile" class="form-input" required
+                               pattern="[0-9]{10}" maxlength="10"
+                               placeholder="10 digit mobile number" data-i18n-placeholder="enter_mobile">
+                    </div>
+
+                    <!-- Remarks -->
+                    <div>
+                        <label class="form-label" data-i18n="remarks">Remarks (विशेष)</label>
+                        <input type="text" id="remarks" class="form-input"
+                               placeholder="Optional remarks" data-i18n-placeholder="optional_remarks">
+                    </div>
+                </div>
+
+                <!-- Category Selection -->
+                <div class="mb-6">
+                    <label class="form-label" data-i18n="category">Category (श्रेणी)</label>
+                    <div class="flex flex-wrap gap-3">
+                        <button type="button" class="category-btn bg-green-200" data-category="seed" onclick="selectCategory('seed')">
+                            <i class="bi bi-flower1"></i> <span data-i18n="seed">Seed (बीज)</span>
+                        </button>
+                        <button type="button" class="category-btn bg-blue-200" data-category="sell" onclick="selectCategory('sell')">
+                            <i class="bi bi-shop"></i> <span data-i18n="sell">Sell (बिक्री)</span>
+                        </button>
+                        <button type="button" class="category-btn bg-purple-200" data-category="both" onclick="selectCategory('both')">
+                            <i class="bi bi-collection"></i> <span data-i18n="both">Both (दोनों)</span>
+                        </button>
+                    </div>
+                    <input type="hidden" id="category" required>
+                </div>
+
+                <!-- Submit Button -->
+                <button type="submit" id="submitBtn" class="w-full neu-border bg-green-400 py-4 text-xl font-bold flex items-center justify-center gap-2">
+                    <i class="bi bi-check-circle"></i>
+                    <span data-i18n="register_vehicle">Register Vehicle</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Today's Entries -->
+        <div class="neu-border bg-white p-4 md:p-6">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <i class="bi bi-list-ul text-blue-600"></i>
+                <span data-i18n="todays_entries">Today's Entries</span>
+                <span id="entryCount" class="text-sm bg-orange-200 px-2 py-1 border border-black">0</span>
+            </h3>
+
+            <div id="entriesList" class="max-h-96 overflow-y-auto">
+                <p class="text-gray-500 text-center py-4" data-i18n="loading">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Toast -->
+    <div id="successToast" class="fixed bottom-4 right-4 bg-green-500 text-white px-6 py-3 border-3 border-black shadow-[4px_4px_0px_#000] hidden">
+        <i class="bi bi-check-circle"></i> <span data-i18n="entry_registered">Entry Registered!</span>
+    </div>
+
+    <!-- i18n Script -->
+    <script src="/static/js/i18n.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        let selectedCategory = null;
+
+        function navigate(path) {
+            window.location.href = path;
+        }
+
+        // Category selection
+        function selectCategory(category) {
+            selectedCategory = category;
+            document.getElementById('category').value = category;
+
+            // Update button styles
+            document.querySelectorAll('.category-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                if (btn.dataset.category === category) {
+                    btn.classList.add('selected');
+                }
+            });
+        }
+
+        // Token color
+        const tokenColors = [
+            { name: 'RED', nameHi: 'लाल', bg: '#EF4444', text: '#FFFFFF' },
+            { name: 'BLUE', nameHi: 'नीला', bg: '#3B82F6', text: '#FFFFFF' },
+            { name: 'GREEN', nameHi: 'हरा', bg: '#22C55E', text: '#FFFFFF' },
+            { name: 'YELLOW', nameHi: 'पीला', bg: '#EAB308', text: '#000000' },
+            { name: 'ORANGE', nameHi: 'नारंगी', bg: '#F97316', text: '#FFFFFF' },
+            { name: 'PINK', nameHi: 'गुलाबी', bg: '#EC4899', text: '#FFFFFF' },
+            { name: 'WHITE', nameHi: 'सफेद', bg: '#FFFFFF', text: '#000000' },
+        ];
+
+        function getTokenColorOfDay() {
+            const today = new Date();
+            const start = new Date(today.getFullYear(), 0, 0);
+            const diff = today - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            return tokenColors[dayOfYear % tokenColors.length];
+        }
+
+        function displayTokenColor() {
+            const color = getTokenColorOfDay();
+            const displayEl = document.getElementById('tokenColorDisplay');
+            const bannerEl = document.getElementById('tokenColorBanner');
+
+            const lang = localStorage.getItem('lang') || 'en';
+            const colorName = lang === 'hi' ? color.nameHi : color.name;
+
+            displayEl.textContent = colorName;
+            displayEl.style.backgroundColor = color.bg;
+            displayEl.style.color = color.text;
+            bannerEl.style.backgroundColor = color.bg + '22';
+        }
+
+        // Submit entry
+        async function submitEntry(e) {
+            e.preventDefault();
+
+            if (!selectedCategory) {
+                alert(i18n.t('select_category', 'Please select a category'));
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split animate-spin"></i> Registering...';
+
+            const data = {
+                customer_name: document.getElementById('customerName').value.trim(),
+                village: document.getElementById('village').value.trim(),
+                mobile: document.getElementById('mobile').value.trim(),
+                category: selectedCategory,
+                remarks: document.getElementById('remarks').value.trim()
+            };
+
+            try {
+                const res = await fetch('/api/guard/entries', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                if (!res.ok) {
+                    const error = await res.text();
+                    throw new Error(error);
+                }
+
+                // Show success toast
+                const toast = document.getElementById('successToast');
+                toast.classList.remove('hidden');
+                setTimeout(() => toast.classList.add('hidden'), 3000);
+
+                // Reset form
+                document.getElementById('registerForm').reset();
+                selectedCategory = null;
+                document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
+                document.getElementById('category').value = '';
+
+                // Reload entries list
+                loadEntries();
+
+            } catch (error) {
+                alert(i18n.t('error', 'Error') + ': ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> <span data-i18n="register_vehicle">Register Vehicle</span>';
+            }
+        }
+
+        // Load today's entries
+        async function loadEntries() {
+            try {
+                const res = await fetch('/api/guard/entries', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) throw new Error('Failed to load entries');
+
+                const entries = await res.json();
+                const listEl = document.getElementById('entriesList');
+                const countEl = document.getElementById('entryCount');
+
+                countEl.textContent = entries.length;
+
+                if (entries.length === 0) {
+                    listEl.innerHTML = `<p class="text-gray-500 text-center py-4" data-i18n="no_entries_today">No entries registered today</p>`;
+                    return;
+                }
+
+                const lang = localStorage.getItem('lang') || 'en';
+                const categoryLabels = {
+                    seed: lang === 'hi' ? 'बीज' : 'Seed',
+                    sell: lang === 'hi' ? 'बिक्री' : 'Sell',
+                    both: lang === 'hi' ? 'दोनों' : 'Both'
+                };
+
+                listEl.innerHTML = entries.map(entry => {
+                    const time = new Date(entry.arrival_time).toLocaleTimeString(lang === 'hi' ? 'hi-IN' : 'en-IN', {
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    const statusClass = entry.status === 'pending' ? 'status-pending' : 'status-processed';
+                    const statusText = entry.status === 'pending'
+                        ? (lang === 'hi' ? 'लंबित' : 'Pending')
+                        : (lang === 'hi' ? 'प्रोसेस्ड' : 'Processed');
+
+                    return `
+                        <div class="entry-row flex flex-wrap items-center gap-2 md:gap-4">
+                            <span class="font-mono text-sm bg-gray-100 px-2 py-1 border border-black">${time}</span>
+                            <span class="font-bold flex-1">${entry.customer_name}</span>
+                            <span class="text-sm text-gray-600">${entry.village}</span>
+                            <span class="text-sm bg-gray-100 px-2 py-1 border border-black">${categoryLabels[entry.category]}</span>
+                            <span class="text-xs px-2 py-1 border border-black ${statusClass}">${statusText}</span>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Error loading entries:', error);
+                document.getElementById('entriesList').innerHTML = `
+                    <p class="text-red-500 text-center py-4">Error loading entries</p>
+                `;
+            }
+        }
+
+        // Initialize
+        (function() {
+            const lang = localStorage.getItem('lang') || 'en';
+            document.getElementById('langSelector').value = lang;
+        })();
+
+        window.addEventListener('load', () => {
+            displayTokenColor();
+            loadEntries();
+        });
+    </script>
+</body>
+</html>

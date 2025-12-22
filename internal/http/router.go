@@ -24,6 +24,7 @@ func NewRouter(
 	adminActionLogHandler *handlers.AdminActionLogHandler,
 	gatePassHandler *handlers.GatePassHandler,
 	seasonHandler *handlers.SeasonHandler,
+	guardEntryHandler *handlers.GuardEntryHandler,
 	pageHandler *handlers.PageHandler,
 	healthHandler *handlers.HealthHandler,
 	authMiddleware *middleware.AuthMiddleware,
@@ -91,6 +92,10 @@ func NewRouter(
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 	r.HandleFunc("/customer-edit", pageHandler.CustomerEditPage).Methods("GET")
+
+	// Guard pages
+	r.HandleFunc("/guard/dashboard", pageHandler.GuardDashboardPage).Methods("GET")
+	r.HandleFunc("/guard/register", pageHandler.GuardRegisterPage).Methods("GET")
 
 	// Protected API routes - System Settings
 	settingsAPI := r.PathPrefix("/api/settings").Subrouter()
@@ -208,6 +213,38 @@ func NewRouter(
 		seasonAPI.HandleFunc("/{id}", seasonHandler.GetRequest).Methods("GET")
 		seasonAPI.HandleFunc("/{id}/approve", seasonHandler.ApproveRequest).Methods("POST")
 		seasonAPI.HandleFunc("/{id}/reject", seasonHandler.RejectRequest).Methods("POST")
+	}
+
+	// Protected API routes - Guard Entries (guard register feature)
+	if guardEntryHandler != nil {
+		guardAPI := r.PathPrefix("/api/guard").Subrouter()
+		guardAPI.Use(authMiddleware.Authenticate)
+
+		// Guard-only endpoints (create and list own entries)
+		guardAPI.HandleFunc("/entries", authMiddleware.RequireRole("guard")(
+			http.HandlerFunc(guardEntryHandler.CreateGuardEntry),
+		).ServeHTTP).Methods("POST")
+		guardAPI.HandleFunc("/entries", authMiddleware.RequireRole("guard")(
+			http.HandlerFunc(guardEntryHandler.ListMyEntries),
+		).ServeHTTP).Methods("GET")
+		guardAPI.HandleFunc("/stats", authMiddleware.RequireRole("guard")(
+			http.HandlerFunc(guardEntryHandler.GetMyStats),
+		).ServeHTTP).Methods("GET")
+
+		// Pending entries - accessible by employee, admin (for entry room)
+		guardAPI.HandleFunc("/entries/pending", authMiddleware.RequireRole("employee", "admin")(
+			http.HandlerFunc(guardEntryHandler.ListPendingEntries),
+		).ServeHTTP).Methods("GET")
+
+		// Get single entry - accessible by guard, employee, admin
+		guardAPI.HandleFunc("/entries/{id}", authMiddleware.RequireRole("guard", "employee", "admin")(
+			http.HandlerFunc(guardEntryHandler.GetGuardEntry),
+		).ServeHTTP).Methods("GET")
+
+		// Process entry - only employee or admin can mark as processed
+		guardAPI.HandleFunc("/entries/{id}/process", authMiddleware.RequireRole("employee", "admin")(
+			http.HandlerFunc(guardEntryHandler.ProcessGuardEntry),
+		).ServeHTTP).Methods("PUT")
 	}
 
 	// Protected API routes - Gate Passes (UNLOADING MODE ONLY for operations)

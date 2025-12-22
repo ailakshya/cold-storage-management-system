@@ -174,3 +174,13 @@ func (h *PageHandler) CustomerPDFExportPage(w http.ResponseWriter, r *http.Reque
 func (h *PageHandler) CustomerEditPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "customer_edit.html", nil)
 }
+
+// GuardDashboardPage serves the guard dashboard page
+func (h *PageHandler) GuardDashboardPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "dashboard_guard.html", nil)
+}
+
+// GuardRegisterPage serves the guard register page
+func (h *PageHandler) GuardRegisterPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "guard_register.html", nil)
+}

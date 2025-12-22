@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-i18n-page-title="page_title_guard">Guard Dashboard - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .page-button {
+            padding: 2rem;
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+            text-align: center;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+        }
+        .page-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .page-button i {
+            font-size: 3rem;
+        }
+        .guard-badge {
+            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0;
+            border: 2px solid #000;
+            box-shadow: 3px 3px 0 #000;
+        }
+        .lang-selector {
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0px #000;
+        }
+    </style>
+</head>
+<body class="bg-[#FFF3E0] min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-12 neu-border bg-white p-4 md:p-6 gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-shield-check text-3xl md:text-4xl text-orange-600"></i>
+                    <div>
+                        <h1 class="text-2xl md:text-4xl font-bold" data-i18n="guard_dashboard">Guard Dashboard</h1>
+                        <p class="text-gray-600 text-sm md:text-base" data-i18n="vehicle_registration">Vehicle Registration</p>
+                    </div>
+                </div>
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="guard-badge inline-block">
+                        <i class="bi bi-person-badge"></i> <span id="guardName">Loading...</span>
+                    </span>
+                </div>
+            </div>
+            <nav class="flex gap-3 md:gap-4 items-center w-full md:w-auto justify-end">
+                <!-- Language Selector -->
+                <select id="langSelector" onchange="i18n.setLanguage(this.value)"
+                        class="lang-selector bg-white px-3 py-2 text-sm font-medium cursor-pointer">
+                    <option value="en">EN</option>
+                    <option value="hi">हिं</option>
+                </select>
+                <button class="neu-border bg-[#FF6B6B] text-white px-6 py-2" onclick="logout()">
+                    <i class="bi bi-box-arrow-right"></i> <span data-i18n="logout">Logout</span>
+                </button>
+            </nav>
+        </header>
+
+        <!-- Main Action Button -->
+        <div class="mb-8">
+            <button class="page-button bg-[#FFE082] w-full" onclick="navigate('/guard/register')">
+                <i class="bi bi-truck text-orange-600"></i>
+                <span class="text-2xl" data-i18n="register_vehicle">Register Vehicle</span>
+                <small class="text-base opacity-75" data-i18n="log_new_arrival">Log new vehicle arrival</small>
+            </button>
+        </div>
+
+        <!-- Token Color of the Day -->
+        <div id="tokenColorBox" class="neu-border p-6 mb-8 text-center">
+            <h3 class="text-xl font-bold mb-2" data-i18n="token_color_today">Token Color of the Day</h3>
+            <div id="tokenColor" class="text-4xl font-bold py-4 px-8 inline-block border-4 border-black shadow-[4px_4px_0px_#000]">
+                Loading...
+            </div>
+            <p class="mt-2 text-sm text-gray-600" id="tokenDate"></p>
+        </div>
+
+        <!-- Today's Summary -->
+        <div class="neu-border bg-white p-4 md:p-6">
+            <h3 class="text-xl md:text-2xl font-bold mb-4" data-i18n="todays_summary">Today's Summary</h3>
+            <div class="grid grid-cols-3 gap-3 md:gap-4">
+                <div class="p-4 bg-orange-50 border-2 border-black text-center">
+                    <p class="text-sm text-gray-600" data-i18n="total_registered">Total Registered</p>
+                    <p id="totalRegistered" class="text-4xl font-bold text-orange-600">...</p>
+                </div>
+                <div class="p-4 bg-yellow-50 border-2 border-black text-center">
+                    <p class="text-sm text-gray-600" data-i18n="pending">Pending</p>
+                    <p id="pendingCount" class="text-4xl font-bold text-yellow-600">...</p>
+                </div>
+                <div class="p-4 bg-green-50 border-2 border-black text-center">
+                    <p class="text-sm text-gray-600" data-i18n="processed">Processed</p>
+                    <p id="processedCount" class="text-4xl font-bold text-green-600">...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="mt-8 p-4 border-2 border-orange-300 bg-orange-50">
+            <p class="text-sm text-gray-700 text-center">
+                <i class="bi bi-info-circle"></i>
+                <span data-i18n="guard_instructions">Register arriving vehicles with customer name, village, mobile and category. Entry room will process the detailed entry.</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- i18n Script -->
+    <script src="/static/js/i18n.js"></script>
+    <script>
+        // Capitalize first letter of text
+        function capitalizeText(text) {
+            if (!text || text.length === 0) return text;
+            return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+        }
+
+        function navigate(path) {
+            window.location.href = path;
+        }
+
+        function logout() {
+            const confirmMsg = i18n.t('confirm_logout', 'Are you sure you want to logout?');
+            if (confirm(confirmMsg)) {
+                window.location.href = '/logout';
+            }
+        }
+
+        // Load user data and display name
+        (function() {
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                const nameElement = document.getElementById('guardName');
+                if (nameElement) {
+                    nameElement.textContent = capitalizeText(user.name) || user.email || 'Guard';
+                }
+            }
+
+            // Update language selector
+            const lang = localStorage.getItem('lang') || 'en';
+            document.getElementById('langSelector').value = lang;
+        })();
+
+        // Load guard statistics
+        const token = localStorage.getItem('token');
+
+        async function loadGuardStats() {
+            try {
+                const res = await fetch('/api/guard/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!res.ok) {
+                    throw new Error('Failed to load stats');
+                }
+
+                const stats = await res.json();
+
+                document.getElementById('totalRegistered').textContent = stats.total || 0;
+                document.getElementById('pendingCount').textContent = stats.pending || 0;
+                document.getElementById('processedCount').textContent = stats.processed || 0;
+
+            } catch (error) {
+                console.error('Error loading guard stats:', error);
+                document.getElementById('totalRegistered').textContent = '0';
+                document.getElementById('pendingCount').textContent = '0';
+                document.getElementById('processedCount').textContent = '0';
+            }
+        }
+
+        // Token colors - rotating daily
+        const tokenColors = [
+            { name: 'RED', nameHi: 'लाल', bg: '#EF4444', text: '#FFFFFF' },
+            { name: 'BLUE', nameHi: 'नीला', bg: '#3B82F6', text: '#FFFFFF' },
+            { name: 'GREEN', nameHi: 'हरा', bg: '#22C55E', text: '#FFFFFF' },
+            { name: 'YELLOW', nameHi: 'पीला', bg: '#EAB308', text: '#000000' },
+            { name: 'ORANGE', nameHi: 'नारंगी', bg: '#F97316', text: '#FFFFFF' },
+            { name: 'PINK', nameHi: 'गुलाबी', bg: '#EC4899', text: '#FFFFFF' },
+            { name: 'WHITE', nameHi: 'सफेद', bg: '#FFFFFF', text: '#000000' },
+        ];
+
+        function getTokenColorOfDay() {
+            const today = new Date();
+            // Calculate day of year
+            const start = new Date(today.getFullYear(), 0, 0);
+            const diff = today - start;
+            const oneDay = 1000 * 60 * 60 * 24;
+            const dayOfYear = Math.floor(diff / oneDay);
+            // Rotate through colors
+            return tokenColors[dayOfYear % tokenColors.length];
+        }
+
+        function displayTokenColor() {
+            const color = getTokenColorOfDay();
+            const tokenEl = document.getElementById('tokenColor');
+            const boxEl = document.getElementById('tokenColorBox');
+            const dateEl = document.getElementById('tokenDate');
+
+            const lang = localStorage.getItem('lang') || 'en';
+            const colorName = lang === 'hi' ? color.nameHi : color.name;
+
+            tokenEl.textContent = colorName;
+            tokenEl.style.backgroundColor = color.bg;
+            tokenEl.style.color = color.text;
+            boxEl.style.backgroundColor = color.bg + '33'; // 20% opacity
+
+            // Format today's date
+            const today = new Date();
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            dateEl.textContent = today.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', options);
+        }
+
+        // Load data on page load
+        window.addEventListener('load', () => {
+            loadGuardStats();
+            displayTokenColor();
+        });
+    </script>
+</body>
+</html>
