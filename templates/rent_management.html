@@ -366,13 +366,21 @@
                 // Load rent setting first
                 await loadRentSetting();
 
-                // Fetch all entries (with cache-busting to prevent stale data)
-                const entriesResponse = await fetch('/api/entries?_=' + Date.now(), {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Cache-Control': 'no-cache, no-store, must-revalidate'
-                    }
-                });
+                // Fetch all entries and room entries (with cache-busting to prevent stale data)
+                const [entriesResponse, roomEntriesResponse] = await Promise.all([
+                    fetch('/api/entries?_=' + Date.now(), {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Cache-Control': 'no-cache, no-store, must-revalidate'
+                        }
+                    }),
+                    fetch('/api/room-entries?_=' + Date.now(), {
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Cache-Control': 'no-cache, no-store, must-revalidate'
+                        }
+                    })
+                ]);
 
                 if (!entriesResponse.ok) {
                     if (entriesResponse.status === 401 || entriesResponse.status === 403) {
@@ -383,6 +391,16 @@
                 }
 
                 const entries = await entriesResponse.json() || [];
+                const roomEntries = roomEntriesResponse.ok ? await roomEntriesResponse.json() || [] : [];
+
+                // Build map of thock_number -> stored quantity from room_entries
+                const thockStoredQty = {};
+                roomEntries.forEach(re => {
+                    if (!thockStoredQty[re.thock_number]) {
+                        thockStoredQty[re.thock_number] = 0;
+                    }
+                    thockStoredQty[re.thock_number] += re.quantity || 0;
+                });
 
                 // Fetch all rent payments (with cache-busting to prevent stale data)
                 const paymentsResponse = await fetch('/api/rent-payments?_=' + Date.now(), {
@@ -454,27 +472,27 @@
                     }
 
                     const customer = customerMap.get(phone);
-                    // Use actual_quantity for rent calculations
-                    const actualQty = entry.actual_quantity || 0;
+                    // Use stored quantity from room_entries for rent calculation
+                    // Only charge for items actually stored in rooms
+                    const storedQty = thockStoredQty[entry.thock_number] || 0;
                     const expectedQty = entry.expected_quantity || 0;
-                    const quantity = actualQty > 0 ? actualQty : expectedQty; // Use actual if stored
-                    const rent = quantity * rentPerItem;
-                    // Display: "23 → 22" if different
-                    const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
-                        ? `${expectedQty} → ${actualQty}`
-                        : quantity;
+                    const rent = storedQty * rentPerItem;
+                    // Display: "300 → 250" showing expected vs stored
+                    const qtyDisplay = expectedQty !== storedQty
+                        ? `${expectedQty} → ${storedQty}`
+                        : storedQty;
 
                     customer.thocks.push({
                         id: entry.id,
                         thock_number: entry.thock_number,
-                        quantity: quantity,
+                        quantity: storedQty,
                         qtyDisplay: qtyDisplay, // For UI display
                         rent: rent,
                         date: new Date(entry.created_at).toLocaleDateString('en-IN'),
                         type: 'incoming'  // Mark as incoming entry
                     });
 
-                    customer.totalQuantity += quantity;
+                    customer.totalQuantity += storedQty;
                     customer.totalRent += rent;
                 });
 

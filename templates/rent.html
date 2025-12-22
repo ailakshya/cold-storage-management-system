@@ -221,6 +221,7 @@
         let rentPerItem = 0; // Loaded from API
         let customerData = {};
         let paymentRefreshInterval = null;
+        let thockStoredQty = {}; // Map of thock_number -> stored quantity from room_entries
 
         window.addEventListener('load', loadData);
 
@@ -264,11 +265,22 @@
                 const rentSetting = await settingsResponse.json();
                 rentPerItem = parseFloat(rentSetting.setting_value);
 
-                // Fetch all entries for this phone number
-                const allEntriesResponse = await fetch(`/api/entries`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                // Fetch all entries and room entries for this phone number
+                const [allEntriesResponse, roomEntriesResponse] = await Promise.all([
+                    fetch(`/api/entries`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch(`/api/room-entries`, { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
                 const allEntries = await allEntriesResponse.json();
+                const roomEntries = roomEntriesResponse.ok ? await roomEntriesResponse.json() || [] : [];
+
+                // Build map of thock_number -> stored quantity from room_entries
+                thockStoredQty = {};
+                roomEntries.forEach(re => {
+                    if (!thockStoredQty[re.thock_number]) {
+                        thockStoredQty[re.thock_number] = 0;
+                    }
+                    thockStoredQty[re.thock_number] += re.quantity || 0;
+                });
 
                 // Filter entries by phone number
                 allThocks = allEntries.filter(e => e.phone === entry.phone);
@@ -375,15 +387,15 @@
             const tbody = document.getElementById('trucksTable');
 
             tbody.innerHTML = thocks.map((thock, index) => {
-                // Use actual_quantity for calculations (ONLY), expected_quantity for display reference
-                const actualQty = thock.actual_quantity || 0;
+                // Use stored quantity from room_entries for rent calculation
+                const storedQty = thockStoredQty[thock.thock_number] || 0;
                 const expectedQty = thock.expected_quantity || 0;
-                const rent = actualQty * rentPerItem; // Calculate rent on ACTUAL stored quantity
+                const rent = storedQty * rentPerItem; // Calculate rent on STORED quantity
                 const thockColor = getThockColor(thock.thock_number);
-                // Display: "23 → 22" if different, or just quantity
-                const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
-                    ? `${expectedQty} → ${actualQty}`
-                    : (actualQty > 0 ? actualQty : expectedQty);
+                // Display: "300 → 250" showing expected vs stored
+                const qtyDisplay = expectedQty !== storedQty
+                    ? `${expectedQty} → ${storedQty}`
+                    : storedQty;
 
                 return `
                     <tr class="border-b border-gray-200">
@@ -425,8 +437,9 @@
             document.querySelectorAll('.thock-checkbox:checked').forEach(checkbox => {
                 const index = parseInt(checkbox.dataset.index);
                 const thock = allThocks[index];
-                // Use actual_quantity for rent calculation (what's actually stored)
-                total += (thock.actual_quantity || 0) * rentPerItem;
+                // Use stored quantity from room_entries for rent calculation
+                const storedQty = thockStoredQty[thock.thock_number] || 0;
+                total += storedQty * rentPerItem;
             });
 
             document.getElementById('totalRent').textContent = '₹' + total.toLocaleString('en-IN', {minimumFractionDigits: 2});
@@ -490,10 +503,11 @@
             const employee = getEmployeeFromToken();
             const employeeName = employee?.email?.split('@')[0] || 'N/A';
 
-            // Calculate total using actual_quantity (what's actually stored)
+            // Calculate total using stored quantity from room_entries
             let totalRent = 0;
             selectedThocks.forEach(thock => {
-                totalRent += (thock.actual_quantity || 0) * rentPerItem;
+                const storedQty = thockStoredQty[thock.thock_number] || 0;
+                totalRent += storedQty * rentPerItem;
             });
 
             // Fetch previous payments to calculate cumulative balance
@@ -572,14 +586,14 @@
 
         function generateInvoiceHTML(thocks, totalRent, amountReceived, balance, employeeName, invoiceDate) {
             const thocksRows = thocks.map(thock => {
-                // Use actual_quantity for rent calculation, show both in display
-                const actualQty = thock.actual_quantity || 0;
+                // Use stored quantity from room_entries for rent calculation
+                const storedQty = thockStoredQty[thock.thock_number] || 0;
                 const expectedQty = thock.expected_quantity || 0;
-                const rent = actualQty * rentPerItem; // Rent based on actual stored
-                // Display: "23 → 22" if different
-                const qtyDisplay = actualQty > 0 && expectedQty !== actualQty
-                    ? `${expectedQty} → ${actualQty}`
-                    : (actualQty > 0 ? actualQty : expectedQty);
+                const rent = storedQty * rentPerItem; // Rent based on stored quantity
+                // Display: "300 → 250" showing expected vs stored
+                const qtyDisplay = expectedQty !== storedQty
+                    ? `${expectedQty} → ${storedQty}`
+                    : storedQty;
                 return `
                     <tr>
                         <td>${thock.thock_number}</td>
