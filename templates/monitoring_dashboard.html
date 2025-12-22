@@ -280,6 +280,7 @@
                             <th class="p-2 text-left">DB Size</th>
                             <th class="p-2 text-left">Connections</th>
                             <th class="p-2 text-left">Repl. Lag</th>
+                            <th class="p-2 text-left">Sync %</th>
                             <th class="p-2 text-left">Cache Hit</th>
                         </tr>
                     </thead>
@@ -727,29 +728,72 @@
         }
 
         async function loadPostgres() {
-            const overview = await fetchAPI('/postgres/overview');
-            const pods = await fetchAPI('/postgres');
+            // Use real-time infrastructure API for live pod data with sync_pct
+            const podsResponse = await fetch('/api/infrastructure/postgresql-pods', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const pods = await podsResponse.json();
 
-            if (overview) {
-                document.getElementById('pg-total-size').textContent = `${(overview.total_database_size_gb || 0).toFixed(2)} GB`;
-                document.getElementById('pg-connections').textContent = overview.total_connections || 0;
-                document.getElementById('pg-repl-lag').textContent = formatLagBytes(overview.max_replication_lag || 0);
-                document.getElementById('pg-cache-ratio').textContent = `${(overview.avg_cache_hit_ratio || 0).toFixed(1)}%`;
-            }
+            if (pods && pods.pods && pods.pods.length > 0) {
+                // Calculate overview stats from real-time data
+                let totalSize = 0, totalConn = 0, maxLag = 0, totalCacheHit = 0, cacheCount = 0;
+                pods.pods.forEach(p => {
+                    // Parse disk_used (e.g., "11 MB", "9787 kB")
+                    const sizeMatch = (p.disk_used || '0').match(/([0-9.]+)\s*(MB|kB|GB|B)?/i);
+                    if (sizeMatch) {
+                        let size = parseFloat(sizeMatch[1]) || 0;
+                        const unit = (sizeMatch[2] || 'B').toUpperCase();
+                        if (unit === 'KB') size /= 1024;
+                        else if (unit === 'GB') size *= 1024;
+                        else if (unit === 'B') size /= (1024 * 1024);
+                        totalSize += size;
+                    }
+                    // Connections
+                    const conn = parseInt(p.connections) || 0;
+                    totalConn += conn;
+                    // Replication lag
+                    if (p.repl_lag && p.repl_lag !== 'N/A') {
+                        const lagMatch = p.repl_lag.match(/([0-9.]+)/);
+                        if (lagMatch) maxLag = Math.max(maxLag, parseFloat(lagMatch[1]));
+                    }
+                    // Cache hit
+                    const cacheMatch = (p.cache_hit || '0').match(/([0-9.]+)/);
+                    if (cacheMatch) {
+                        totalCacheHit += parseFloat(cacheMatch[1]);
+                        cacheCount++;
+                    }
+                });
 
-            if (pods && pods.pods) {
-                document.getElementById('postgres-pods-table').innerHTML = pods.pods.map(p => `
+                document.getElementById('pg-total-size').textContent = `${(totalSize / 1024).toFixed(2)} GB`;
+                document.getElementById('pg-connections').textContent = totalConn;
+                document.getElementById('pg-repl-lag').textContent = maxLag === 0 ? '0' : maxLag;
+                document.getElementById('pg-cache-ratio').textContent = `${(cacheCount > 0 ? totalCacheHit / cacheCount : 0).toFixed(1)}%`;
+
+                // Render pods table
+                document.getElementById('postgres-pods-table').innerHTML = pods.pods.map(p => {
+                    // Sync percentage display
+                    let syncDisplay = 'N/A';
+                    let syncClass = 'text-gray-400';
+                    if (p.role !== 'Primary' && p.sync_pct !== undefined && p.sync_pct >= 0) {
+                        syncDisplay = p.sync_pct.toFixed(1) + '%';
+                        if (p.sync_pct >= 99.9) syncClass = 'text-green-600';
+                        else if (p.sync_pct >= 95) syncClass = 'text-yellow-600';
+                        else syncClass = 'text-red-600';
+                    }
+                    const replLag = p.role === 'Primary' ? 'N/A' : (p.repl_lag || '0');
+                    return `
                     <tr class="border-t">
-                        <td class="p-2">${p.pod_name}</td>
+                        <td class="p-2">${p.name}</td>
                         <td class="p-2"><span class="px-2 py-1 rounded text-xs ${p.role === 'Primary' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100'}">${p.role}</span></td>
                         <td class="p-2"><span class="px-2 py-1 rounded text-xs ${p.status === 'Running' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${p.status}</span></td>
-                        <td class="p-2">${p.node_name}</td>
-                        <td class="p-2">${((p.database_size_bytes || 0) / 1024 / 1024).toFixed(2)} MB</td>
-                        <td class="p-2">${p.active_connections || 0} / ${p.max_connections || 200}</td>
-                        <td class="p-2">${p.role === 'Replica' ? formatLagBytes(p.replication_lag_seconds || 0) : 'N/A'}</td>
-                        <td class="p-2">${(p.cache_hit_ratio || 0).toFixed(1)}%</td>
+                        <td class="p-2">${p.node}</td>
+                        <td class="p-2">${p.disk_used}</td>
+                        <td class="p-2">${p.connections || 0} / ${p.max_conn || 200}</td>
+                        <td class="p-2">${replLag}</td>
+                        <td class="p-2 ${syncClass}">${syncDisplay}</td>
+                        <td class="p-2">${p.cache_hit || 'N/A'}</td>
                     </tr>
-                `).join('');
+                `}).join('');
             }
         }
 
