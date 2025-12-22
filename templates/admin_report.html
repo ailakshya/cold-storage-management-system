@@ -90,7 +90,7 @@
         </div>
 
         <!-- Summary Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4 mb-8">
             <div class="stat-card bg-green-100">
                 <p class="text-xs text-gray-600">Total Entries</p>
                 <p class="text-2xl font-bold text-green-600" id="statEntries">0</p>
@@ -102,6 +102,10 @@
             <div class="stat-card bg-teal-100">
                 <p class="text-xs text-gray-600">Total Qty</p>
                 <p class="text-2xl font-bold text-teal-600" id="statQuantity">0</p>
+            </div>
+            <div class="stat-card bg-cyan-100">
+                <p class="text-xs text-gray-600">Today's Qty</p>
+                <p class="text-2xl font-bold text-cyan-600" id="statTodayQty">0</p>
             </div>
             <div class="stat-card bg-purple-100">
                 <p class="text-xs text-gray-600">Gate Passes</p>
@@ -594,9 +598,14 @@
                 totals.totalEdits += d.totalEdits;
             });
 
+            // Get today's quantity
+            const today = new Date().toISOString().split('T')[0];
+            const todayStats = stats[today] || { quantity: 0 };
+
             document.getElementById('statEntries').textContent = totals.entries;
             document.getElementById('statRoomEntries').textContent = totals.roomEntries;
             document.getElementById('statQuantity').textContent = totals.quantity.toLocaleString('en-IN');
+            document.getElementById('statTodayQty').textContent = todayStats.quantity.toLocaleString('en-IN');
             document.getElementById('statGatePasses').textContent = totals.gatePasses;
             document.getElementById('statPayments').textContent = '₹' + totals.payments.toLocaleString('en-IN');
             document.getElementById('statQtyChanges').textContent = totals.qtyChanges;
