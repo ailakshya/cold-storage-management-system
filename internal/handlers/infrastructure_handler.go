@@ -384,8 +384,8 @@ func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http
 					WHEN pg_is_in_recovery() = false THEN '-1'
 					WHEN pg_last_wal_receive_lsn() IS NULL THEN '0'
 					WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN '100'
-					ELSE ROUND(100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::float /
-						GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::float, 1) * 100), 1)::text
+					ELSE ROUND((100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::numeric /
+						GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::numeric, 1) * 100))::numeric, 1)::text
 				END
 				FROM pg_stat_database WHERE datname = 'cold_db';`
 
@@ -523,8 +523,8 @@ func (h *InfrastructureHandler) getMetricsDBStatus() map[string]interface{} {
 				SELECT CASE
 					WHEN pg_last_wal_receive_lsn() IS NULL THEN 0
 					WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 100
-					ELSE ROUND(100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::float /
-						GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::float, 1) * 100), 1)
+					ELSE ROUND((100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::numeric /
+						GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::numeric, 1) * 100))::numeric, 1)
 				END
 			`).Scan(&pct)
 			if err == nil && pct.Valid {
