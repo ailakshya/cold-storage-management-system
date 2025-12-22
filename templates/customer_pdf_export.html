@@ -486,12 +486,15 @@
 
             // Storage table
             let storageRows = '';
+            let storageTotalQty = 0;
             if (roomEntries && roomEntries.length > 0) {
                 storageRows = roomEntries.map(re => {
                     const createdBy = userMap[re.created_by_user_id] || '-';
                     const date = new Date(re.created_at).toLocaleString('en-IN', {
                         day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
                     });
+                    // Sum up quantity for total
+                    storageTotalQty += re.quantity || 0;
                     return `
                         <tr class="border-b hover:bg-gray-50">
                             <td class="p-2 font-medium">${re.thock_number}</td>
@@ -603,6 +606,13 @@
                                 </tr>
                             </thead>
                             <tbody>${storageRows}</tbody>
+                            <tfoot class="bg-gray-100 font-bold">
+                                <tr class="border-t-2 border-black">
+                                    <td class="p-2" colspan="4">TOTAL</td>
+                                    <td class="p-2 text-lg">${storageTotalQty}</td>
+                                    <td class="p-2" colspan="3"></td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
 
