@@ -20,14 +20,15 @@ func NewGuardEntryRepository(db *pgxpool.Pool) *GuardEntryRepository {
 // Create creates a new guard entry
 func (r *GuardEntryRepository) Create(ctx context.Context, entry *models.GuardEntry) error {
 	query := `
-		INSERT INTO guard_entries (customer_name, village, mobile, category, remarks, created_by_user_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO guard_entries (customer_name, village, mobile, driver_no, category, remarks, created_by_user_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id, arrival_time, status, created_at, updated_at
 	`
 	return r.DB.QueryRow(ctx, query,
 		entry.CustomerName,
 		entry.Village,
 		entry.Mobile,
+		entry.DriverNo,
 		entry.Category,
 		entry.Remarks,
 		entry.CreatedByUserID,
@@ -37,8 +38,8 @@ func (r *GuardEntryRepository) Create(ctx context.Context, entry *models.GuardEn
 // Get retrieves a guard entry by ID with user names
 func (r *GuardEntryRepository) Get(ctx context.Context, id int) (*models.GuardEntry, error) {
 	query := `
-		SELECT g.id, g.customer_name, g.village, g.mobile, g.arrival_time,
-		       g.category, COALESCE(g.remarks, '') as remarks, g.status,
+		SELECT g.id, g.customer_name, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, g.category, COALESCE(g.remarks, '') as remarks, g.status,
 		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
 		       g.created_at, g.updated_at,
 		       u1.name as created_by_name,
@@ -50,8 +51,8 @@ func (r *GuardEntryRepository) Get(ctx context.Context, id int) (*models.GuardEn
 	`
 	var entry models.GuardEntry
 	err := r.DB.QueryRow(ctx, query, id).Scan(
-		&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.ArrivalTime,
-		&entry.Category, &entry.Remarks, &entry.Status,
+		&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.DriverNo,
+		&entry.ArrivalTime, &entry.Category, &entry.Remarks, &entry.Status,
 		&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
 		&entry.CreatedAt, &entry.UpdatedAt,
 		&entry.CreatedByUserName, &entry.ProcessedByUserName,
@@ -65,8 +66,8 @@ func (r *GuardEntryRepository) Get(ctx context.Context, id int) (*models.GuardEn
 // ListTodayByUser returns today's entries created by a specific user
 func (r *GuardEntryRepository) ListTodayByUser(ctx context.Context, userID int) ([]*models.GuardEntry, error) {
 	query := `
-		SELECT g.id, g.customer_name, g.village, g.mobile, g.arrival_time,
-		       g.category, COALESCE(g.remarks, '') as remarks, g.status,
+		SELECT g.id, g.customer_name, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, g.category, COALESCE(g.remarks, '') as remarks, g.status,
 		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
 		       g.created_at, g.updated_at
 		FROM guard_entries g
@@ -84,8 +85,8 @@ func (r *GuardEntryRepository) ListTodayByUser(ctx context.Context, userID int) 
 	for rows.Next() {
 		var entry models.GuardEntry
 		err := rows.Scan(
-			&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.ArrivalTime,
-			&entry.Category, &entry.Remarks, &entry.Status,
+			&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.DriverNo,
+			&entry.ArrivalTime, &entry.Category, &entry.Remarks, &entry.Status,
 			&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
 			&entry.CreatedAt, &entry.UpdatedAt,
 		)
@@ -100,8 +101,8 @@ func (r *GuardEntryRepository) ListTodayByUser(ctx context.Context, userID int) 
 // ListPending returns all pending guard entries with guard names (for entry room)
 func (r *GuardEntryRepository) ListPending(ctx context.Context) ([]*models.GuardEntry, error) {
 	query := `
-		SELECT g.id, g.customer_name, g.village, g.mobile, g.arrival_time,
-		       g.category, COALESCE(g.remarks, '') as remarks, g.status,
+		SELECT g.id, g.customer_name, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, g.category, COALESCE(g.remarks, '') as remarks, g.status,
 		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
 		       g.created_at, g.updated_at,
 		       u.name as created_by_name
@@ -120,8 +121,8 @@ func (r *GuardEntryRepository) ListPending(ctx context.Context) ([]*models.Guard
 	for rows.Next() {
 		var entry models.GuardEntry
 		err := rows.Scan(
-			&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.ArrivalTime,
-			&entry.Category, &entry.Remarks, &entry.Status,
+			&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.DriverNo,
+			&entry.ArrivalTime, &entry.Category, &entry.Remarks, &entry.Status,
 			&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
 			&entry.CreatedAt, &entry.UpdatedAt,
 			&entry.CreatedByUserName,

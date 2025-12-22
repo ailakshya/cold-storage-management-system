@@ -40,10 +40,16 @@ func (s *GuardEntryService) CreateGuardEntry(ctx context.Context, req *models.Cr
 		return nil, errors.New("category must be 'seed', 'sell', or 'both'")
 	}
 
+	// Validate driver_no if provided (must be 10 digits or empty)
+	if req.DriverNo != "" && !mobileRegex.MatchString(req.DriverNo) {
+		return nil, errors.New("driver number must be exactly 10 digits")
+	}
+
 	entry := &models.GuardEntry{
 		CustomerName:    req.CustomerName,
 		Village:         req.Village,
 		Mobile:          req.Mobile,
+		DriverNo:        req.DriverNo,
 		Category:        req.Category,
 		Remarks:         req.Remarks,
 		CreatedByUserID: userID,

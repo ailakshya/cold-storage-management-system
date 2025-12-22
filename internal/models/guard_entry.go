@@ -8,6 +8,7 @@ type GuardEntry struct {
 	CustomerName      string     `json:"customer_name"`
 	Village           string     `json:"village"`
 	Mobile            string     `json:"mobile"`
+	DriverNo          string     `json:"driver_no"`
 	ArrivalTime       time.Time  `json:"arrival_time"`
 	Category          string     `json:"category"` // 'seed', 'sell', or 'both'
 	Remarks           string     `json:"remarks"`
@@ -28,6 +29,7 @@ type CreateGuardEntryRequest struct {
 	CustomerName string `json:"customer_name"`
 	Village      string `json:"village"`
 	Mobile       string `json:"mobile"`
+	DriverNo     string `json:"driver_no"`
 	Category     string `json:"category"` // 'seed', 'sell', or 'both'
 	Remarks      string `json:"remarks"`
 }

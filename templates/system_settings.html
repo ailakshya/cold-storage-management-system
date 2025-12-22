@@ -178,6 +178,72 @@
             </div>
         </div>
 
+        <!-- Token Color Section -->
+        <div class="neu-border bg-white p-8 mt-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <i class="bi bi-palette-fill text-orange-600"></i>
+                Token Color of the Day
+            </h2>
+
+            <div class="mb-6 p-4 bg-orange-50 neu-border">
+                <p class="text-sm text-orange-800">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Note:</strong> This color will be displayed to guards and on the entry form to identify today's token color.
+                </p>
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    Select Token Color
+                </label>
+                <div class="grid grid-cols-4 md:grid-cols-8 gap-3" id="tokenColorGrid">
+                    <button type="button" onclick="selectTokenColor('RED')" data-color="RED"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-red-500 text-white hover:scale-105 transition-transform">
+                        RED<br><span class="text-xs">लाल</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('BLUE')" data-color="BLUE"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-blue-500 text-white hover:scale-105 transition-transform">
+                        BLUE<br><span class="text-xs">नीला</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('GREEN')" data-color="GREEN"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-green-500 text-white hover:scale-105 transition-transform">
+                        GREEN<br><span class="text-xs">हरा</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('YELLOW')" data-color="YELLOW"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-yellow-400 text-black hover:scale-105 transition-transform">
+                        YELLOW<br><span class="text-xs">पीला</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('ORANGE')" data-color="ORANGE"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-orange-500 text-white hover:scale-105 transition-transform">
+                        ORANGE<br><span class="text-xs">नारंगी</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('PINK')" data-color="PINK"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-pink-500 text-white hover:scale-105 transition-transform">
+                        PINK<br><span class="text-xs">गुलाबी</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('WHITE')" data-color="WHITE"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-white text-black hover:scale-105 transition-transform">
+                        WHITE<br><span class="text-xs">सफेद</span>
+                    </button>
+                    <button type="button" onclick="selectTokenColor('PURPLE')" data-color="PURPLE"
+                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-purple-600 text-white hover:scale-105 transition-transform">
+                        PURPLE<br><span class="text-xs">बैंगनी</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-4 p-4 neu-border bg-gray-50">
+                <span class="font-bold">Current Color:</span>
+                <span id="currentTokenColor" class="px-6 py-2 border-3 border-black font-bold text-lg">Loading...</span>
+            </div>
+
+            <div id="tokenColorSuccess" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+                <p class="text-green-800 font-bold">
+                    <i class="bi bi-check-circle-fill"></i> Token color updated successfully!
+                </p>
+            </div>
+        </div>
+
         <!-- New Season Management Section -->
         <div class="neu-border bg-white p-8 mt-8">
             <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -468,9 +534,87 @@
                     const modeSetting = await modeResponse.json();
                     updateModeDisplay(modeSetting.mode || 'loading');
                 }
+
+                // Load token color
+                await loadTokenColor();
             } catch (error) {
                 console.error('Error loading settings:', error);
                 showError('Failed to load settings: ' + error.message);
+            }
+        }
+
+        // Token color management
+        const tokenColorMap = {
+            'RED': { bg: '#EF4444', text: '#FFFFFF' },
+            'BLUE': { bg: '#3B82F6', text: '#FFFFFF' },
+            'GREEN': { bg: '#22C55E', text: '#FFFFFF' },
+            'YELLOW': { bg: '#EAB308', text: '#000000' },
+            'ORANGE': { bg: '#F97316', text: '#FFFFFF' },
+            'PINK': { bg: '#EC4899', text: '#FFFFFF' },
+            'WHITE': { bg: '#FFFFFF', text: '#000000' },
+            'PURPLE': { bg: '#9333EA', text: '#FFFFFF' },
+        };
+
+        async function loadTokenColor() {
+            try {
+                const res = await fetch('/api/settings/token_color', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const colorKey = (data.setting_value || 'RED').toUpperCase();
+                    updateTokenColorDisplay(colorKey);
+                }
+            } catch (error) {
+                console.error('Error loading token color:', error);
+            }
+        }
+
+        function updateTokenColorDisplay(colorKey) {
+            const displayEl = document.getElementById('currentTokenColor');
+            const color = tokenColorMap[colorKey] || tokenColorMap['RED'];
+
+            displayEl.textContent = colorKey;
+            displayEl.style.backgroundColor = color.bg;
+            displayEl.style.color = color.text;
+
+            // Highlight selected button
+            document.querySelectorAll('.token-color-btn').forEach(btn => {
+                if (btn.dataset.color === colorKey) {
+                    btn.style.boxShadow = '0 0 0 4px #000, 0 0 0 6px #FFD700';
+                    btn.style.transform = 'scale(1.1)';
+                } else {
+                    btn.style.boxShadow = '';
+                    btn.style.transform = '';
+                }
+            });
+        }
+
+        async function selectTokenColor(colorKey) {
+            try {
+                const res = await fetch('/api/settings/token_color', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ value: colorKey })
+                });
+
+                if (res.ok) {
+                    updateTokenColorDisplay(colorKey);
+
+                    // Show success message
+                    const successEl = document.getElementById('tokenColorSuccess');
+                    successEl.classList.remove('hidden');
+                    setTimeout(() => successEl.classList.add('hidden'), 3000);
+                } else {
+                    throw new Error('Failed to update token color');
+                }
+            } catch (error) {
+                console.error('Error updating token color:', error);
+                alert('Error updating token color: ' + error.message);
             }
         }
 

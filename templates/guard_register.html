@@ -113,6 +113,16 @@
 
             <form id="registerForm" onsubmit="submitEntry(event)">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <!-- Mobile (Customer) -->
+                    <div>
+                        <label class="form-label" data-i18n="mobile">Mobile (मोबाइल)</label>
+                        <input type="tel" id="mobile" class="form-input" required
+                               pattern="[0-9]{10}" maxlength="10"
+                               placeholder="10 digit mobile number" data-i18n-placeholder="enter_mobile"
+                               oninput="lookupCustomer(this.value)">
+                        <div id="customerStatus" class="text-xs mt-1 hidden"></div>
+                    </div>
+
                     <!-- Customer Name -->
                     <div>
                         <label class="form-label" data-i18n="customer_name">Customer Name (नाम)</label>
@@ -127,12 +137,21 @@
                                placeholder="Enter village name" data-i18n-placeholder="enter_village">
                     </div>
 
-                    <!-- Mobile -->
-                    <div>
-                        <label class="form-label" data-i18n="mobile">Mobile (मोबाइल)</label>
-                        <input type="tel" id="mobile" class="form-input" required
+                    <!-- Driver Same as Customer Checkbox -->
+                    <div class="flex flex-col justify-end">
+                        <label class="flex items-center gap-3 cursor-pointer p-3 border-2 border-black bg-yellow-50 hover:bg-yellow-100">
+                            <input type="checkbox" id="driverSameAsCustomer" checked
+                                   class="w-5 h-5 accent-green-600" onchange="toggleDriverField()">
+                            <span class="font-semibold" data-i18n="driver_same_as_customer">Driver = Customer (ड्राइवर = ग्राहक)</span>
+                        </label>
+                    </div>
+
+                    <!-- Driver Number (hidden by default) -->
+                    <div id="driverNoContainer" class="hidden">
+                        <label class="form-label" data-i18n="driver_no">Driver No (ड्राइवर नं)</label>
+                        <input type="tel" id="driverNo" class="form-input"
                                pattern="[0-9]{10}" maxlength="10"
-                               placeholder="10 digit mobile number" data-i18n-placeholder="enter_mobile">
+                               placeholder="10 digit driver number" data-i18n-placeholder="enter_driver_no">
                     </div>
 
                     <!-- Remarks -->
@@ -192,9 +211,69 @@
     <script>
         const token = localStorage.getItem('token');
         let selectedCategory = null;
+        let lookupTimeout = null;
 
         function navigate(path) {
             window.location.href = path;
+        }
+
+        // Toggle driver number field based on checkbox
+        function toggleDriverField() {
+            const checkbox = document.getElementById('driverSameAsCustomer');
+            const container = document.getElementById('driverNoContainer');
+            const driverInput = document.getElementById('driverNo');
+
+            if (checkbox.checked) {
+                container.classList.add('hidden');
+                driverInput.value = '';
+            } else {
+                container.classList.remove('hidden');
+            }
+        }
+
+        // Lookup customer by mobile number
+        async function lookupCustomer(mobile) {
+            // Clear previous timeout
+            if (lookupTimeout) clearTimeout(lookupTimeout);
+
+            const statusEl = document.getElementById('customerStatus');
+
+            // Only lookup if 10 digits
+            if (mobile.length !== 10) {
+                statusEl.classList.add('hidden');
+                return;
+            }
+
+            // Debounce - wait 300ms after user stops typing
+            lookupTimeout = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/customers/search?phone=${mobile}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+
+                    if (res.ok) {
+                        const customers = await res.json();
+                        if (customers && customers.length > 0) {
+                            const customer = customers[0];
+                            // Auto-fill customer details
+                            document.getElementById('customerName').value = customer.name || '';
+                            document.getElementById('village').value = customer.village || '';
+
+                            // Show success status
+                            statusEl.textContent = i18n.t('customer_found', 'Customer found! Details auto-filled.');
+                            statusEl.className = 'text-xs mt-1 text-green-600 font-semibold';
+                            statusEl.classList.remove('hidden');
+                        } else {
+                            // New customer
+                            statusEl.textContent = i18n.t('new_customer', 'New customer - enter details');
+                            statusEl.className = 'text-xs mt-1 text-blue-600';
+                            statusEl.classList.remove('hidden');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Customer lookup error:', error);
+                }
+            }, 300);
         }
 
         // Category selection
@@ -211,38 +290,51 @@
             });
         }
 
-        // Token color
-        const tokenColors = [
-            { name: 'RED', nameHi: 'लाल', bg: '#EF4444', text: '#FFFFFF' },
-            { name: 'BLUE', nameHi: 'नीला', bg: '#3B82F6', text: '#FFFFFF' },
-            { name: 'GREEN', nameHi: 'हरा', bg: '#22C55E', text: '#FFFFFF' },
-            { name: 'YELLOW', nameHi: 'पीला', bg: '#EAB308', text: '#000000' },
-            { name: 'ORANGE', nameHi: 'नारंगी', bg: '#F97316', text: '#FFFFFF' },
-            { name: 'PINK', nameHi: 'गुलाबी', bg: '#EC4899', text: '#FFFFFF' },
-            { name: 'WHITE', nameHi: 'सफेद', bg: '#FFFFFF', text: '#000000' },
-        ];
+        // Token colors mapping
+        const tokenColors = {
+            'RED': { name: 'RED', nameHi: 'लाल', bg: '#EF4444', text: '#FFFFFF' },
+            'BLUE': { name: 'BLUE', nameHi: 'नीला', bg: '#3B82F6', text: '#FFFFFF' },
+            'GREEN': { name: 'GREEN', nameHi: 'हरा', bg: '#22C55E', text: '#FFFFFF' },
+            'YELLOW': { name: 'YELLOW', nameHi: 'पीला', bg: '#EAB308', text: '#000000' },
+            'ORANGE': { name: 'ORANGE', nameHi: 'नारंगी', bg: '#F97316', text: '#FFFFFF' },
+            'PINK': { name: 'PINK', nameHi: 'गुलाबी', bg: '#EC4899', text: '#FFFFFF' },
+            'WHITE': { name: 'WHITE', nameHi: 'सफेद', bg: '#FFFFFF', text: '#000000' },
+            'PURPLE': { name: 'PURPLE', nameHi: 'बैंगनी', bg: '#9333EA', text: '#FFFFFF' },
+        };
 
-        function getTokenColorOfDay() {
-            const today = new Date();
-            const start = new Date(today.getFullYear(), 0, 0);
-            const diff = today - start;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const dayOfYear = Math.floor(diff / oneDay);
-            return tokenColors[dayOfYear % tokenColors.length];
-        }
-
-        function displayTokenColor() {
-            const color = getTokenColorOfDay();
+        // Fetch token color from system settings
+        async function displayTokenColor() {
             const displayEl = document.getElementById('tokenColorDisplay');
             const bannerEl = document.getElementById('tokenColorBanner');
-
             const lang = localStorage.getItem('lang') || 'en';
-            const colorName = lang === 'hi' ? color.nameHi : color.name;
 
-            displayEl.textContent = colorName;
-            displayEl.style.backgroundColor = color.bg;
-            displayEl.style.color = color.text;
-            bannerEl.style.backgroundColor = color.bg + '22';
+            try {
+                const res = await fetch('/api/settings/token_color', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const colorKey = (data.setting_value || 'RED').toUpperCase();
+                    const color = tokenColors[colorKey] || tokenColors['RED'];
+
+                    const colorName = lang === 'hi' ? color.nameHi : color.name;
+                    displayEl.textContent = colorName;
+                    displayEl.style.backgroundColor = color.bg;
+                    displayEl.style.color = color.text;
+                    bannerEl.style.backgroundColor = color.bg + '22';
+                } else {
+                    // Fallback to RED if API fails
+                    displayEl.textContent = lang === 'hi' ? 'लाल' : 'RED';
+                    displayEl.style.backgroundColor = '#EF4444';
+                    displayEl.style.color = '#FFFFFF';
+                }
+            } catch (error) {
+                console.error('Error fetching token color:', error);
+                displayEl.textContent = lang === 'hi' ? 'लाल' : 'RED';
+                displayEl.style.backgroundColor = '#EF4444';
+                displayEl.style.color = '#FFFFFF';
+            }
         }
 
         // Submit entry
@@ -258,10 +350,15 @@
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="bi bi-hourglass-split animate-spin"></i> Registering...';
 
+            const mobile = document.getElementById('mobile').value.trim();
+            const driverSame = document.getElementById('driverSameAsCustomer').checked;
+            const driverNo = driverSame ? mobile : document.getElementById('driverNo').value.trim();
+
             const data = {
                 customer_name: document.getElementById('customerName').value.trim(),
                 village: document.getElementById('village').value.trim(),
-                mobile: document.getElementById('mobile').value.trim(),
+                mobile: mobile,
+                driver_no: driverNo,
                 category: selectedCategory,
                 remarks: document.getElementById('remarks').value.trim()
             };
@@ -291,6 +388,9 @@
                 selectedCategory = null;
                 document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('selected'));
                 document.getElementById('category').value = '';
+                document.getElementById('driverSameAsCustomer').checked = true;
+                document.getElementById('driverNoContainer').classList.add('hidden');
+                document.getElementById('customerStatus').classList.add('hidden');
 
                 // Reload entries list
                 loadEntries();

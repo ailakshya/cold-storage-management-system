@@ -195,46 +195,59 @@
             }
         }
 
-        // Token colors - rotating daily
-        const tokenColors = [
-            { name: 'RED', nameHi: 'लाल', bg: '#EF4444', text: '#FFFFFF' },
-            { name: 'BLUE', nameHi: 'नीला', bg: '#3B82F6', text: '#FFFFFF' },
-            { name: 'GREEN', nameHi: 'हरा', bg: '#22C55E', text: '#FFFFFF' },
-            { name: 'YELLOW', nameHi: 'पीला', bg: '#EAB308', text: '#000000' },
-            { name: 'ORANGE', nameHi: 'नारंगी', bg: '#F97316', text: '#FFFFFF' },
-            { name: 'PINK', nameHi: 'गुलाबी', bg: '#EC4899', text: '#FFFFFF' },
-            { name: 'WHITE', nameHi: 'सफेद', bg: '#FFFFFF', text: '#000000' },
-        ];
+        // Token colors mapping
+        const tokenColors = {
+            'RED': { name: 'RED', nameHi: 'लाल', bg: '#EF4444', text: '#FFFFFF' },
+            'BLUE': { name: 'BLUE', nameHi: 'नीला', bg: '#3B82F6', text: '#FFFFFF' },
+            'GREEN': { name: 'GREEN', nameHi: 'हरा', bg: '#22C55E', text: '#FFFFFF' },
+            'YELLOW': { name: 'YELLOW', nameHi: 'पीला', bg: '#EAB308', text: '#000000' },
+            'ORANGE': { name: 'ORANGE', nameHi: 'नारंगी', bg: '#F97316', text: '#FFFFFF' },
+            'PINK': { name: 'PINK', nameHi: 'गुलाबी', bg: '#EC4899', text: '#FFFFFF' },
+            'WHITE': { name: 'WHITE', nameHi: 'सफेद', bg: '#FFFFFF', text: '#000000' },
+            'PURPLE': { name: 'PURPLE', nameHi: 'बैंगनी', bg: '#9333EA', text: '#FFFFFF' },
+        };
 
-        function getTokenColorOfDay() {
-            const today = new Date();
-            // Calculate day of year
-            const start = new Date(today.getFullYear(), 0, 0);
-            const diff = today - start;
-            const oneDay = 1000 * 60 * 60 * 24;
-            const dayOfYear = Math.floor(diff / oneDay);
-            // Rotate through colors
-            return tokenColors[dayOfYear % tokenColors.length];
-        }
-
-        function displayTokenColor() {
-            const color = getTokenColorOfDay();
+        // Fetch token color from system settings
+        async function displayTokenColor() {
             const tokenEl = document.getElementById('tokenColor');
             const boxEl = document.getElementById('tokenColorBox');
             const dateEl = document.getElementById('tokenDate');
-
             const lang = localStorage.getItem('lang') || 'en';
-            const colorName = lang === 'hi' ? color.nameHi : color.name;
-
-            tokenEl.textContent = colorName;
-            tokenEl.style.backgroundColor = color.bg;
-            tokenEl.style.color = color.text;
-            boxEl.style.backgroundColor = color.bg + '33'; // 20% opacity
 
             // Format today's date
             const today = new Date();
             const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             dateEl.textContent = today.toLocaleDateString(lang === 'hi' ? 'hi-IN' : 'en-IN', options);
+
+            try {
+                const res = await fetch('/api/settings/token_color', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    const colorKey = (data.setting_value || 'RED').toUpperCase();
+                    const color = tokenColors[colorKey] || tokenColors['RED'];
+
+                    const colorName = lang === 'hi' ? color.nameHi : color.name;
+                    tokenEl.textContent = colorName;
+                    tokenEl.style.backgroundColor = color.bg;
+                    tokenEl.style.color = color.text;
+                    boxEl.style.backgroundColor = color.bg + '33';
+                } else {
+                    // Fallback to RED
+                    tokenEl.textContent = lang === 'hi' ? 'लाल' : 'RED';
+                    tokenEl.style.backgroundColor = '#EF4444';
+                    tokenEl.style.color = '#FFFFFF';
+                    boxEl.style.backgroundColor = '#EF444433';
+                }
+            } catch (error) {
+                console.error('Error fetching token color:', error);
+                tokenEl.textContent = lang === 'hi' ? 'लाल' : 'RED';
+                tokenEl.style.backgroundColor = '#EF4444';
+                tokenEl.style.color = '#FFFFFF';
+                boxEl.style.backgroundColor = '#EF444433';
+            }
         }
 
         // Load data on page load
