@@ -495,13 +495,17 @@
                     });
                     // Sum up quantity for total
                     storageTotalQty += re.quantity || 0;
+                    // Show quantity with breakdown: "56 (11, 21, 14, 10)"
+                    const qtyDisplay = re.quantity_breakdown
+                        ? `${re.quantity} (${re.quantity_breakdown})`
+                        : re.quantity;
                     return `
                         <tr class="border-b hover:bg-gray-50">
                             <td class="p-2 font-medium">${re.thock_number}</td>
                             <td class="p-2">${re.room_no || '-'}</td>
                             <td class="p-2">${re.floor || '0'}</td>
                             <td class="p-2">${re.gate_no || '-'}</td>
-                            <td class="p-2 font-bold">${re.quantity_breakdown || re.quantity}</td>
+                            <td class="p-2 font-bold">${qtyDisplay}</td>
                             <td class="p-2">${re.remark || '-'}</td>
                             <td class="p-2">${createdBy}</td>
                             <td class="p-2 text-sm">${date}</td>
