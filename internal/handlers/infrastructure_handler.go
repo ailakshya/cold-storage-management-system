@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -485,15 +486,24 @@ func (h *InfrastructureHandler) getMetricsDBStatus() map[string]interface{} {
 
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {
+		log.Printf("[MetricsDB] sql.Open error: %v", err)
 		status = "Error"
 		return h.buildMetricsDBResponse(host, port, dbSize, connections, cacheHit, replLag, status, role, syncPct)
 	}
 	defer db.Close()
 
+	// Test the connection
+	if err := db.PingContext(ctx); err != nil {
+		log.Printf("[MetricsDB] Ping error: %v", err)
+		status = "Error"
+		return h.buildMetricsDBResponse(host, port, dbSize, connections, cacheHit, replLag, status, role, syncPct)
+	}
+
 	// Check if this is actually a replica or standalone
 	var isInRecovery bool
 	err = db.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&isInRecovery)
 	if err != nil {
+		log.Printf("[MetricsDB] pg_is_in_recovery error: %v", err)
 		status = "Error"
 		role = "Unknown"
 	} else if isInRecovery {
