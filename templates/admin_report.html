@@ -90,7 +90,7 @@
         </div>
 
         <!-- Summary Stats -->
-        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-8">
             <div class="stat-card bg-green-100">
                 <p class="text-xs text-gray-600">Total Entries</p>
                 <p class="text-2xl font-bold text-green-600" id="statEntries">0</p>
@@ -98,6 +98,10 @@
             <div class="stat-card bg-blue-100">
                 <p class="text-xs text-gray-600">Room Entries</p>
                 <p class="text-2xl font-bold text-blue-600" id="statRoomEntries">0</p>
+            </div>
+            <div class="stat-card bg-teal-100">
+                <p class="text-xs text-gray-600">Total Qty</p>
+                <p class="text-2xl font-bold text-teal-600" id="statQuantity">0</p>
             </div>
             <div class="stat-card bg-purple-100">
                 <p class="text-xs text-gray-600">Gate Passes</p>
@@ -156,6 +160,7 @@
                             <th class="p-3 text-left">Date</th>
                             <th class="p-3 text-center">Entries</th>
                             <th class="p-3 text-center">Room Entries</th>
+                            <th class="p-3 text-center">Qty</th>
                             <th class="p-3 text-center">Gate Passes</th>
                             <th class="p-3 text-center">Payments (₹)</th>
                             <th class="p-3 text-center">Qty Changed</th>
@@ -164,7 +169,7 @@
                     </thead>
                     <tbody id="analyticsSummaryBody">
                         <tr>
-                            <td colspan="7" class="text-center p-4 text-gray-500">Loading...</td>
+                            <td colspan="8" class="text-center p-4 text-gray-500">Loading...</td>
                         </tr>
                     </tbody>
                     <tfoot id="analyticsSummaryFooter" class="border-t-2 border-black bg-gray-100 font-bold">
@@ -388,6 +393,7 @@
                     stats[dateStr] = {
                         entries: 0,
                         roomEntries: 0,
+                        quantity: 0,
                         gatePasses: 0,
                         payments: 0,
                         qtyChanges: 0,
@@ -418,6 +424,7 @@
                     if (isInRange(dateStr)) {
                         ensureDate(dateStr);
                         stats[dateStr].roomEntries++;
+                        stats[dateStr].quantity += room.quantity || 0;
                     }
                 }
             });
@@ -576,10 +583,11 @@
 
         // Update summary stats at top
         function updateSummaryStats(stats) {
-            let totals = { entries: 0, roomEntries: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
+            let totals = { entries: 0, roomEntries: 0, quantity: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
             Object.values(stats).forEach(d => {
                 totals.entries += d.entries;
                 totals.roomEntries += d.roomEntries;
+                totals.quantity += d.quantity;
                 totals.gatePasses += d.gatePasses;
                 totals.payments += d.payments;
                 totals.qtyChanges += d.qtyChanges;
@@ -588,6 +596,7 @@
 
             document.getElementById('statEntries').textContent = totals.entries;
             document.getElementById('statRoomEntries').textContent = totals.roomEntries;
+            document.getElementById('statQuantity').textContent = totals.quantity.toLocaleString('en-IN');
             document.getElementById('statGatePasses').textContent = totals.gatePasses;
             document.getElementById('statPayments').textContent = '₹' + totals.payments.toLocaleString('en-IN');
             document.getElementById('statQtyChanges').textContent = totals.qtyChanges;
@@ -739,11 +748,12 @@
             const tfoot = document.getElementById('analyticsSummaryFooter');
             const sortedDates = Object.keys(stats).sort((a, b) => new Date(b) - new Date(a));
 
-            let totals = { entries: 0, roomEntries: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
+            let totals = { entries: 0, roomEntries: 0, quantity: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
 
             sortedDates.forEach(date => {
                 totals.entries += stats[date].entries;
                 totals.roomEntries += stats[date].roomEntries;
+                totals.quantity += stats[date].quantity;
                 totals.gatePasses += stats[date].gatePasses;
                 totals.payments += stats[date].payments;
                 totals.qtyChanges += stats[date].qtyChanges;
@@ -763,6 +773,7 @@
                         <td class="p-3 text-left">${formattedDate}${isToday ? ' <span class="text-xs bg-yellow-500 text-white px-1 rounded">TODAY</span>' : ''}</td>
                         <td class="p-3 text-center"><span class="text-green-600 font-bold">${d.entries}</span></td>
                         <td class="p-3 text-center"><span class="text-blue-600 font-bold">${d.roomEntries}</span></td>
+                        <td class="p-3 text-center"><span class="text-teal-600 font-bold">${d.quantity}</span></td>
                         <td class="p-3 text-center"><span class="text-purple-600 font-bold">${d.gatePasses}</span></td>
                         <td class="p-3 text-center"><span class="text-green-700 font-bold">₹${d.payments.toLocaleString('en-IN')}</span></td>
                         <td class="p-3 text-center"><span class="text-pink-600 font-bold">${d.qtyChanges}</span></td>
@@ -776,6 +787,7 @@
                     <td class="p-3 text-left">TOTAL (${sortedDates.length} days)</td>
                     <td class="p-3 text-center text-green-600">${totals.entries}</td>
                     <td class="p-3 text-center text-blue-600">${totals.roomEntries}</td>
+                    <td class="p-3 text-center text-teal-600">${totals.quantity.toLocaleString('en-IN')}</td>
                     <td class="p-3 text-center text-purple-600">${totals.gatePasses}</td>
                     <td class="p-3 text-center text-green-700">₹${totals.payments.toLocaleString('en-IN')}</td>
                     <td class="p-3 text-center text-pink-600">${totals.qtyChanges}</td>
