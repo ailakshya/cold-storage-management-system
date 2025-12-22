@@ -161,7 +161,7 @@
                     <p id="totalRoomEntries" class="text-3xl font-bold">...</p>
                 </div>
                 <div class="p-4 bg-orange-50 border-2 border-black">
-                    <p class="text-sm text-gray-600" data-i18n="total_bags">Total Bags</p>
+                    <p class="text-sm text-gray-600" data-i18n="todays_bags">Today's Bags</p>
                     <p id="totalBags" class="text-3xl font-bold">...</p>
                 </div>
             </div>
@@ -251,8 +251,14 @@
 
                 console.log('Debug - User ID:', currentUser.id, 'Today:', today, 'My entries count:', myEntriesToday.length);
 
-                // Calculate total bags
-                const totalBags = roomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0);
+                // Filter today's room entries
+                const todayRoomEntries = roomEntries.filter(r => {
+                    const roomDate = new Date(r.created_at).toLocaleDateString('en-CA');
+                    return roomDate === today;
+                });
+
+                // Calculate today's bags from today's room entries only
+                const totalBags = todayRoomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0);
 
                 // Update UI
                 document.getElementById('myEntriesToday').textContent = myEntriesToday.length;

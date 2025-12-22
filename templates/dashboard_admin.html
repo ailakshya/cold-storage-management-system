@@ -250,7 +250,7 @@
                     <p id="activeUsers" class="text-3xl font-bold">...</p>
                 </div>
                 <div class="p-4 bg-orange-50 border-2 border-black">
-                    <p class="text-sm text-gray-600" data-i18n="total_bags">Total Bags</p>
+                    <p class="text-sm text-gray-600" data-i18n="todays_bags">Today's Bags</p>
                     <p id="totalBags" class="text-3xl font-bold">...</p>
                 </div>
             </div>
@@ -346,7 +346,8 @@
 
                 const activeUsers = users.filter(u => u.is_active).length;
 
-                const totalBags = roomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0);
+                // Calculate today's bags from today's room entries only
+                const totalBags = todayRoomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0);
 
                 // Update Today's Summary
                 document.getElementById('todayEntries').textContent = todayEntries.length;
