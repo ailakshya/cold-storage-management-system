@@ -792,9 +792,23 @@
             const seedEntries = dayEntries.filter(e => e.thock_category === 'seed');
             const sellEntries = dayEntries.filter(e => e.thock_category === 'sell');
 
-            // Calculate totals
-            const seedTotal = calculateCategoryTotal(seedEntries, dayRoomEntries);
-            const sellTotal = calculateCategoryTotal(sellEntries, dayRoomEntries);
+            // Calculate totals - sum ALL room entries for the date, categorized by parent entry's thock_category
+            const seedRoomEntries = dayRoomEntries.filter(r => {
+                const entry = allEntries.find(e => e.id === r.entry_id);
+                return entry && entry.thock_category === 'seed';
+            });
+            const sellRoomEntries = dayRoomEntries.filter(r => {
+                const entry = allEntries.find(e => e.id === r.entry_id);
+                return entry && entry.thock_category === 'sell';
+            });
+            const seedTotal = {
+                count: seedEntries.length,
+                quantity: seedRoomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0)
+            };
+            const sellTotal = {
+                count: sellEntries.length,
+                quantity: sellRoomEntries.reduce((sum, r) => sum + (r.quantity || 0), 0)
+            };
 
             // Calculate expected quantities
             const seedExpected = seedEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
