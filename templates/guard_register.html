@@ -287,7 +287,8 @@
     <script src="/static/js/i18n.js"></script>
     <script>
         const token = localStorage.getItem('token');
-        const userRole = localStorage.getItem('role') || '';
+        const userInfo = JSON.parse(localStorage.getItem('user') || '{}');
+        const userRole = userInfo.role || '';
         const isAdmin = userRole === 'admin';
         let lookupTimeout = null;
         let villageHighlightIndex = -1;
