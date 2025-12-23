@@ -35,9 +35,9 @@ func (s *GuardEntryService) CreateGuardEntry(ctx context.Context, req *models.Cr
 		return nil, errors.New("mobile must be exactly 10 digits")
 	}
 
-	// Validate category
-	if req.Category != "seed" && req.Category != "sell" && req.Category != "both" {
-		return nil, errors.New("category must be 'seed', 'sell', or 'both'")
+	// Validate at least one quantity is provided
+	if req.SeedQuantity <= 0 && req.SellQuantity <= 0 {
+		return nil, errors.New("at least one quantity (seed or sell) must be greater than 0")
 	}
 
 	// Validate driver_no if provided (must be 10 digits or empty)
@@ -47,11 +47,12 @@ func (s *GuardEntryService) CreateGuardEntry(ctx context.Context, req *models.Cr
 
 	entry := &models.GuardEntry{
 		CustomerName:    req.CustomerName,
+		SO:              req.SO,
 		Village:         req.Village,
 		Mobile:          req.Mobile,
 		DriverNo:        req.DriverNo,
-		Category:        req.Category,
-		Quantity:        req.Quantity,
+		SeedQuantity:    req.SeedQuantity,
+		SellQuantity:    req.SellQuantity,
 		Remarks:         req.Remarks,
 		CreatedByUserID: userID,
 	}

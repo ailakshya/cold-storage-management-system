@@ -17,30 +17,57 @@ func NewGuardEntryRepository(db *pgxpool.Pool) *GuardEntryRepository {
 	return &GuardEntryRepository{DB: db}
 }
 
-// Create creates a new guard entry
-func (r *GuardEntryRepository) Create(ctx context.Context, entry *models.GuardEntry) error {
+// getNextTokenNumber gets the next token number for today
+func (r *GuardEntryRepository) getNextTokenNumber(ctx context.Context) (int, error) {
 	query := `
-		INSERT INTO guard_entries (customer_name, village, mobile, driver_no, category, quantity, remarks, created_by_user_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		SELECT COALESCE(MAX(token_number), 0) + 1
+		FROM guard_entries
+		WHERE DATE(created_at) = CURRENT_DATE
+	`
+	var tokenNumber int
+	err := r.DB.QueryRow(ctx, query).Scan(&tokenNumber)
+	return tokenNumber, err
+}
+
+// Create creates a new guard entry with auto-generated token number
+func (r *GuardEntryRepository) Create(ctx context.Context, entry *models.GuardEntry) error {
+	// Get next token number for today
+	tokenNumber, err := r.getNextTokenNumber(ctx)
+	if err != nil {
+		return err
+	}
+
+	query := `
+		INSERT INTO guard_entries (token_number, customer_name, so, village, mobile, driver_no, seed_quantity, sell_quantity, remarks, created_by_user_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, arrival_time, status, created_at, updated_at
 	`
-	return r.DB.QueryRow(ctx, query,
+	err = r.DB.QueryRow(ctx, query,
+		tokenNumber,
 		entry.CustomerName,
+		entry.SO,
 		entry.Village,
 		entry.Mobile,
 		entry.DriverNo,
-		entry.Category,
-		entry.Quantity,
+		entry.SeedQuantity,
+		entry.SellQuantity,
 		entry.Remarks,
 		entry.CreatedByUserID,
 	).Scan(&entry.ID, &entry.ArrivalTime, &entry.Status, &entry.CreatedAt, &entry.UpdatedAt)
+
+	if err == nil {
+		entry.TokenNumber = tokenNumber
+	}
+	return err
 }
 
 // Get retrieves a guard entry by ID with user names
 func (r *GuardEntryRepository) Get(ctx context.Context, id int) (*models.GuardEntry, error) {
 	query := `
-		SELECT g.id, g.customer_name, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
-		       g.arrival_time, g.category, COALESCE(g.quantity, 0) as quantity, COALESCE(g.remarks, '') as remarks, g.status,
+		SELECT g.id, COALESCE(g.token_number, 0) as token_number,
+		       g.customer_name, COALESCE(g.so, '') as so, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, COALESCE(g.seed_quantity, 0) as seed_quantity, COALESCE(g.sell_quantity, 0) as sell_quantity,
+		       COALESCE(g.remarks, '') as remarks, g.status,
 		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
 		       g.created_at, g.updated_at,
 		       u1.name as created_by_name,
@@ -52,8 +79,10 @@ func (r *GuardEntryRepository) Get(ctx context.Context, id int) (*models.GuardEn
 	`
 	var entry models.GuardEntry
 	err := r.DB.QueryRow(ctx, query, id).Scan(
-		&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.DriverNo,
-		&entry.ArrivalTime, &entry.Category, &entry.Quantity, &entry.Remarks, &entry.Status,
+		&entry.ID, &entry.TokenNumber,
+		&entry.CustomerName, &entry.SO, &entry.Village, &entry.Mobile, &entry.DriverNo,
+		&entry.ArrivalTime, &entry.SeedQuantity, &entry.SellQuantity,
+		&entry.Remarks, &entry.Status,
 		&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
 		&entry.CreatedAt, &entry.UpdatedAt,
 		&entry.CreatedByUserName, &entry.ProcessedByUserName,
@@ -67,14 +96,16 @@ func (r *GuardEntryRepository) Get(ctx context.Context, id int) (*models.GuardEn
 // ListTodayByUser returns today's entries created by a specific user
 func (r *GuardEntryRepository) ListTodayByUser(ctx context.Context, userID int) ([]*models.GuardEntry, error) {
 	query := `
-		SELECT g.id, g.customer_name, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
-		       g.arrival_time, g.category, COALESCE(g.quantity, 0) as quantity, COALESCE(g.remarks, '') as remarks, g.status,
+		SELECT g.id, COALESCE(g.token_number, 0) as token_number,
+		       g.customer_name, COALESCE(g.so, '') as so, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, COALESCE(g.seed_quantity, 0) as seed_quantity, COALESCE(g.sell_quantity, 0) as sell_quantity,
+		       COALESCE(g.remarks, '') as remarks, g.status,
 		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
 		       g.created_at, g.updated_at
 		FROM guard_entries g
 		WHERE g.created_by_user_id = $1
 		  AND DATE(g.created_at) = CURRENT_DATE
-		ORDER BY g.created_at DESC
+		ORDER BY g.token_number DESC
 	`
 	rows, err := r.DB.Query(ctx, query, userID)
 	if err != nil {
@@ -86,8 +117,10 @@ func (r *GuardEntryRepository) ListTodayByUser(ctx context.Context, userID int) 
 	for rows.Next() {
 		var entry models.GuardEntry
 		err := rows.Scan(
-			&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.DriverNo,
-			&entry.ArrivalTime, &entry.Category, &entry.Quantity, &entry.Remarks, &entry.Status,
+			&entry.ID, &entry.TokenNumber,
+			&entry.CustomerName, &entry.SO, &entry.Village, &entry.Mobile, &entry.DriverNo,
+			&entry.ArrivalTime, &entry.SeedQuantity, &entry.SellQuantity,
+			&entry.Remarks, &entry.Status,
 			&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
 			&entry.CreatedAt, &entry.UpdatedAt,
 		)
@@ -102,8 +135,10 @@ func (r *GuardEntryRepository) ListTodayByUser(ctx context.Context, userID int) 
 // ListPending returns all pending guard entries with guard names (for entry room)
 func (r *GuardEntryRepository) ListPending(ctx context.Context) ([]*models.GuardEntry, error) {
 	query := `
-		SELECT g.id, g.customer_name, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
-		       g.arrival_time, g.category, COALESCE(g.quantity, 0) as quantity, COALESCE(g.remarks, '') as remarks, g.status,
+		SELECT g.id, COALESCE(g.token_number, 0) as token_number,
+		       g.customer_name, COALESCE(g.so, '') as so, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, COALESCE(g.seed_quantity, 0) as seed_quantity, COALESCE(g.sell_quantity, 0) as sell_quantity,
+		       COALESCE(g.remarks, '') as remarks, g.status,
 		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
 		       g.created_at, g.updated_at,
 		       u.name as created_by_name
@@ -122,8 +157,10 @@ func (r *GuardEntryRepository) ListPending(ctx context.Context) ([]*models.Guard
 	for rows.Next() {
 		var entry models.GuardEntry
 		err := rows.Scan(
-			&entry.ID, &entry.CustomerName, &entry.Village, &entry.Mobile, &entry.DriverNo,
-			&entry.ArrivalTime, &entry.Category, &entry.Quantity, &entry.Remarks, &entry.Status,
+			&entry.ID, &entry.TokenNumber,
+			&entry.CustomerName, &entry.SO, &entry.Village, &entry.Mobile, &entry.DriverNo,
+			&entry.ArrivalTime, &entry.SeedQuantity, &entry.SellQuantity,
+			&entry.Remarks, &entry.Status,
 			&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
 			&entry.CreatedAt, &entry.UpdatedAt,
 			&entry.CreatedByUserName,
