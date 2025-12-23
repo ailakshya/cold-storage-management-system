@@ -217,25 +217,43 @@
                     </div>
                 </div>
 
-                <!-- Seed and Sell Quantities -->
+                <!-- Seed and Sell Quantities (4 each) -->
                 <div class="mb-6">
                     <label class="form-label" data-i18n="quantities">Quantities / बोरी की संख्या</label>
                     <div class="grid grid-cols-2 gap-4">
-                        <!-- Seed Quantity -->
+                        <!-- Seed Quantities (4 inputs) -->
                         <div class="bg-green-50 p-4 border-2 border-black">
                             <label class="block font-bold text-green-800 mb-2">
                                 <i class="bi bi-flower1"></i> <span data-i18n="seed">Seed (बीज)</span>
+                                <span id="seedTotal" class="text-sm bg-green-200 px-2 py-1 ml-2">= 0</span>
                             </label>
-                            <input type="number" id="seedQuantity" class="form-input bg-white" min="0" max="9999"
-                                   placeholder="0" value="0">
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="seed1" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                                <input type="number" id="seed2" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                                <input type="number" id="seed3" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                                <input type="number" id="seed4" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                            </div>
                         </div>
-                        <!-- Sell Quantity -->
+                        <!-- Sell Quantities (4 inputs) -->
                         <div class="bg-red-50 p-4 border-2 border-black">
                             <label class="block font-bold text-red-800 mb-2">
                                 <i class="bi bi-shop"></i> <span data-i18n="sell">Sell (बिक्री)</span>
+                                <span id="sellTotal" class="text-sm bg-red-200 px-2 py-1 ml-2">= 0</span>
                             </label>
-                            <input type="number" id="sellQuantity" class="form-input bg-white" min="0" max="9999"
-                                   placeholder="0" value="0">
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="number" id="sell1" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                                <input type="number" id="sell2" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                                <input type="number" id="sell3" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                                <input type="number" id="sell4" class="form-input bg-white text-center" min="0" max="9999"
+                                       placeholder="0" value="" oninput="updateTotals()">
+                            </div>
                         </div>
                     </div>
                     <p class="text-xs text-gray-500 mt-2" data-i18n="at_least_one_qty">At least one quantity must be greater than 0 / कम से कम एक संख्या 0 से अधिक होनी चाहिए</p>
@@ -572,12 +590,31 @@
             }
         }
 
+        // Calculate totals from 4 inputs each
+        function updateTotals() {
+            const seed1 = parseInt(document.getElementById('seed1').value) || 0;
+            const seed2 = parseInt(document.getElementById('seed2').value) || 0;
+            const seed3 = parseInt(document.getElementById('seed3').value) || 0;
+            const seed4 = parseInt(document.getElementById('seed4').value) || 0;
+            const seedTotal = seed1 + seed2 + seed3 + seed4;
+
+            const sell1 = parseInt(document.getElementById('sell1').value) || 0;
+            const sell2 = parseInt(document.getElementById('sell2').value) || 0;
+            const sell3 = parseInt(document.getElementById('sell3').value) || 0;
+            const sell4 = parseInt(document.getElementById('sell4').value) || 0;
+            const sellTotal = sell1 + sell2 + sell3 + sell4;
+
+            document.getElementById('seedTotal').textContent = `= ${seedTotal}`;
+            document.getElementById('sellTotal').textContent = `= ${sellTotal}`;
+
+            return { seedTotal, sellTotal };
+        }
+
         // Submit entry
         async function submitEntry(e) {
             e.preventDefault();
 
-            const seedQty = parseInt(document.getElementById('seedQuantity').value) || 0;
-            const sellQty = parseInt(document.getElementById('sellQuantity').value) || 0;
+            const { seedTotal: seedQty, sellTotal: sellQty } = updateTotals();
 
             if (seedQty <= 0 && sellQty <= 0) {
                 alert(i18n.t('at_least_one_qty_error', 'At least one quantity (seed or sell) must be greater than 0'));
@@ -625,8 +662,11 @@
 
                 // Reset form
                 document.getElementById('registerForm').reset();
-                document.getElementById('seedQuantity').value = '0';
-                document.getElementById('sellQuantity').value = '0';
+                // Clear all 8 quantity inputs
+                ['seed1', 'seed2', 'seed3', 'seed4', 'sell1', 'sell2', 'sell3', 'sell4'].forEach(id => {
+                    document.getElementById(id).value = '';
+                });
+                updateTotals();
                 document.getElementById('driverSameAsCustomer').checked = true;
                 document.getElementById('driverNoContainer').classList.add('hidden');
                 document.getElementById('customerStatus').classList.add('hidden');
