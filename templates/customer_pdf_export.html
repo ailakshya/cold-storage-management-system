@@ -87,7 +87,7 @@
                 </h2>
                 <p class="text-gray-600 mb-6">Choose how you want to export customer data:</p>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <!-- Single Customer -->
                     <div class="border-2 border-black p-6 bg-blue-50">
                         <h3 class="text-xl font-bold mb-4">
@@ -122,6 +122,21 @@
                             <i class="bi bi-download"></i> Load All Customers
                         </button>
                         <p id="customerCount" class="text-sm text-gray-500 mt-2 text-center"></p>
+                    </div>
+
+                    <!-- Daily Summary -->
+                    <div class="border-2 border-black p-6 bg-purple-50">
+                        <h3 class="text-xl font-bold mb-4">
+                            <i class="bi bi-calendar-day"></i> Daily Summary
+                        </h3>
+                        <p class="text-gray-600 mb-4">Export daily summary of all entries with employee details for backup.</p>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium mb-2">Select Date</label>
+                            <input type="date" id="summaryDate" class="w-full p-3 border-2 border-black">
+                        </div>
+                        <button onclick="loadDailySummary()" class="neu-button bg-purple-500 text-white w-full">
+                            <i class="bi bi-file-text"></i> Generate Daily Summary
+                        </button>
                     </div>
                 </div>
             </div>
@@ -660,8 +675,214 @@
             });
         }
 
+        // ==================== DAILY SUMMARY FUNCTIONS ====================
+
+        // Set default date to today
+        function setDefaultSummaryDate() {
+            const today = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('summaryDate');
+            if (dateInput) {
+                dateInput.value = today;
+            }
+        }
+
+        // Load daily summary
+        async function loadDailySummary() {
+            const date = document.getElementById('summaryDate').value;
+            if (!date) {
+                alert('Please select a date');
+                return;
+            }
+
+            document.getElementById('selectionMode').classList.add('hidden');
+            document.getElementById('loadingState').classList.remove('hidden');
+
+            try {
+                await loadBaseData();
+                renderDailySummary(date);
+            } catch (error) {
+                showError('Failed to load daily summary: ' + error.message);
+            }
+        }
+
+        // Filter entries by date
+        function filterEntriesByDate(entries, date) {
+            return (entries || []).filter(e => {
+                const entryDate = new Date(e.created_at).toISOString().split('T')[0];
+                return entryDate === date;
+            });
+        }
+
+        // Calculate category totals
+        function calculateCategoryTotal(entries, roomEntries) {
+            let quantity = 0;
+            entries.forEach(e => {
+                const entryRooms = (roomEntries || []).filter(r => r.entry_id === e.id);
+                entryRooms.forEach(r => quantity += r.quantity || 0);
+            });
+            return { count: entries.length, quantity };
+        }
+
+        // Format date for display
+        function formatDateDisplay(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-IN', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Render entry table for daily summary
+        function renderDailySummaryEntryTable(entries, roomEntries) {
+            if (entries.length === 0) {
+                return '<p class="text-gray-500 p-4 text-center border-2 border-black">No entries for this date</p>';
+            }
+
+            return `
+                <table class="w-full border-collapse text-sm">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="border-2 border-black p-2 text-left">Thock No</th>
+                            <th class="border-2 border-black p-2 text-left">Customer</th>
+                            <th class="border-2 border-black p-2 text-left">Phone</th>
+                            <th class="border-2 border-black p-2 text-left">Village</th>
+                            <th class="border-2 border-black p-2 text-left">S/O</th>
+                            <th class="border-2 border-black p-2 text-center">Qty</th>
+                            <th class="border-2 border-black p-2 text-left">Variety</th>
+                            <th class="border-2 border-black p-2 text-left">Room Details</th>
+                            <th class="border-2 border-black p-2 text-left">Created By</th>
+                            <th class="border-2 border-black p-2 text-left">Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${entries.map(entry => {
+                            const entryRooms = (roomEntries || []).filter(r => r.entry_id === entry.id);
+                            const roomDetails = entryRooms.map(r =>
+                                'R' + r.room_no + '/F' + r.floor + '/G' + r.gate_no + ': ' + r.quantity
+                            ).join(', ') || '-';
+
+                            return `
+                                <tr class="border-b hover:bg-gray-50">
+                                    <td class="border border-black p-2 font-mono font-bold">${entry.thock_number || '-'}</td>
+                                    <td class="border border-black p-2 font-semibold">${entry.name || '-'}</td>
+                                    <td class="border border-black p-2">${entry.phone || '-'}</td>
+                                    <td class="border border-black p-2">${entry.village || '-'}</td>
+                                    <td class="border border-black p-2">${entry.so || '-'}</td>
+                                    <td class="border border-black p-2 text-center font-bold">${entry.expected_quantity || 0}</td>
+                                    <td class="border border-black p-2 text-xs">${entry.remark || '-'}</td>
+                                    <td class="border border-black p-2 text-xs">${roomDetails}</td>
+                                    <td class="border border-black p-2">${userMap[entry.created_by_user_id] || 'Unknown'}</td>
+                                    <td class="border border-black p-2 text-xs">${new Date(entry.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        // Render daily summary
+        function renderDailySummary(date) {
+            const dayEntries = filterEntriesByDate(allEntries, date);
+            const dayRoomEntries = filterEntriesByDate(allRoomEntries, date);
+
+            // Group by category
+            const seedEntries = dayEntries.filter(e => e.thock_category === 'seed');
+            const sellEntries = dayEntries.filter(e => e.thock_category === 'sell');
+
+            // Calculate totals
+            const seedTotal = calculateCategoryTotal(seedEntries, dayRoomEntries);
+            const sellTotal = calculateCategoryTotal(sellEntries, dayRoomEntries);
+
+            // Calculate expected quantities
+            const seedExpected = seedEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
+            const sellExpected = sellEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
+
+            const html = `
+                <div class="neu-border bg-white p-6 mb-6">
+                    <!-- Header -->
+                    <div class="text-center mb-6 border-b-4 border-black pb-4">
+                        <div class="flex items-center justify-center gap-3 mb-2">
+                            <i class="bi bi-snow2 text-3xl text-blue-500"></i>
+                            <h1 class="text-3xl font-bold">DAILY SUMMARY REPORT</h1>
+                        </div>
+                        <p class="text-xl mt-2">${formatDateDisplay(date)}</p>
+                        <p class="text-sm text-gray-600">Generated: ${new Date().toLocaleString('en-IN')}</p>
+                    </div>
+
+                    <!-- SEED Section -->
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold bg-green-100 p-3 border-2 border-black mb-4">
+                            <i class="bi bi-flower1"></i> SEED ENTRIES (${seedEntries.length})
+                        </h2>
+                        ${renderDailySummaryEntryTable(seedEntries, dayRoomEntries)}
+                        <div class="bg-green-50 p-3 border-2 border-black mt-2 flex justify-between">
+                            <span><strong>SEED Totals:</strong> ${seedEntries.length} entries</span>
+                            <span><strong>Expected Qty:</strong> ${seedExpected} bags</span>
+                            <span><strong>Stored Qty:</strong> ${seedTotal.quantity} bags</span>
+                        </div>
+                    </div>
+
+                    <!-- SELL Section -->
+                    <div class="mb-8">
+                        <h2 class="text-2xl font-bold bg-blue-100 p-3 border-2 border-black mb-4">
+                            <i class="bi bi-shop"></i> SELL ENTRIES (${sellEntries.length})
+                        </h2>
+                        ${renderDailySummaryEntryTable(sellEntries, dayRoomEntries)}
+                        <div class="bg-blue-50 p-3 border-2 border-black mt-2 flex justify-between">
+                            <span><strong>SELL Totals:</strong> ${sellEntries.length} entries</span>
+                            <span><strong>Expected Qty:</strong> ${sellExpected} bags</span>
+                            <span><strong>Stored Qty:</strong> ${sellTotal.quantity} bags</span>
+                        </div>
+                    </div>
+
+                    <!-- Grand Totals -->
+                    <div class="bg-yellow-100 p-6 border-4 border-black">
+                        <h2 class="text-2xl font-bold mb-4 text-center">GRAND TOTALS</h2>
+                        <div class="grid grid-cols-2 md:grid-cols-5 gap-4 text-center">
+                            <div class="bg-white p-4 border-2 border-black">
+                                <p class="text-3xl font-bold text-purple-600">${dayEntries.length}</p>
+                                <p class="text-sm">Total Entries</p>
+                            </div>
+                            <div class="bg-white p-4 border-2 border-black">
+                                <p class="text-3xl font-bold text-orange-600">${dayRoomEntries.length}</p>
+                                <p class="text-sm">Room Entries</p>
+                            </div>
+                            <div class="bg-white p-4 border-2 border-black">
+                                <p class="text-3xl font-bold text-blue-600">${seedExpected + sellExpected}</p>
+                                <p class="text-sm">Expected Bags</p>
+                            </div>
+                            <div class="bg-white p-4 border-2 border-black">
+                                <p class="text-3xl font-bold text-green-600">${seedTotal.quantity + sellTotal.quantity}</p>
+                                <p class="text-sm">Stored Bags</p>
+                            </div>
+                            <div class="bg-white p-4 border-2 border-black">
+                                <p class="text-3xl font-bold">${seedEntries.length} / ${sellEntries.length}</p>
+                                <p class="text-sm">Seed / Sell</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="mt-6 text-center text-sm text-gray-500 border-t-2 border-gray-300 pt-4">
+                        <p>Computer generated document - Cold Storage Management System</p>
+                        <p class="mt-1">This report serves as a daily backup record of all entries.</p>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('loadingState').classList.add('hidden');
+            document.getElementById('mainContent').innerHTML = html;
+            document.getElementById('mainContent').classList.remove('hidden');
+        }
+
+        // ==================== END DAILY SUMMARY FUNCTIONS ====================
+
         // Initialize
         init();
+        setDefaultSummaryDate();
     </script>
 </body>
 </html>
