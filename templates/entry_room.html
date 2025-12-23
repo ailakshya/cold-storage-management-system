@@ -979,47 +979,89 @@
                     // Token number
                     const tokenDisplay = entry.token_number ? `<span class="font-mono text-lg bg-yellow-200 px-2 py-1 border-2 border-black font-bold">#${entry.token_number}</span>` : '';
 
-                    // Build separate buttons for seed and sell
+                    // Build separate buttons for each individual quantity
                     let actionButtons = [];
 
-                    // Seed section - if has seed quantity and not yet processed
-                    // Display individual quantities (e.g., "10, 15, 20" instead of just "45")
-                    const seedDisplay = formatIndividualQty(entry.seed_qty_1 || 0, entry.seed_qty_2 || 0, entry.seed_qty_3 || 0, entry.seed_qty_4 || 0, entry.seed_quantity);
-                    const sellDisplay = formatIndividualQty(entry.sell_qty_1 || 0, entry.sell_qty_2 || 0, entry.sell_qty_3 || 0, entry.sell_qty_4 || 0, entry.sell_quantity);
+                    // Get individual seed quantities
+                    const seedQtys = [entry.seed_qty_1 || 0, entry.seed_qty_2 || 0, entry.seed_qty_3 || 0, entry.seed_qty_4 || 0].filter(q => q > 0);
+                    const sellQtys = [entry.sell_qty_1 || 0, entry.sell_qty_2 || 0, entry.sell_qty_3 || 0, entry.sell_qty_4 || 0].filter(q => q > 0);
 
+                    // Seed section - show each quantity as separate button
                     if (entry.seed_quantity > 0 && !entry.seed_processed) {
-                        actionButtons.push(`
-                            <div class="flex gap-1">
-                                <button class="text-sm bg-green-200 px-3 py-1 border-2 border-black hover:bg-green-300 flex items-center gap-1"
+                        // If we have individual quantities, show each as separate button
+                        if (seedQtys.length > 0) {
+                            seedQtys.forEach(qty => {
+                                actionButtons.push(`
+                                    <button class="text-sm bg-green-200 px-2 py-1 border-2 border-black hover:bg-green-300"
+                                            onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'seed', ${qty}, 0)">
+                                        S${qty}
+                                    </button>
+                                `);
+                            });
+                        } else {
+                            // Fallback for old entries - show total
+                            actionButtons.push(`
+                                <button class="text-sm bg-green-200 px-2 py-1 border-2 border-black hover:bg-green-300"
                                         onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'seed', ${entry.seed_quantity}, 0)">
-                                    <i class="bi bi-flower1"></i> S: ${seedDisplay}
+                                    S${entry.seed_quantity}
                                 </button>
-                                <button class="text-xs bg-green-500 text-white px-2 py-1 border border-black hover:bg-green-600"
-                                        onclick="event.stopPropagation(); markPortionDone(${entry.id}, 'seed')" title="Mark Seed Done">
-                                    ✓
-                                </button>
-                            </div>
+                            `);
+                        }
+                        // Mark all seed done button
+                        actionButtons.push(`
+                            <button class="text-xs bg-green-500 text-white px-2 py-1 border border-black hover:bg-green-600"
+                                    onclick="event.stopPropagation(); markPortionDone(${entry.id}, 'seed')" title="Mark All Seed Done">
+                                ✓
+                            </button>
                         `);
                     } else if (entry.seed_quantity > 0 && entry.seed_processed) {
-                        actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">S: ${seedDisplay} ✓</span>`);
+                        // Show processed seed quantities
+                        if (seedQtys.length > 0) {
+                            seedQtys.forEach(qty => {
+                                actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">S${qty}✓</span>`);
+                            });
+                        } else {
+                            actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">S${entry.seed_quantity}✓</span>`);
+                        }
                     }
 
-                    // Sell section - if has sell quantity and not yet processed (RED color)
+                    // Sell section - show each quantity as separate button (RED color)
                     if (entry.sell_quantity > 0 && !entry.sell_processed) {
-                        actionButtons.push(`
-                            <div class="flex gap-1">
-                                <button class="text-sm bg-red-200 px-3 py-1 border-2 border-black hover:bg-red-300 flex items-center gap-1"
+                        // If we have individual quantities, show each as separate button
+                        if (sellQtys.length > 0) {
+                            sellQtys.forEach(qty => {
+                                actionButtons.push(`
+                                    <button class="text-sm bg-red-200 px-2 py-1 border-2 border-black hover:bg-red-300"
+                                            onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'sell', 0, ${qty})">
+                                        B${qty}
+                                    </button>
+                                `);
+                            });
+                        } else {
+                            // Fallback for old entries - show total
+                            actionButtons.push(`
+                                <button class="text-sm bg-red-200 px-2 py-1 border-2 border-black hover:bg-red-300"
                                         onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'sell', 0, ${entry.sell_quantity})">
-                                    <i class="bi bi-shop"></i> B: ${sellDisplay}
+                                    B${entry.sell_quantity}
                                 </button>
-                                <button class="text-xs bg-red-500 text-white px-2 py-1 border border-black hover:bg-red-600"
-                                        onclick="event.stopPropagation(); markPortionDone(${entry.id}, 'sell')" title="Mark Sell Done">
-                                    ✓
-                                </button>
-                            </div>
+                            `);
+                        }
+                        // Mark all sell done button
+                        actionButtons.push(`
+                            <button class="text-xs bg-red-500 text-white px-2 py-1 border border-black hover:bg-red-600"
+                                    onclick="event.stopPropagation(); markPortionDone(${entry.id}, 'sell')" title="Mark All Sell Done">
+                                ✓
+                            </button>
                         `);
                     } else if (entry.sell_quantity > 0 && entry.sell_processed) {
-                        actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">B: ${sellDisplay} ✓</span>`);
+                        // Show processed sell quantities
+                        if (sellQtys.length > 0) {
+                            sellQtys.forEach(qty => {
+                                actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">B${qty}✓</span>`);
+                            });
+                        } else {
+                            actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">B${entry.sell_quantity}✓</span>`);
+                        }
                     }
 
                     return `
