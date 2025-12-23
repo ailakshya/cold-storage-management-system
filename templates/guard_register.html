@@ -739,22 +739,22 @@
                     const seedQtys = [entry.seed_qty_1 || 0, entry.seed_qty_2 || 0, entry.seed_qty_3 || 0, entry.seed_qty_4 || 0].filter(q => q > 0);
                     if (seedQtys.length > 0) {
                         seedQtys.forEach(qty => {
-                            qtyParts.push(`<span class="bg-green-100 px-2 py-1 border border-black">S${qty}</span>`);
+                            qtyParts.push(`<span class="bg-green-100 px-2 py-1 border border-black">Seed${qty}</span>`);
                         });
                     } else if (entry.seed_quantity > 0) {
                         // Fallback for old entries
-                        qtyParts.push(`<span class="bg-green-100 px-2 py-1 border border-black">S${entry.seed_quantity}</span>`);
+                        qtyParts.push(`<span class="bg-green-100 px-2 py-1 border border-black">Seed${entry.seed_quantity}</span>`);
                     }
 
                     // Get individual sell quantities
                     const sellQtys = [entry.sell_qty_1 || 0, entry.sell_qty_2 || 0, entry.sell_qty_3 || 0, entry.sell_qty_4 || 0].filter(q => q > 0);
                     if (sellQtys.length > 0) {
                         sellQtys.forEach(qty => {
-                            qtyParts.push(`<span class="bg-red-100 px-2 py-1 border border-black">B${qty}</span>`);
+                            qtyParts.push(`<span class="bg-red-100 px-2 py-1 border border-black">Sell${qty}</span>`);
                         });
                     } else if (entry.sell_quantity > 0) {
                         // Fallback for old entries
-                        qtyParts.push(`<span class="bg-red-100 px-2 py-1 border border-black">B${entry.sell_quantity}</span>`);
+                        qtyParts.push(`<span class="bg-red-100 px-2 py-1 border border-black">Sell${entry.sell_quantity}</span>`);
                     }
 
                     const qtyDisplay = qtyParts.length > 0 ? qtyParts.join(' ') : '-';

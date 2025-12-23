@@ -1025,7 +1025,7 @@
                                 actionButtons.push(`
                                     <button class="text-sm bg-green-200 px-2 py-1 border-2 border-black hover:bg-green-300"
                                             onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'seed', ${qty}, 0)">
-                                        S${qty}
+                                        Seed${qty}
                                     </button>
                                 `);
                             });
@@ -1034,7 +1034,7 @@
                             actionButtons.push(`
                                 <button class="text-sm bg-green-200 px-2 py-1 border-2 border-black hover:bg-green-300"
                                         onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'seed', ${entry.seed_quantity}, 0)">
-                                    S${entry.seed_quantity}
+                                    Seed${entry.seed_quantity}
                                 </button>
                             `);
                         }
@@ -1049,10 +1049,10 @@
                         // Show processed seed quantities
                         if (seedQtys.length > 0) {
                             seedQtys.forEach(qty => {
-                                actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">S${qty}✓</span>`);
+                                actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">Seed${qty}✓</span>`);
                             });
                         } else {
-                            actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">S${entry.seed_quantity}✓</span>`);
+                            actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">Seed${entry.seed_quantity}✓</span>`);
                         }
                     }
 
@@ -1064,7 +1064,7 @@
                                 actionButtons.push(`
                                     <button class="text-sm bg-red-200 px-2 py-1 border-2 border-black hover:bg-red-300"
                                             onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'sell', 0, ${qty})">
-                                        B${qty}
+                                        Sell${qty}
                                     </button>
                                 `);
                             });
@@ -1073,7 +1073,7 @@
                             actionButtons.push(`
                                 <button class="text-sm bg-red-200 px-2 py-1 border-2 border-black hover:bg-red-300"
                                         onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'sell', 0, ${entry.sell_quantity})">
-                                    B${entry.sell_quantity}
+                                    Sell${entry.sell_quantity}
                                 </button>
                             `);
                         }
@@ -1088,10 +1088,10 @@
                         // Show processed sell quantities
                         if (sellQtys.length > 0) {
                             sellQtys.forEach(qty => {
-                                actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">B${qty}✓</span>`);
+                                actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">Sell${qty}✓</span>`);
                             });
                         } else {
-                            actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">B${entry.sell_quantity}✓</span>`);
+                            actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">Sell${entry.sell_quantity}✓</span>`);
                         }
                     }
 
