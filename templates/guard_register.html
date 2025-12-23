@@ -230,8 +230,8 @@
                                    placeholder="0" value="0">
                         </div>
                         <!-- Sell Quantity -->
-                        <div class="bg-blue-50 p-4 border-2 border-black">
-                            <label class="block font-bold text-blue-800 mb-2">
+                        <div class="bg-red-50 p-4 border-2 border-black">
+                            <label class="block font-bold text-red-800 mb-2">
                                 <i class="bi bi-shop"></i> <span data-i18n="sell">Sell (बिक्री)</span>
                             </label>
                             <input type="number" id="sellQuantity" class="form-input bg-white" min="0" max="9999"
@@ -680,7 +680,7 @@
                         qtyParts.push(`<span class="bg-green-100 px-2 py-1 border border-black">S:${entry.seed_quantity}</span>`);
                     }
                     if (entry.sell_quantity > 0) {
-                        qtyParts.push(`<span class="bg-blue-100 px-2 py-1 border border-black">B:${entry.sell_quantity}</span>`);
+                        qtyParts.push(`<span class="bg-red-100 px-2 py-1 border border-black">B:${entry.sell_quantity}</span>`);
                     }
                     const qtyDisplay = qtyParts.length > 0 ? qtyParts.join(' ') : '-';
 
