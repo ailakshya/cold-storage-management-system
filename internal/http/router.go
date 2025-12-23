@@ -94,11 +94,11 @@ func NewRouter(
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 	r.HandleFunc("/customer-edit", pageHandler.CustomerEditPage).Methods("GET")
 
-	// Guard pages - only accessible by guard role
-	r.HandleFunc("/guard/dashboard", authMiddleware.RequireRole("guard")(
+	// Guard pages - accessible by guard, employee, admin
+	r.HandleFunc("/guard/dashboard", authMiddleware.RequireRole("guard", "employee", "admin")(
 		http.HandlerFunc(pageHandler.GuardDashboardPage),
 	).ServeHTTP).Methods("GET")
-	r.HandleFunc("/guard/register", authMiddleware.RequireRole("guard")(
+	r.HandleFunc("/guard/register", authMiddleware.RequireRole("guard", "employee", "admin")(
 		http.HandlerFunc(pageHandler.GuardRegisterPage),
 	).ServeHTTP).Methods("GET")
 
