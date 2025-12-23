@@ -141,9 +141,12 @@
                     <span data-i18n="pending_guard_entries">Pending Guard Entries</span>
                     <span id="guardEntryCount" class="text-sm bg-red-500 text-white px-2 py-1 rounded">0</span>
                 </h3>
-                <button onclick="loadGuardEntries()" class="text-sm bg-gray-200 px-3 py-1 border-2 border-black">
-                    <i class="bi bi-arrow-clockwise"></i> <span data-i18n="refresh">Refresh</span>
-                </button>
+                <div class="flex items-center gap-2">
+                    <span id="guardRefreshTimer" class="text-xs bg-blue-100 px-2 py-1 border border-black font-mono">5s</span>
+                    <button onclick="loadGuardEntries(); resetGuardTimer();" class="text-sm bg-gray-200 px-3 py-1 border-2 border-black">
+                        <i class="bi bi-arrow-clockwise"></i> <span data-i18n="refresh">Refresh</span>
+                    </button>
+                </div>
             </div>
             <div id="guardEntriesList" class="max-h-64 overflow-y-auto space-y-2">
                 <!-- Guard entries will be populated here -->
@@ -926,7 +929,35 @@
         let roomEntriesRefreshInterval = null;
         let entriesRefreshInterval = null;
         let guardEntriesRefreshInterval = null;
+        let guardTimerInterval = null;
+        let guardTimerCount = 5;
         let selectedGuardEntry = null;
+
+        // Guard entries countdown timer
+        function startGuardTimer() {
+            guardTimerCount = 5;
+            updateGuardTimerDisplay();
+            if (guardTimerInterval) clearInterval(guardTimerInterval);
+            guardTimerInterval = setInterval(() => {
+                guardTimerCount--;
+                if (guardTimerCount <= 0) {
+                    guardTimerCount = 5;
+                }
+                updateGuardTimerDisplay();
+            }, 1000);
+        }
+
+        function updateGuardTimerDisplay() {
+            const timerEl = document.getElementById('guardRefreshTimer');
+            if (timerEl) {
+                timerEl.textContent = guardTimerCount + 's';
+            }
+        }
+
+        function resetGuardTimer() {
+            guardTimerCount = 5;
+            updateGuardTimerDisplay();
+        }
 
         // Format individual quantities for display (e.g., "10, 15, 20" instead of just "45")
         // Falls back to showing total if no individual quantities stored (old entries)
@@ -1189,6 +1220,9 @@
 
             // Start auto-refresh for room entries (every 5 seconds)
             startAutoRefresh();
+
+            // Start guard entries countdown timer
+            startGuardTimer();
 
             // Auto-refresh guard entries every 5 seconds
             guardEntriesRefreshInterval = setInterval(loadGuardEntries, 5000);
