@@ -247,6 +247,11 @@ func NewRouter(
 		guardAPI.HandleFunc("/entries/{id}/process", authMiddleware.RequireRole("employee", "admin")(
 			http.HandlerFunc(guardEntryHandler.ProcessGuardEntry),
 		).ServeHTTP).Methods("PUT")
+
+		// Delete entry - admin only
+		guardAPI.HandleFunc("/entries/{id}", authMiddleware.RequireRole("admin")(
+			http.HandlerFunc(guardEntryHandler.DeleteGuardEntry),
+		).ServeHTTP).Methods("DELETE")
 	}
 
 	// Token Color API routes

@@ -152,13 +152,16 @@
 
             <form id="registerForm" onsubmit="submitEntry(event)">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <!-- Mobile (Customer) -->
-                    <div>
+                    <!-- Mobile (Customer) with Fuzzy Search -->
+                    <div class="relative">
                         <label class="form-label" data-i18n="mobile">Mobile (मोबाइल)</label>
                         <input type="tel" id="mobile" class="form-input" required
                                pattern="[0-9]{10}" maxlength="10"
                                placeholder="10 digit mobile number" data-i18n-placeholder="enter_mobile"
-                               oninput="lookupCustomer(this.value)">
+                               oninput="searchCustomers(this.value)"
+                               onfocus="showCustomerDropdown()"
+                               autocomplete="off">
+                        <div id="customerDropdown" class="village-dropdown hidden"></div>
                         <div id="customerStatus" class="text-xs mt-1 hidden"></div>
                     </div>
 
@@ -389,50 +392,119 @@
             }
         }
 
-        // Lookup customer by mobile number
-        async function lookupCustomer(mobile) {
-            // Clear previous timeout
+        // Customer search results cache
+        let customerSearchResults = [];
+        let customerHighlightIndex = -1;
+
+        // Fuzzy search customers by phone
+        async function searchCustomers(phone) {
             if (lookupTimeout) clearTimeout(lookupTimeout);
 
+            const dropdown = document.getElementById('customerDropdown');
             const statusEl = document.getElementById('customerStatus');
 
-            // Only lookup if 10 digits
-            if (mobile.length !== 10) {
+            // Need at least 3 digits to search
+            if (phone.length < 3) {
+                dropdown.classList.add('hidden');
                 statusEl.classList.add('hidden');
                 return;
             }
 
-            // Debounce - wait 300ms after user stops typing
             lookupTimeout = setTimeout(async () => {
                 try {
-                    const res = await fetch(`/api/customers/search?phone=${mobile}`, {
+                    const res = await fetch(`/api/customers/search?phone=${phone}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
 
                     if (res.ok) {
                         const customers = await res.json();
-                        if (customers && customers.length > 0) {
-                            const customer = customers[0];
-                            // Auto-fill customer details
-                            document.getElementById('customerName').value = customer.name || '';
-                            document.getElementById('village').value = customer.village || '';
+                        customerSearchResults = customers || [];
+                        customerHighlightIndex = -1;
 
-                            // Show success status
-                            statusEl.textContent = i18n.t('customer_found', 'Customer found! Details auto-filled.');
-                            statusEl.className = 'text-xs mt-1 text-green-600 font-semibold';
-                            statusEl.classList.remove('hidden');
+                        if (customerSearchResults.length > 0) {
+                            dropdown.innerHTML = customerSearchResults.map((c, idx) =>
+                                `<div class="village-item" onclick="selectCustomer(${idx})">
+                                    <span class="font-bold">${c.phone}</span> - ${c.name}
+                                    ${c.village ? `<span class="text-gray-500 text-sm">(${c.village})</span>` : ''}
+                                </div>`
+                            ).join('');
+                            dropdown.classList.remove('hidden');
+                            statusEl.classList.add('hidden');
                         } else {
-                            // New customer
-                            statusEl.textContent = i18n.t('new_customer', 'New customer - enter details');
-                            statusEl.className = 'text-xs mt-1 text-blue-600';
-                            statusEl.classList.remove('hidden');
+                            dropdown.classList.add('hidden');
+                            if (phone.length === 10) {
+                                statusEl.textContent = i18n.t('new_customer', 'New customer - enter details');
+                                statusEl.className = 'text-xs mt-1 text-blue-600';
+                                statusEl.classList.remove('hidden');
+                            }
                         }
                     }
                 } catch (error) {
-                    console.error('Customer lookup error:', error);
+                    console.error('Customer search error:', error);
+                    dropdown.classList.add('hidden');
                 }
-            }, 300);
+            }, 200);
         }
+
+        // Show customer dropdown
+        function showCustomerDropdown() {
+            const phone = document.getElementById('mobile').value;
+            if (phone.length >= 3 && customerSearchResults.length > 0) {
+                document.getElementById('customerDropdown').classList.remove('hidden');
+            }
+        }
+
+        // Select customer from dropdown
+        function selectCustomer(idx) {
+            const customer = customerSearchResults[idx];
+            if (customer) {
+                document.getElementById('mobile').value = customer.phone || '';
+                document.getElementById('customerName').value = customer.name || '';
+                document.getElementById('soField').value = customer.so || '';
+                document.getElementById('village').value = customer.village || '';
+
+                const statusEl = document.getElementById('customerStatus');
+                statusEl.textContent = i18n.t('customer_found', 'Customer found! Details auto-filled.');
+                statusEl.className = 'text-xs mt-1 text-green-600 font-semibold';
+                statusEl.classList.remove('hidden');
+            }
+            document.getElementById('customerDropdown').classList.add('hidden');
+        }
+
+        // Hide customer dropdown on blur
+        document.addEventListener('DOMContentLoaded', function() {
+            const mobileInput = document.getElementById('mobile');
+            mobileInput.addEventListener('blur', function() {
+                setTimeout(() => {
+                    document.getElementById('customerDropdown').classList.add('hidden');
+                }, 200);
+            });
+
+            // Keyboard navigation for customer dropdown
+            mobileInput.addEventListener('keydown', function(e) {
+                const dropdown = document.getElementById('customerDropdown');
+                const items = dropdown.querySelectorAll('.village-item');
+
+                if (dropdown.classList.contains('hidden') || items.length === 0) return;
+
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    customerHighlightIndex = Math.min(customerHighlightIndex + 1, items.length - 1);
+                    items.forEach((item, i) => item.classList.toggle('highlighted', i === customerHighlightIndex));
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    customerHighlightIndex = Math.max(customerHighlightIndex - 1, 0);
+                    items.forEach((item, i) => item.classList.toggle('highlighted', i === customerHighlightIndex));
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (customerHighlightIndex >= 0 && customerHighlightIndex < items.length) {
+                        selectCustomer(customerHighlightIndex);
+                    }
+                } else if (e.key === 'Escape') {
+                    dropdown.classList.add('hidden');
+                }
+            });
+        });
 
         // Close success modal
         function closeSuccessModal() {

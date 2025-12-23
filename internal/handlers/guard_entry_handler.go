@@ -148,3 +148,28 @@ func (h *GuardEntryHandler) GetMyStats(w http.ResponseWriter, r *http.Request) {
 		"processed": total - pending,
 	})
 }
+
+// DeleteGuardEntry handles DELETE /api/guard/entries/{id} - admin only
+func (h *GuardEntryHandler) DeleteGuardEntry(w http.ResponseWriter, r *http.Request) {
+	// Check if user is admin
+	role, ok := middleware.GetRoleFromContext(r.Context())
+	if !ok || role != "admin" {
+		http.Error(w, "Only admin can delete guard entries", http.StatusForbidden)
+		return
+	}
+
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid entry ID", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Service.DeleteGuardEntry(context.Background(), id); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"message": "Guard entry deleted"})
+}

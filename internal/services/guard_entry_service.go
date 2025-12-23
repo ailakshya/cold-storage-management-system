@@ -98,3 +98,8 @@ func (s *GuardEntryService) MarkAsProcessed(ctx context.Context, id int, process
 func (s *GuardEntryService) GetTodayCountByUser(ctx context.Context, userID int) (int, int, error) {
 	return s.GuardEntryRepo.GetTodayCountByUser(ctx, userID)
 }
+
+// DeleteGuardEntry deletes a guard entry (admin only)
+func (s *GuardEntryService) DeleteGuardEntry(ctx context.Context, id int) error {
+	return s.GuardEntryRepo.Delete(ctx, id)
+}

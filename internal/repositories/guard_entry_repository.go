@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"cold-backend/internal/models"
@@ -202,4 +203,56 @@ func (r *GuardEntryRepository) GetTodayCountByUser(ctx context.Context, userID i
 	var total, pending int
 	err := r.DB.QueryRow(ctx, query, userID).Scan(&total, &pending)
 	return total, pending, err
+}
+
+// Delete deletes a guard entry by ID
+func (r *GuardEntryRepository) Delete(ctx context.Context, id int) error {
+	query := `DELETE FROM guard_entries WHERE id = $1`
+	result, err := r.DB.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return errors.New("guard entry not found")
+	}
+	return nil
+}
+
+// SearchByPhone searches guard entries by phone number (fuzzy)
+func (r *GuardEntryRepository) SearchByPhone(ctx context.Context, phone string) ([]*models.GuardEntry, error) {
+	query := `
+		SELECT g.id, COALESCE(g.token_number, 0) as token_number,
+		       g.customer_name, COALESCE(g.so, '') as so, g.village, g.mobile, COALESCE(g.driver_no, '') as driver_no,
+		       g.arrival_time, COALESCE(g.seed_quantity, 0) as seed_quantity, COALESCE(g.sell_quantity, 0) as sell_quantity,
+		       COALESCE(g.remarks, '') as remarks, g.status,
+		       g.created_by_user_id, g.processed_by_user_id, g.processed_at,
+		       g.created_at, g.updated_at
+		FROM guard_entries g
+		WHERE g.mobile LIKE $1
+		ORDER BY g.created_at DESC
+		LIMIT 10
+	`
+	rows, err := r.DB.Query(ctx, query, "%"+phone+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []*models.GuardEntry
+	for rows.Next() {
+		var entry models.GuardEntry
+		err := rows.Scan(
+			&entry.ID, &entry.TokenNumber,
+			&entry.CustomerName, &entry.SO, &entry.Village, &entry.Mobile, &entry.DriverNo,
+			&entry.ArrivalTime, &entry.SeedQuantity, &entry.SellQuantity,
+			&entry.Remarks, &entry.Status,
+			&entry.CreatedByUserID, &entry.ProcessedByUserID, &entry.ProcessedAt,
+			&entry.CreatedAt, &entry.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, &entry)
+	}
+	return entries, nil
 }
