@@ -971,28 +971,40 @@
                     // Build separate buttons for seed and sell
                     let actionButtons = [];
 
-                    // Seed button - if has seed quantity and not yet processed
+                    // Seed section - if has seed quantity and not yet processed
                     if (entry.seed_quantity > 0 && !entry.seed_processed) {
                         actionButtons.push(`
-                            <button class="text-sm bg-green-200 px-3 py-1 border-2 border-black hover:bg-green-300 flex items-center gap-1"
-                                    onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'seed', ${entry.seed_quantity}, 0)">
-                                <i class="bi bi-flower1"></i> S:${entry.seed_quantity}
-                            </button>
+                            <div class="flex gap-1">
+                                <button class="text-sm bg-green-200 px-3 py-1 border-2 border-black hover:bg-green-300 flex items-center gap-1"
+                                        onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'seed', ${entry.seed_quantity}, 0)">
+                                    <i class="bi bi-flower1"></i> S:${entry.seed_quantity}
+                                </button>
+                                <button class="text-xs bg-green-500 text-white px-2 py-1 border border-black hover:bg-green-600"
+                                        onclick="event.stopPropagation(); markPortionDone(${entry.id}, 'seed')" title="Mark Seed Done">
+                                    ✓
+                                </button>
+                            </div>
                         `);
                     } else if (entry.seed_quantity > 0 && entry.seed_processed) {
                         actionButtons.push(`<span class="text-xs bg-green-500 text-white px-2 py-1 border border-black">S:${entry.seed_quantity} ✓</span>`);
                     }
 
-                    // Sell button - if has sell quantity and not yet processed
+                    // Sell section - if has sell quantity and not yet processed (RED color)
                     if (entry.sell_quantity > 0 && !entry.sell_processed) {
                         actionButtons.push(`
-                            <button class="text-sm bg-blue-200 px-3 py-1 border-2 border-black hover:bg-blue-300 flex items-center gap-1"
-                                    onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'sell', 0, ${entry.sell_quantity})">
-                                <i class="bi bi-shop"></i> B:${entry.sell_quantity}
-                            </button>
+                            <div class="flex gap-1">
+                                <button class="text-sm bg-red-200 px-3 py-1 border-2 border-black hover:bg-red-300 flex items-center gap-1"
+                                        onclick="event.stopPropagation(); selectGuardEntry(${entry.id}, '${entry.customer_name}', '${entry.so || ''}', '${entry.village}', '${entry.mobile}', 'sell', 0, ${entry.sell_quantity})">
+                                    <i class="bi bi-shop"></i> B:${entry.sell_quantity}
+                                </button>
+                                <button class="text-xs bg-red-500 text-white px-2 py-1 border border-black hover:bg-red-600"
+                                        onclick="event.stopPropagation(); markPortionDone(${entry.id}, 'sell')" title="Mark Sell Done">
+                                    ✓
+                                </button>
+                            </div>
                         `);
                     } else if (entry.sell_quantity > 0 && entry.sell_processed) {
-                        actionButtons.push(`<span class="text-xs bg-blue-500 text-white px-2 py-1 border border-black">B:${entry.sell_quantity} ✓</span>`);
+                        actionButtons.push(`<span class="text-xs bg-red-500 text-white px-2 py-1 border border-black">B:${entry.sell_quantity} ✓</span>`);
                     }
 
                     return `
@@ -1051,7 +1063,7 @@
             const formSection = document.getElementById('entryForm');
             formSection.style.backgroundColor = '#FEF3C7';
             const portionLabel = category === 'seed' ? 'SEED' : 'SELL';
-            const portionColor = category === 'seed' ? 'bg-green-200' : 'bg-blue-200';
+            const portionColor = category === 'seed' ? 'bg-green-200' : 'bg-red-200';
             formSection.querySelector('h2').innerHTML = `
                 <i class="bi bi-truck text-orange-600"></i>
                 <span data-i18n="processing_guard_entry">Processing Guard Entry</span>
@@ -1060,18 +1072,40 @@
             `;
         }
 
-        async function markGuardEntryProcessed() {
-            if (!selectedGuardEntry) return;
+        // Mark a portion (seed/sell) as done manually
+        async function markPortionDone(entryId, portion) {
+            const lang = localStorage.getItem('lang') || 'en';
+            const confirmMsg = lang === 'hi'
+                ? `क्या आप ${portion === 'seed' ? 'बीज' : 'बिक्री'} को पूर्ण के रूप में चिह्नित करना चाहते हैं?`
+                : `Mark ${portion.toUpperCase()} as done?`;
+
+            if (!confirm(confirmMsg)) return;
 
             try {
-                // Mark the specific portion as processed
-                const portion = selectedGuardPortion || 'seed';
-                await fetch(`/api/guard/entries/${selectedGuardEntry}/process/${portion}`, {
+                const res = await fetch(`/api/guard/entries/${entryId}/process/${portion}`, {
                     method: 'PUT',
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                selectedGuardEntry = null;
-                selectedGuardPortion = null;
+
+                if (!res.ok) {
+                    const error = await res.text();
+                    throw new Error(error);
+                }
+
+                // Reload guard entries
+                loadGuardEntries();
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function markGuardEntryProcessed() {
+            // Don't auto-mark, let user do it manually with ✓ button
+            if (!selectedGuardEntry) return;
+
+            // Just clear the selection, don't mark as processed
+            selectedGuardEntry = null;
+            selectedGuardPortion = null;
 
                 // Reset form styling
                 const formSection = document.getElementById('entryForm');
