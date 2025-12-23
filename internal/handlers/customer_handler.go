@@ -59,26 +59,31 @@ func (h *CustomerHandler) SearchByPhone(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// CRITICAL FIX: IDOR protection - only employees and admins can search customers
+	// IDOR protection - only employees, admins, accountants, and guards can search customers
 	role, ok := middleware.GetRoleFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized - role not found", http.StatusUnauthorized)
 		return
 	}
 
-	if role != "admin" && role != "employee" && role != "accountant" {
-		http.Error(w, "Forbidden - employee access required", http.StatusForbidden)
+	if role != "admin" && role != "employee" && role != "accountant" && role != "guard" {
+		http.Error(w, "Forbidden - access required", http.StatusForbidden)
 		return
 	}
 
-	customer, err := h.Service.SearchByPhone(context.Background(), phone)
+	// Use fuzzy search to return multiple matching customers
+	customers, err := h.Service.FuzzySearchByPhone(context.Background(), phone)
 	if err != nil {
-		http.Error(w, "Customer not found", http.StatusNotFound)
-		return
+		// Return empty array instead of error
+		customers = []*models.Customer{}
+	}
+
+	if customers == nil {
+		customers = []*models.Customer{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(customer)
+	json.NewEncoder(w).Encode(customers)
 }
 
 func (h *CustomerHandler) ListCustomers(w http.ResponseWriter, r *http.Request) {

@@ -80,3 +80,30 @@ func (r *CustomerRepository) Delete(ctx context.Context, id int) error {
 	_, err := r.DB.Exec(ctx, `DELETE FROM customers WHERE id=$1`, id)
 	return err
 }
+
+// FuzzySearchByPhone searches customers by phone number (fuzzy match)
+func (r *CustomerRepository) FuzzySearchByPhone(ctx context.Context, phone string) ([]*models.Customer, error) {
+	rows, err := r.DB.Query(ctx,
+		`SELECT id, name, phone, COALESCE(so, '') as so, village, address, created_at, updated_at
+         FROM customers
+         WHERE phone LIKE $1
+         ORDER BY created_at DESC
+         LIMIT 10`,
+		"%"+phone+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var customers []*models.Customer
+	for rows.Next() {
+		var customer models.Customer
+		err := rows.Scan(&customer.ID, &customer.Name, &customer.Phone, &customer.SO, &customer.Village,
+			&customer.Address, &customer.CreatedAt, &customer.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		customers = append(customers, &customer)
+	}
+	return customers, nil
+}

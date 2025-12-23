@@ -48,6 +48,14 @@ func (s *CustomerService) SearchByPhone(ctx context.Context, phone string) (*mod
 	return s.Repo.GetByPhone(ctx, phone)
 }
 
+// FuzzySearchByPhone searches customers by phone number (partial match)
+func (s *CustomerService) FuzzySearchByPhone(ctx context.Context, phone string) ([]*models.Customer, error) {
+	if phone == "" {
+		return nil, errors.New("phone number is required")
+	}
+	return s.Repo.FuzzySearchByPhone(ctx, phone)
+}
+
 func (s *CustomerService) ListCustomers(ctx context.Context) ([]*models.Customer, error) {
 	return s.Repo.List(ctx)
 }
