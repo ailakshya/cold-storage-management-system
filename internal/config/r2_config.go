@@ -16,6 +16,7 @@ const (
 var CommonPasswords = []string{
 	"SecurePostgresPassword123",
 	"postgres",
+	"", // Empty password - CNPG sometimes has no password set
 }
 
 // Database fallback configuration - will try all passwords for each host
