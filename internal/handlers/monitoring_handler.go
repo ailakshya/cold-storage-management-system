@@ -138,10 +138,11 @@ func runR2Backup() {
 	cleanupOldBackups(ctx, client)
 }
 
-// cleanupOldBackups deletes backups older than 3 days
+// cleanupOldBackups deletes backups older than 3 days and failed backups (< 1KB)
 func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 	maxAge := 3 * 24 * time.Hour
 	cutoff := time.Now().Add(-maxAge)
+	minValidSize := int64(1024) // 1KB minimum for valid backup
 
 	// List all backups
 	result, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
@@ -153,9 +154,25 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 		return
 	}
 
-	deleted := 0
+	deletedOld := 0
+	deletedFailed := 0
 	for _, obj := range result.Contents {
+		shouldDelete := false
+		reason := ""
+
+		// Delete old backups (> 3 days)
 		if obj.LastModified != nil && obj.LastModified.Before(cutoff) {
+			shouldDelete = true
+			reason = "older than 3 days"
+		}
+
+		// Delete failed/empty backups (< 1KB)
+		if obj.Size != nil && *obj.Size < minValidSize {
+			shouldDelete = true
+			reason = fmt.Sprintf("failed backup (%d bytes)", *obj.Size)
+		}
+
+		if shouldDelete {
 			_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
 				Bucket: aws.String(config.R2BucketName),
 				Key:    obj.Key,
@@ -163,13 +180,18 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 			if err != nil {
 				log.Printf("[R2 Cleanup] Failed to delete %s: %v", *obj.Key, err)
 			} else {
-				deleted++
+				if obj.Size != nil && *obj.Size < minValidSize {
+					deletedFailed++
+				} else {
+					deletedOld++
+				}
+				log.Printf("[R2 Cleanup] Deleted %s: %s", *obj.Key, reason)
 			}
 		}
 	}
 
-	if deleted > 0 {
-		log.Printf("[R2 Cleanup] Deleted %d backups older than 3 days", deleted)
+	if deletedOld > 0 || deletedFailed > 0 {
+		log.Printf("[R2 Cleanup] Deleted %d old backups, %d failed backups", deletedOld, deletedFailed)
 	}
 }
 
@@ -991,47 +1013,52 @@ func getR2StorageStatus(ctx context.Context) map[string]interface{} {
 		o.BaseEndpoint = aws.String(config.R2Endpoint)
 	})
 
-	// List objects in bucket
-	listResult, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	// Use paginator to handle >1000 objects
+	paginator := s3.NewListObjectsV2Paginator(client, &s3.ListObjectsV2Input{
 		Bucket: aws.String(config.R2BucketName),
 		Prefix: aws.String("base/"),
 	})
-	if err != nil {
-		result["connected"] = false
-		result["error"] = "Failed to list R2 bucket: " + err.Error()
-		return result
-	}
 
 	result["connected"] = true
 	result["error"] = ""
 
 	// Calculate total size and find latest backup
 	var totalSize int64
+	var totalCount int
 	var latestTime time.Time
 	var latestKey string
 	backups := []map[string]interface{}{}
+	ist, _ := time.LoadLocation("Asia/Kolkata")
 
-	for _, obj := range listResult.Contents {
-		if obj.Size != nil {
-			totalSize += *obj.Size
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			result["connected"] = false
+			result["error"] = "Failed to list R2 bucket: " + err.Error()
+			return result
 		}
-		if obj.LastModified != nil && obj.LastModified.After(latestTime) {
-			latestTime = *obj.LastModified
-			if obj.Key != nil {
-				latestKey = *obj.Key
+
+		for _, obj := range page.Contents {
+			totalCount++
+			if obj.Size != nil {
+				totalSize += *obj.Size
 			}
+			if obj.LastModified != nil && obj.LastModified.After(latestTime) {
+				latestTime = *obj.LastModified
+				if obj.Key != nil {
+					latestKey = *obj.Key
+				}
+			}
+			backups = append(backups, map[string]interface{}{
+				"key":           *obj.Key,
+				"size":          formatBytes(*obj.Size),
+				"size_bytes":    *obj.Size,
+				"last_modified": obj.LastModified.In(ist).Format("2006-01-02 15:04:05"),
+			})
 		}
-		// Convert to IST for display
-		ist, _ := time.LoadLocation("Asia/Kolkata")
-		backups = append(backups, map[string]interface{}{
-			"key":           *obj.Key,
-			"size":          formatBytes(*obj.Size),
-			"size_bytes":    *obj.Size,
-			"last_modified": obj.LastModified.In(ist).Format("2006-01-02 15:04:05"),
-		})
 	}
 
-	result["total_backups"] = len(listResult.Contents)
+	result["total_backups"] = totalCount
 	result["total_size"] = formatBytes(totalSize)
 	result["total_size_bytes"] = totalSize
 	result["backups"] = backups
