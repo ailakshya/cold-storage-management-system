@@ -132,14 +132,19 @@ func runR2Backup() {
 
 // createR2DatabaseBackup creates a SQL backup (standalone function for scheduler)
 func createR2DatabaseBackup(ctx context.Context) ([]byte, error) {
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable connect_timeout=10",
 		"192.168.15.200", 5432, "postgres", "SecurePostgresPassword123", "cold_db")
 
 	db, err := sql.Open("pgx", connStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect: %w", err)
+		return nil, fmt.Errorf("failed to open db: %w", err)
 	}
 	defer db.Close()
+
+	// Test connection
+	if err := db.PingContext(ctx); err != nil {
+		return nil, fmt.Errorf("failed to ping db: %w", err)
+	}
 
 	var buffer bytes.Buffer
 	buffer.WriteString("-- Cold Storage Database Backup\n")
@@ -151,18 +156,22 @@ func createR2DatabaseBackup(ctx context.Context) ([]byte, error) {
 		"gate_pass_pickups", "guard_entries", "token_colors", "season_requests",
 	}
 
+	tablesProcessed := 0
 	for _, table := range tables {
 		rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 			SELECT column_name FROM information_schema.columns
 			WHERE table_name = '%s' ORDER BY ordinal_position`, table))
 		if err != nil {
+			log.Printf("[R2 Backup] Warning: failed to get columns for %s: %v", table, err)
 			continue
 		}
 
 		buffer.WriteString(fmt.Sprintf("\n-- Table: %s\n", table))
+		tablesProcessed++
 
 		dataRows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %s", table))
 		if err != nil {
+			log.Printf("[R2 Backup] Warning: failed to query %s: %v", table, err)
 			rows.Close()
 			continue
 		}
@@ -205,6 +214,7 @@ func createR2DatabaseBackup(ctx context.Context) ([]byte, error) {
 		dataRows.Close()
 	}
 
+	log.Printf("[R2 Backup] Processed %d/%d tables, backup size: %s", tablesProcessed, len(tables), formatBytes(int64(buffer.Len())))
 	return buffer.Bytes(), nil
 }
 
@@ -1104,6 +1114,7 @@ func (h *MonitoringHandler) createDatabaseBackup(ctx context.Context) ([]byte, e
 		// Get data
 		dataRows, err := db.QueryContext(ctx, fmt.Sprintf("SELECT * FROM %s", table))
 		if err != nil {
+			log.Printf("[R2 Backup] Warning: failed to query %s: %v", table, err)
 			rows.Close()
 			continue
 		}
