@@ -15,6 +15,7 @@ const (
 // Common passwords to try (CNPG may reset password from secret)
 var CommonPasswords = []string{
 	"SecurePostgresPassword123",
+	"MetricsDB2025!", // Streaming replica on 195:5434
 	"postgres",
 	"", // Empty password - CNPG sometimes has no password set
 }
