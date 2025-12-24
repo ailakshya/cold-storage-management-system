@@ -128,6 +128,44 @@ func runR2Backup() {
 	}
 
 	log.Printf("[R2 Backup] Success: %s (%s)", backupKey, formatBytes(int64(len(backupData))))
+
+	// Cleanup old backups (older than 3 days)
+	cleanupOldBackups(ctx, client)
+}
+
+// cleanupOldBackups deletes backups older than 3 days
+func cleanupOldBackups(ctx context.Context, client *s3.Client) {
+	maxAge := 3 * 24 * time.Hour
+	cutoff := time.Now().Add(-maxAge)
+
+	// List all backups
+	result, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(config.R2BucketName),
+		Prefix: aws.String("base/"),
+	})
+	if err != nil {
+		log.Printf("[R2 Cleanup] Failed to list backups: %v", err)
+		return
+	}
+
+	deleted := 0
+	for _, obj := range result.Contents {
+		if obj.LastModified != nil && obj.LastModified.Before(cutoff) {
+			_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
+				Bucket: aws.String(config.R2BucketName),
+				Key:    obj.Key,
+			})
+			if err != nil {
+				log.Printf("[R2 Cleanup] Failed to delete %s: %v", *obj.Key, err)
+			} else {
+				deleted++
+			}
+		}
+	}
+
+	if deleted > 0 {
+		log.Printf("[R2 Cleanup] Deleted %d backups older than 3 days", deleted)
+	}
 }
 
 // createR2DatabaseBackup creates a SQL backup (standalone function for scheduler)
