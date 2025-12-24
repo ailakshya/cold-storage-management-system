@@ -10,9 +10,14 @@ import (
 	"strconv"
 	"time"
 
+	"cold-backend/internal/config"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gorilla/mux"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -656,6 +661,37 @@ func (h *MonitoringHandler) GetBackupDBStatus(w http.ResponseWriter, r *http.Req
 }
 
 // ======================================
+// R2 Cloud Storage Status
+// ======================================
+
+// GetR2Status returns Cloudflare R2 storage status and backup information
+func (h *MonitoringHandler) GetR2Status(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	response := map[string]interface{}{
+		"connected":     false,
+		"endpoint":      "Cloudflare R2",
+		"bucket":        "cold-db-backups",
+		"total_backups": 0,
+		"total_size":    "0 B",
+		"last_backup":   "Never",
+		"backups":       []interface{}{},
+		"error":         "",
+	}
+
+	// Get R2 status from setup handler (reuse the same S3 client logic)
+	r2Status := getR2StorageStatus(ctx)
+	if r2Status != nil {
+		for k, v := range r2Status {
+			response[k] = v
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// ======================================
 // Helper Functions
 // ======================================
 
@@ -697,4 +733,97 @@ func parseDuration(s string, defaultDuration time.Duration) time.Duration {
 	}
 
 	return defaultDuration
+}
+
+// getR2StorageStatus fetches R2 storage status and backup list
+func getR2StorageStatus(ctx context.Context) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	// Create S3 client for R2
+	cfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			config.R2AccessKey,
+			config.R2SecretKey,
+			"",
+		)),
+		awsconfig.WithRegion(config.R2Region),
+	)
+	if err != nil {
+		result["connected"] = false
+		result["error"] = "Failed to configure R2 client: " + err.Error()
+		return result
+	}
+
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(config.R2Endpoint)
+	})
+
+	// List objects in bucket
+	listResult, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(config.R2BucketName),
+		Prefix: aws.String("base/"),
+	})
+	if err != nil {
+		result["connected"] = false
+		result["error"] = "Failed to list R2 bucket: " + err.Error()
+		return result
+	}
+
+	result["connected"] = true
+	result["error"] = ""
+
+	// Calculate total size and find latest backup
+	var totalSize int64
+	var latestTime time.Time
+	var latestKey string
+	backups := []map[string]interface{}{}
+
+	for _, obj := range listResult.Contents {
+		if obj.Size != nil {
+			totalSize += *obj.Size
+		}
+		if obj.LastModified != nil && obj.LastModified.After(latestTime) {
+			latestTime = *obj.LastModified
+			if obj.Key != nil {
+				latestKey = *obj.Key
+			}
+		}
+		backups = append(backups, map[string]interface{}{
+			"key":           *obj.Key,
+			"size":          formatBytes(*obj.Size),
+			"size_bytes":    *obj.Size,
+			"last_modified": obj.LastModified.Format(time.RFC3339),
+		})
+	}
+
+	result["total_backups"] = len(listResult.Contents)
+	result["total_size"] = formatBytes(totalSize)
+	result["total_size_bytes"] = totalSize
+	result["backups"] = backups
+
+	if !latestTime.IsZero() {
+		result["last_backup"] = latestTime.Format("2006-01-02 15:04:05")
+		result["last_backup_key"] = latestKey
+		result["last_backup_age"] = time.Since(latestTime).Round(time.Minute).String()
+	} else {
+		result["last_backup"] = "Never"
+		result["last_backup_key"] = ""
+		result["last_backup_age"] = "N/A"
+	}
+
+	return result
+}
+
+// formatBytes formats bytes to human readable string
+func formatBytes(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

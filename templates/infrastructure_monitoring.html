@@ -80,7 +80,7 @@
                 </div>
             </div>
             <div class="neu-border bg-white p-4">
-                <div class="text-sm text-gray-600 mb-2">Offsite Backup</div>
+                <div class="text-sm text-gray-600 mb-2">R2 Cloud</div>
                 <div id="offsiteStatusHeader" class="flex items-center gap-2">
                     <div class="w-4 h-4 rounded-full status-unknown pulse"></div>
                     <span class="font-bold">Checking...</span>
@@ -533,28 +533,31 @@
                 </div>
             </div>
 
-            <!-- Offsite Backup Monitoring -->
+            <!-- Cloudflare R2 Cloud Storage -->
             <div class="neu-border bg-orange-50 p-4 mb-4">
                 <h3 class="font-bold mb-3">
-                    <i class="bi bi-cloud-upload"></i> Offsite Backup (69.169.105.219)
+                    <i class="bi bi-cloud"></i> Cloudflare R2 Cloud Storage (Offsite)
                 </h3>
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
                     <div>
                         <div class="text-sm text-gray-600">Status</div>
-                        <div id="offsiteStatus" class="text-xl font-bold">--</div>
+                        <div id="r2Status" class="text-xl font-bold">--</div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Archive Size</div>
-                        <div id="offsiteSize" class="text-xl font-bold">--</div>
+                        <div class="text-sm text-gray-600">Total Size</div>
+                        <div id="r2Size" class="text-xl font-bold">--</div>
                     </div>
                     <div>
-                        <div class="text-sm text-gray-600">Total Snapshots</div>
-                        <div id="offsiteSnapshots" class="text-xl font-bold">--</div>
+                        <div class="text-sm text-gray-600">Total Backups</div>
+                        <div id="r2Backups" class="text-xl font-bold">--</div>
                     </div>
                     <div>
                         <div class="text-sm text-gray-600">Last Backup</div>
-                        <div id="offsiteLastBackup" class="text-xl font-bold">--</div>
+                        <div id="r2LastBackup" class="text-xl font-bold">--</div>
                     </div>
+                </div>
+                <div class="mt-3 text-xs text-gray-500">
+                    <i class="bi bi-info-circle"></i> Bucket: cold-db-backups | Region: auto
                 </div>
             </div>
 
@@ -1061,19 +1064,6 @@
                 document.getElementById('nasSnapshots').textContent = data.nas_snapshots || '0';
                 document.getElementById('nasOldest').textContent = data.nas_oldest || 'N/A';
 
-                // Offsite Backup monitoring (69.169.105.219)
-                const offsiteReachable = data.offsite_reachable || false;
-                document.getElementById('offsiteStatus').innerHTML = offsiteReachable
-                    ? '<span class="text-green-600">Online</span>'
-                    : '<span class="text-red-600">Offline</span>';
-                document.getElementById('offsiteSize').textContent = data.offsite_size || '0';
-                document.getElementById('offsiteSnapshots').textContent = data.offsite_snapshots || '0';
-                document.getElementById('offsiteLastBackup').textContent = data.offsite_last_backup || 'Never';
-
-                // Update header status for offsite
-                updateStatus('offsiteStatusHeader', offsiteReachable ? 'healthy' : 'critical',
-                    offsiteReachable ? `${data.offsite_snapshots || 0} snapshots` : 'Unreachable');
-
                 // Load current backup schedule
                 if (data.backup_schedule) {
                     document.getElementById('backupFrequency').value = data.backup_schedule;
@@ -1419,6 +1409,37 @@
             }
         }
 
+        async function checkR2Storage() {
+            try {
+                const response = await fetch('/api/monitoring/r2-status', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.connected) {
+                    document.getElementById('r2Status').innerHTML = '<span class="text-green-600">Connected</span>';
+                    document.getElementById('r2Size').textContent = data.total_size || '0 B';
+                    document.getElementById('r2Backups').textContent = data.total_backups || '0';
+                    document.getElementById('r2LastBackup').textContent = data.last_backup || 'Never';
+
+                    // Update header status
+                    updateStatus('offsiteStatusHeader', 'healthy', `${data.total_backups} backups`);
+                } else {
+                    document.getElementById('r2Status').innerHTML = '<span class="text-red-600">Disconnected</span>';
+                    document.getElementById('r2Size').textContent = '--';
+                    document.getElementById('r2Backups').textContent = '--';
+                    document.getElementById('r2LastBackup').textContent = '--';
+
+                    // Update header status
+                    updateStatus('offsiteStatusHeader', 'critical', data.error || 'Connection failed');
+                }
+            } catch (error) {
+                console.error('R2 check failed:', error);
+                document.getElementById('r2Status').innerHTML = '<span class="text-red-600">Error</span>';
+                updateStatus('offsiteStatusHeader', 'critical', 'Error');
+            }
+        }
+
         function refreshAll() {
             checkK3sCluster();
             checkPostgreSQL();
@@ -1426,6 +1447,7 @@
             checkVIP();
             checkBackupServer();
             checkBackendPods();
+            checkR2Storage();
             updateNodeCharts();
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
