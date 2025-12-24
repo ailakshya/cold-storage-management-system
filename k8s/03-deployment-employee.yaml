@@ -60,13 +60,13 @@ spec:
               name: cold-backend-secret
               key: jwt-secret
         - name: METRICS_DB_HOST
-          value: "timescaledb.default.svc.cluster.local"
+          value: "192.168.15.210"
         - name: METRICS_DB_PORT
           value: "5432"
         - name: METRICS_DB_USER
           value: "metrics"
         - name: METRICS_DB_PASSWORD
-          value: "MetricsDB2025Pass"
+          value: "MetricsDB2025!"
         - name: METRICS_DB_NAME
           value: "metrics_db"
         volumeMounts:

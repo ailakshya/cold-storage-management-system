@@ -78,9 +78,10 @@ func (h *InfrastructureHandler) GetBackupStatus(w http.ResponseWriter, r *http.R
 	}
 
 	// Fetch metrics from backup server with shorter timeout
-	client := &http.Client{Timeout: 5 * time.Second}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Get("http://192.168.15.195:9100/metrics")
 	if err != nil {
+		log.Printf("[BackupStatus] Failed to connect to 192.168.15.195:9100: %v", err)
 		// Return cached data if available, even if stale
 		if h.backupStatusCache != nil {
 			w.Header().Set("Content-Type", "application/json")
@@ -90,7 +91,8 @@ func (h *InfrastructureHandler) GetBackupStatus(w http.ResponseWriter, r *http.R
 		}
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error": "Failed to connect to backup server",
+			"error":   "Failed to connect to backup server",
+			"details": err.Error(),
 		})
 		return
 	}
