@@ -53,8 +53,18 @@ func Load() *Config {
 	// Auto bind environment variables
 	v.AutomaticEnv()
 
+	// Set sensible defaults (binary works without config file)
+	v.SetDefault("server.port", 8080)
+	v.SetDefault("jwt.expiration_hours", 24)
+	v.SetDefault("jwt.issuer", "cold-backend")
+	v.SetDefault("database.host", "localhost")
+	v.SetDefault("database.port", 5432)
+	v.SetDefault("database.user", "postgres")
+	v.SetDefault("database.name", "cold_db")
+
+	// Config file is optional
 	if err := v.ReadInConfig(); err != nil {
-		log.Fatalf("config error: %v", err)
+		log.Printf("[Config] No config file found, using defaults")
 	}
 
 	var cfg Config

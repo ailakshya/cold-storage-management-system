@@ -20,6 +20,7 @@ var CommonPasswords = []string{
 }
 
 // Database fallback configuration - will try all passwords for each host
+// Order: K8s VIP -> Backup server -> Localhost (for disaster recovery)
 var DatabaseFallbacks = []DatabaseConfig{
 	{
 		Name:     "K8s Cluster (Primary)",
@@ -32,6 +33,13 @@ var DatabaseFallbacks = []DatabaseConfig{
 		Name:     "Local Backup (192.168.15.195)",
 		Host:     "192.168.15.195",
 		Port:     5434,
+		User:     "postgres",
+		Database: "cold_db",
+	},
+	{
+		Name:     "Localhost (Disaster Recovery)",
+		Host:     "localhost",
+		Port:     5432,
 		User:     "postgres",
 		Database: "cold_db",
 	},
