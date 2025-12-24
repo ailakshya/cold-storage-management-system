@@ -693,12 +693,12 @@
 
                             <div class="flex flex-col gap-2">
                                 ${customer.balance > 0 ? `
-                                    <button onclick="openPaymentModal(${index})" class="neu-button bg-green-500 text-white">
+                                    <button onclick="openPaymentModal('${customer.phone}')" class="neu-button bg-green-500 text-white">
                                         <i class="bi bi-cash"></i> Collect Payment
                                     </button>
                                 ` : ''}
-                                <button onclick="toggleThockList(${index})" class="neu-button bg-blue-500 text-white">
-                                    <i class="bi bi-list"></i> <span id="toggleText${index}">Show Thoks</span>
+                                <button onclick="toggleThockList('${customer.phone}')" class="neu-button bg-blue-500 text-white">
+                                    <i class="bi bi-list"></i> <span id="toggleText${customer.phone}">Show Thoks</span>
                                 </button>
                                 <button onclick="exportCustomerPDF('${customer.phone}')" class="neu-button bg-purple-500 text-white">
                                     <i class="bi bi-file-earmark-pdf"></i> Export PDF
@@ -707,7 +707,7 @@
                         </div>
 
                         <!-- Thok List and Payment History (Hidden by default) -->
-                        <div id="thockList${index}" class="truck-list mt-4">
+                        <div id="thockList${customer.phone}" class="truck-list mt-4">
                             <!-- Current Inventory Per Thok Section -->
                             ${hasOutgoing ? `
                                 <div class="mb-6 pb-6 border-b-4 border-blue-300">
@@ -854,9 +854,9 @@
             }).join('');
         }
 
-        function toggleThockList(index) {
-            const thockList = document.getElementById(`thockList${index}`);
-            const toggleText = document.getElementById(`toggleText${index}`);
+        function toggleThockList(phone) {
+            const thockList = document.getElementById(`thockList${phone}`);
+            const toggleText = document.getElementById(`toggleText${phone}`);
 
             if (thockList.classList.contains('expanded')) {
                 thockList.classList.remove('expanded');
@@ -952,8 +952,12 @@
             });
         }
 
-        function openPaymentModal(index) {
-            currentPaymentCustomer = allCustomerAccounts[index];
+        function openPaymentModal(phone) {
+            currentPaymentCustomer = allCustomerAccounts.find(c => c.phone === phone);
+            if (!currentPaymentCustomer) {
+                alert('Customer not found');
+                return;
+            }
 
             document.getElementById('paymentCustomerName').textContent = capitalizeText(currentPaymentCustomer.name);
             document.getElementById('paymentCustomerPhone').textContent = currentPaymentCustomer.phone;
