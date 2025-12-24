@@ -31,9 +31,9 @@ var DatabaseFallbacks = []DatabaseConfig{
 		Database: "cold_db",
 	},
 	{
-		Name:     "Local Backup (192.168.15.195)",
+		Name:     "Backup Server (192.168.15.195)",
 		Host:     "192.168.15.195",
-		Port:     5434,
+		Port:     5432,
 		User:     "postgres",
 		Database: "cold_db",
 	},
