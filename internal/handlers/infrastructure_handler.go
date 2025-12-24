@@ -13,7 +13,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -274,71 +273,79 @@ func (h *InfrastructureHandler) GetK3sStatus(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// GetPostgreSQLStatus returns PostgreSQL cluster health
+// Bare metal PostgreSQL node configuration
+type dbNode struct {
+	Name string
+	Host string
+	Port int
+}
+
+// getDBNodes returns the list of bare metal PostgreSQL nodes
+func getDBNodes() []dbNode {
+	return []dbNode{
+		{"db-node1", "192.168.15.120", 5432},
+		{"db-node2", "192.168.15.121", 5432},
+		{"db-node3", "192.168.15.122", 5432},
+	}
+}
+
+// getDBCredentials returns database credentials from config
+func getDBCredentials() (user, password, dbname string) {
+	// Use credentials from r2_config.go fallbacks
+	return "cold_user", "SecurePostgresPassword123", "cold_db"
+}
+
+// GetPostgreSQLStatus returns PostgreSQL cluster health (bare metal nodes)
 func (h *InfrastructureHandler) GetPostgreSQLStatus(w http.ResponseWriter, r *http.Request) {
-	cmd := exec.Command("kubectl", "get", "pods", "-l", "cnpg.io/cluster=cold-postgres", "-o", "json")
-	output, err := cmd.Output()
+	nodes := getDBNodes()
+	user, password, dbname := getDBCredentials()
 
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"healthy": false,
-			"message": "Failed to get PostgreSQL status",
-		})
-		return
-	}
-
-	// Parse pod status
-	var podData struct {
-		Items []struct {
-			Metadata struct {
-				Name   string            `json:"name"`
-				Labels map[string]string `json:"labels"`
-			} `json:"metadata"`
-			Status struct {
-				Phase string `json:"phase"`
-			} `json:"status"`
-		} `json:"items"`
-	}
-
-	if err := json.Unmarshal(output, &podData); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"healthy": false,
-			"message": "Failed to parse pod data",
-		})
-		return
-	}
-
-	// Find primary and count replicas (exclude Completed/Init pods)
 	var primary string
 	replicas := []string{}
 	runningCount := 0
-	activePods := 0
 
-	for _, pod := range podData.Items {
-		// Skip completed init/join jobs
-		if pod.Status.Phase == "Succeeded" || strings.Contains(pod.Metadata.Name, "-initdb") || strings.Contains(pod.Metadata.Name, "-join") {
+	for _, node := range nodes {
+		// Try to connect to each node
+		connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&connect_timeout=3",
+			user, url.QueryEscape(password), node.Host, node.Port, dbname)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		db, err := sql.Open("pgx", connStr)
+		if err != nil {
+			cancel()
 			continue
 		}
-		activePods++
 
-		if pod.Status.Phase == "Running" {
-			runningCount++
-			if pod.Metadata.Labels["role"] == "primary" {
-				primary = pod.Metadata.Name
-			} else {
-				replicas = append(replicas, pod.Metadata.Name)
-			}
+		if err := db.PingContext(ctx); err != nil {
+			db.Close()
+			cancel()
+			continue
+		}
+
+		// Check if primary or replica
+		var isInRecovery bool
+		err = db.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&isInRecovery)
+		db.Close()
+		cancel()
+
+		if err != nil {
+			continue
+		}
+
+		runningCount++
+		if !isInRecovery {
+			primary = node.Name
+		} else {
+			replicas = append(replicas, node.Name)
 		}
 	}
 
-	totalPods := activePods
-	healthy := runningCount == totalPods && totalPods > 0 && primary != ""
+	totalNodes := len(nodes)
+	healthy := runningCount == totalNodes && primary != ""
 
 	message := fmt.Sprintf("Primary + %d replicas", len(replicas))
 	if !healthy {
-		message = fmt.Sprintf("%d/%d pods running", runningCount, totalPods)
+		message = fmt.Sprintf("%d/%d nodes running", runningCount, totalNodes)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -347,123 +354,155 @@ func (h *InfrastructureHandler) GetPostgreSQLStatus(w http.ResponseWriter, r *ht
 		"message":  message,
 		"primary":  primary,
 		"replicas": replicas,
-		"total":    totalPods,
+		"total":    totalNodes,
 		"running":  runningCount,
 	})
 }
 
-// GetPostgreSQLPods returns detailed PostgreSQL pod metrics
+// GetPostgreSQLPods returns detailed PostgreSQL node metrics (bare metal)
 func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http.Request) {
-	cmd := exec.Command("kubectl", "get", "pods", "-l", "cnpg.io/cluster=cold-postgres", "-o", "json")
-	output, err := cmd.Output()
+	nodes := getDBNodes()
+	user, password, dbname := getDBCredentials()
 
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"pods": []map[string]interface{}{},
-		})
-		return
-	}
-
-	// Parse pod data
-	var podData struct {
-		Items []struct {
-			Metadata struct {
-				Name   string            `json:"name"`
-				Labels map[string]string `json:"labels"`
-			} `json:"metadata"`
-			Status struct {
-				Phase string `json:"phase"`
-			} `json:"status"`
-			Spec struct {
-				NodeName string `json:"nodeName"`
-			} `json:"spec"`
-		} `json:"items"`
-	}
-
-	if err := json.Unmarshal(output, &podData); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"pods": []map[string]interface{}{},
-		})
-		return
-	}
-
-	// Build detailed pod list
 	pods := []map[string]interface{}{}
-	for _, pod := range podData.Items {
-		// Skip completed init/join jobs
-		if pod.Status.Phase == "Succeeded" || strings.Contains(pod.Metadata.Name, "-initdb") || strings.Contains(pod.Metadata.Name, "-join") {
-			continue
-		}
 
-		role := "Replica"
-		if pod.Metadata.Labels["role"] == "primary" {
-			role = "Primary"
-		}
-
+	for _, node := range nodes {
 		// Default values
 		dbSize := "N/A"
 		connections := "N/A"
 		lag := "N/A"
 		cacheHit := "N/A"
-		var syncPct float64 = -1 // -1 means N/A (primary), 0-100 for replicas
+		status := "Error"
+		role := "Unknown"
+		var syncPct float64 = -1
 
-		// Only run kubectl exec if pod is Running - use SINGLE combined query for speed
-		if pod.Status.Phase == "Running" {
-			// Combined query: db_size | connections | cache_hit | repl_lag | sync_pct (5 values separated by |)
-			combinedQuery := `SELECT
-				pg_size_pretty(pg_database_size('cold_db')) || '|' ||
-				(SELECT count(*) FROM pg_stat_activity WHERE datname = 'cold_db' AND pid <> pg_backend_pid()) || '|' ||
-				COALESCE(ROUND(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 1)::text || '%', 'N/A') || '|' ||
-				COALESCE(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::text, '0') || '|' ||
-				CASE
-					WHEN pg_is_in_recovery() = false THEN '-1'
-					WHEN pg_last_wal_receive_lsn() IS NULL THEN '0'
-					WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN '100'
-					ELSE ROUND((100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::numeric /
-						GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::numeric, 1) * 100))::numeric, 1)::text
-				END
-				FROM pg_stat_database WHERE datname = 'cold_db';`
+		// Connect to this node
+		connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&connect_timeout=3",
+			user, url.QueryEscape(password), node.Host, node.Port, dbname)
 
-			cmd := exec.Command("kubectl", "exec", pod.Metadata.Name, "--", "psql", "-U", "postgres", "-d", "cold_db", "-t", "-c", combinedQuery)
-			if output, err := cmd.Output(); err == nil {
-				parts := strings.Split(strings.TrimSpace(string(output)), "|")
-				if len(parts) >= 5 {
-					dbSize = strings.TrimSpace(parts[0])
-					connections = strings.TrimSpace(parts[1])
-					cacheHit = strings.TrimSpace(parts[2])
-					// Parse replication lag
-					if role == "Replica" {
-						if l := strings.TrimSpace(parts[3]); l != "" {
-							if bytes, err := strconv.ParseFloat(l, 64); err == nil {
-								if bytes == 0 {
-									lag = "0"
-								} else if bytes < 1024 {
-									lag = fmt.Sprintf("%.0f B", bytes)
-								} else if bytes < 1024*1024 {
-									lag = fmt.Sprintf("%.1f KB", bytes/1024)
-								} else {
-									lag = fmt.Sprintf("%.1f MB", bytes/(1024*1024))
-								}
-							}
-						}
-					}
-					// Parse sync percentage
-					if sp := strings.TrimSpace(parts[4]); sp != "" {
-						if pct, err := strconv.ParseFloat(sp, 64); err == nil {
-							syncPct = pct
-						}
-					}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		db, err := sql.Open("pgx", connStr)
+		if err != nil {
+			cancel()
+			pods = append(pods, map[string]interface{}{
+				"name":        node.Name,
+				"role":        role,
+				"status":      status,
+				"node":        node.Host,
+				"disk_used":   dbSize,
+				"connections": connections,
+				"max_conn":    200,
+				"repl_lag":    lag,
+				"cache_hit":   cacheHit,
+				"sync_pct":    syncPct,
+				"is_external": false,
+			})
+			continue
+		}
+
+		if err := db.PingContext(ctx); err != nil {
+			db.Close()
+			cancel()
+			pods = append(pods, map[string]interface{}{
+				"name":        node.Name,
+				"role":        role,
+				"status":      status,
+				"node":        node.Host,
+				"disk_used":   dbSize,
+				"connections": connections,
+				"max_conn":    200,
+				"repl_lag":    lag,
+				"cache_hit":   cacheHit,
+				"sync_pct":    syncPct,
+				"is_external": false,
+			})
+			continue
+		}
+
+		status = "Running"
+
+		// Check if primary or replica
+		var isInRecovery bool
+		err = db.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&isInRecovery)
+		if err == nil {
+			if isInRecovery {
+				role = "Replica"
+			} else {
+				role = "Primary"
+				syncPct = -1 // Primary doesn't have sync percentage
+			}
+		}
+
+		// Get database size
+		var size sql.NullString
+		err = db.QueryRowContext(ctx, "SELECT pg_size_pretty(pg_database_size('cold_db'))").Scan(&size)
+		if err == nil && size.Valid {
+			dbSize = size.String
+		}
+
+		// Get active connections
+		var connCount sql.NullInt64
+		err = db.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'cold_db' AND pid <> pg_backend_pid()").Scan(&connCount)
+		if err == nil && connCount.Valid {
+			connections = fmt.Sprintf("%d", connCount.Int64)
+		}
+
+		// Get cache hit ratio
+		var cache sql.NullString
+		err = db.QueryRowContext(ctx, `
+			SELECT COALESCE(
+				ROUND(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 1)::text || '%',
+				'N/A'
+			) FROM pg_stat_database WHERE datname = 'cold_db'
+		`).Scan(&cache)
+		if err == nil && cache.Valid && cache.String != "%" {
+			cacheHit = cache.String
+		}
+
+		// Get replication lag for replicas
+		if role == "Replica" {
+			var lagBytes sql.NullFloat64
+			err = db.QueryRowContext(ctx, `
+				SELECT COALESCE(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn()), 0)::float
+			`).Scan(&lagBytes)
+			if err == nil && lagBytes.Valid {
+				if lagBytes.Float64 == 0 {
+					lag = "0"
+					syncPct = 100
+				} else if lagBytes.Float64 < 1024 {
+					lag = fmt.Sprintf("%.0f B", lagBytes.Float64)
+				} else if lagBytes.Float64 < 1024*1024 {
+					lag = fmt.Sprintf("%.1f KB", lagBytes.Float64/1024)
+				} else {
+					lag = fmt.Sprintf("%.1f MB", lagBytes.Float64/(1024*1024))
+				}
+			}
+
+			// Get sync percentage if not already 100
+			if syncPct != 100 {
+				var pct sql.NullFloat64
+				err = db.QueryRowContext(ctx, `
+					SELECT CASE
+						WHEN pg_last_wal_receive_lsn() IS NULL THEN 0
+						WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 100
+						ELSE ROUND((100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::numeric /
+							GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::numeric, 1) * 100))::numeric, 1)
+					END
+				`).Scan(&pct)
+				if err == nil && pct.Valid {
+					syncPct = pct.Float64
 				}
 			}
 		}
 
+		db.Close()
+		cancel()
+
 		pods = append(pods, map[string]interface{}{
-			"name":        pod.Metadata.Name,
+			"name":        node.Name,
 			"role":        role,
-			"status":      pod.Status.Phase,
-			"node":        pod.Spec.NodeName,
+			"status":      status,
+			"node":        node.Host,
 			"disk_used":   dbSize,
 			"connections": connections,
 			"max_conn":    200,
@@ -474,7 +513,7 @@ func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http
 		})
 	}
 
-	// Add external metrics database (192.168.15.195)
+	// Add external backup database (192.168.15.195)
 	metricsDBPod := h.getMetricsDBStatus()
 	if metricsDBPod != nil {
 		pods = append(pods, metricsDBPod)
@@ -486,10 +525,10 @@ func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http
 	})
 }
 
-// getMetricsDBStatus returns status of the external streaming replica on 192.168.15.195
+// getMetricsDBStatus returns status of the backup database on 192.168.15.195
 func (h *InfrastructureHandler) getMetricsDBStatus() map[string]interface{} {
 	host := "192.168.15.195"
-	port := "5434" // Streaming replica of K8s cluster
+	port := "5432" // Backup database server
 
 	// Default values
 	dbSize := "N/A"
@@ -617,7 +656,7 @@ func (h *InfrastructureHandler) getMetricsDBStatus() map[string]interface{} {
 
 func (h *InfrastructureHandler) buildMetricsDBResponse(host, port, dbSize, connections, cacheHit, replLag, status, role string, syncPct float64) map[string]interface{} {
 	return map[string]interface{}{
-		"name":        "streaming-replica (192.168.15.195)",
+		"name":        "backup-server (192.168.15.195)",
 		"role":        role,
 		"status":      status,
 		"node":        host + ":" + port,

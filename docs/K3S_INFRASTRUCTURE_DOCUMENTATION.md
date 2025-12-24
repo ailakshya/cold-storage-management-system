@@ -713,5 +713,5 @@ kubectl rollout restart deployment/cold-backend-customer
 ---
 
 **Last Updated:** December 24, 2025
-**Version:** v1.5.155 (Bare Metal PostgreSQL Migration)
+**Version:** v1.5.172 (Monitoring Dashboard Fix)
 **Maintained By:** Lakshya (M.Tech CSE AI&ML)

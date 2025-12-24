@@ -554,13 +554,13 @@ func (h *MonitoringHandler) GetLatestPostgresMetrics(w http.ResponseWriter, r *h
 	})
 }
 
-// getMetricsDBMetrics queries the external metrics database on 192.168.15.195
+// getMetricsDBMetrics queries the backup database on 192.168.15.195
 func (h *MonitoringHandler) getMetricsDBMetrics() *models.PostgresMetrics {
 	host := "192.168.15.195"
-	port := "5434" // Streaming replica of K8s cluster
+	port := "5432" // Backup database server
 
-	// Connect to streaming replica
-	connStr := fmt.Sprintf("host=%s port=%s user=postgres password=postgres dbname=cold_db sslmode=disable connect_timeout=5", host, port)
+	// Use proper credentials
+	connStr := fmt.Sprintf("host=%s port=%s user=postgres password=SecurePostgresPassword123 dbname=cold_db sslmode=disable connect_timeout=5", host, port)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -572,7 +572,7 @@ func (h *MonitoringHandler) getMetricsDBMetrics() *models.PostgresMetrics {
 
 	metrics := &models.PostgresMetrics{
 		Time:           time.Now(),
-		PodName:        "streaming-replica (192.168.15.195)",
+		PodName:        "backup-server (192.168.15.195)",
 		NodeName:       host,
 		Role:           "Unknown",
 		Status:         "Running",
@@ -605,7 +605,7 @@ func (h *MonitoringHandler) getMetricsDBMetrics() *models.PostgresMetrics {
 
 	// Get database size
 	var sizeBytes sql.NullInt64
-	err = db.QueryRowContext(ctx, "SELECT pg_database_size('metrics_db')").Scan(&sizeBytes)
+	err = db.QueryRowContext(ctx, "SELECT pg_database_size('cold_db')").Scan(&sizeBytes)
 	if err != nil {
 		metrics.Status = "Error"
 		return metrics
@@ -616,14 +616,14 @@ func (h *MonitoringHandler) getMetricsDBMetrics() *models.PostgresMetrics {
 
 	// Get active connections
 	var activeConn sql.NullInt64
-	err = db.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'metrics_db' AND state = 'active'").Scan(&activeConn)
+	err = db.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'cold_db' AND state = 'active'").Scan(&activeConn)
 	if err == nil && activeConn.Valid {
 		metrics.ActiveConnections = int(activeConn.Int64)
 	}
 
 	// Get total connections
 	var totalConn sql.NullInt64
-	err = db.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'metrics_db'").Scan(&totalConn)
+	err = db.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'cold_db'").Scan(&totalConn)
 	if err == nil && totalConn.Valid {
 		metrics.TotalConnections = int(totalConn.Int64)
 	}
@@ -634,7 +634,7 @@ func (h *MonitoringHandler) getMetricsDBMetrics() *models.PostgresMetrics {
 		SELECT COALESCE(
 			100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0),
 			100.0
-		) FROM pg_stat_database WHERE datname = 'metrics_db'
+		) FROM pg_stat_database WHERE datname = 'cold_db'
 	`).Scan(&cacheRatio)
 	if err == nil && cacheRatio.Valid {
 		metrics.CacheHitRatio = cacheRatio.Float64
