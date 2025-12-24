@@ -677,9 +677,9 @@
 
         // ==================== DAILY SUMMARY FUNCTIONS ====================
 
-        // Set default date to today
+        // Set default date to today (using IST timezone)
         function setDefaultSummaryDate() {
-            const today = new Date().toISOString().split('T')[0];
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
             const dateInput = document.getElementById('summaryDate');
             if (dateInput) {
                 dateInput.value = today;
@@ -705,10 +705,10 @@
             }
         }
 
-        // Filter entries by date
+        // Filter entries by date (using IST timezone)
         function filterEntriesByDate(entries, date) {
             return (entries || []).filter(e => {
-                const entryDate = new Date(e.created_at).toISOString().split('T')[0];
+                const entryDate = new Date(e.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
                 return entryDate === date;
             });
         }

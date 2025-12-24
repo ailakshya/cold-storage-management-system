@@ -246,12 +246,12 @@
                 const entries = await entriesRes.json();
                 const roomEntries = await roomEntriesRes.json();
 
-                // Calculate today's date (use local timezone)
-                const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format in local timezone
+                // Calculate today's date (using IST timezone)
+                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
                 // Filter entries created by current employee today
                 const myEntriesToday = entries.filter(e => {
-                    const entryDate = new Date(e.created_at).toLocaleDateString('en-CA'); // Local timezone
+                    const entryDate = new Date(e.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
                     return entryDate === today && e.created_by_user_id === currentUser.id;
                 });
 
@@ -259,7 +259,7 @@
 
                 // Filter today's room entries
                 const todayRoomEntries = roomEntries.filter(r => {
-                    const roomDate = new Date(r.created_at).toLocaleDateString('en-CA');
+                    const roomDate = new Date(r.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
                     return roomDate === today;
                 });
 

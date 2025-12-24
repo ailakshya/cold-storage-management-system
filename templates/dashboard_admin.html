@@ -339,16 +339,16 @@
                 document.getElementById('totalEntries').textContent = entries.length || 0;
                 document.getElementById('totalRoomEntries').textContent = roomEntries.length || 0;
 
-                // Calculate Today's Summary
-                const today = new Date().toISOString().split('T')[0];
+                // Calculate Today's Summary (using IST timezone)
+                const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
                 const todayEntries = entries.filter(e => {
-                    const entryDate = new Date(e.created_at).toISOString().split('T')[0];
+                    const entryDate = new Date(e.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
                     return entryDate === today;
                 });
 
                 const todayRoomEntries = roomEntries.filter(r => {
-                    const roomDate = new Date(r.created_at).toISOString().split('T')[0];
+                    const roomDate = new Date(r.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
                     return roomDate === today;
                 });
 

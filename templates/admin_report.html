@@ -598,8 +598,8 @@
                 totals.totalEdits += d.totalEdits;
             });
 
-            // Get today's quantity
-            const today = new Date().toISOString().split('T')[0];
+            // Get today's quantity (using IST timezone)
+            const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
             const todayStats = stats[today] || { quantity: 0 };
 
             document.getElementById('statEntries').textContent = totals.entries;
