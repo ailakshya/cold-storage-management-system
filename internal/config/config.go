@@ -1,9 +1,16 @@
 package config
 
 import (
+	"context"
+	"io"
 	"log"
 	"os"
+	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
 )
@@ -76,7 +83,13 @@ func Load() *Config {
 	if cfg.JWT.Secret == "" || cfg.JWT.Secret == "${JWT_SECRET}" {
 		cfg.JWT.Secret = os.Getenv("JWT_SECRET")
 		if cfg.JWT.Secret == "" {
-			log.Fatal("JWT_SECRET environment variable is required")
+			// Try to fetch from R2 backup (disaster recovery)
+			log.Printf("[Config] JWT_SECRET not set, fetching from R2 backup...")
+			cfg.JWT.Secret = fetchJWTSecretFromR2()
+			if cfg.JWT.Secret == "" {
+				log.Fatal("JWT_SECRET not found in environment or R2 backup")
+			}
+			log.Printf("[Config] JWT secret loaded from R2 backup")
 		}
 	}
 
@@ -88,4 +101,45 @@ func Load() *Config {
 	}
 
 	return &cfg
+}
+
+// fetchJWTSecretFromR2 fetches JWT secret from R2 backup for disaster recovery
+func fetchJWTSecretFromR2() string {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			R2AccessKey,
+			R2SecretKey,
+			"",
+		)),
+		awsconfig.WithRegion(R2Region),
+	)
+	if err != nil {
+		log.Printf("[Config] Failed to configure R2 client: %v", err)
+		return ""
+	}
+
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(R2Endpoint)
+	})
+
+	result, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(R2BucketName),
+		Key:    aws.String("config/jwt_secret.txt"),
+	})
+	if err != nil {
+		log.Printf("[Config] Failed to fetch JWT secret from R2: %v", err)
+		return ""
+	}
+	defer result.Body.Close()
+
+	secret, err := io.ReadAll(result.Body)
+	if err != nil {
+		log.Printf("[Config] Failed to read JWT secret: %v", err)
+		return ""
+	}
+
+	return string(secret)
 }

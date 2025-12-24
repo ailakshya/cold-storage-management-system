@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -133,6 +134,22 @@ func runR2Backup() {
 	}
 
 	log.Printf("[R2 Backup] Success: %s (%s)", backupKey, formatBytes(int64(len(backupData))))
+
+	// Also backup JWT secret for disaster recovery
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret != "" {
+		_, err = client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket:      aws.String(config.R2BucketName),
+			Key:         aws.String("config/jwt_secret.txt"),
+			Body:        bytes.NewReader([]byte(jwtSecret)),
+			ContentType: aws.String("text/plain"),
+		})
+		if err != nil {
+			log.Printf("[R2 Backup] Warning: Failed to backup JWT secret: %v", err)
+		} else {
+			log.Printf("[R2 Backup] JWT secret backed up for disaster recovery")
+		}
+	}
 
 	// Cleanup old backups (older than 3 days)
 	cleanupOldBackups(ctx, client)
