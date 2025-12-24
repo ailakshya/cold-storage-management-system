@@ -66,7 +66,7 @@ spec:
         - name: METRICS_DB_USER
           value: "metrics"
         - name: METRICS_DB_PASSWORD
-          value: "MetricsDB2025!"
+          value: "MetricsDB2025"
         - name: METRICS_DB_NAME
           value: "metrics_db"
         volumeMounts:
