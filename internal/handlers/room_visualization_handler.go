@@ -123,7 +123,6 @@ func (h *RoomVisualizationHandler) GetRoomStats(w http.ResponseWriter, r *http.R
 			SUM(quantity) as total_qty,
 			COUNT(DISTINCT entry_id) as entry_count
 		FROM room_entries
-		WHERE deleted_at IS NULL
 		GROUP BY room_no, floor
 		ORDER BY room_no, floor
 	`
@@ -262,7 +261,6 @@ func (h *RoomVisualizationHandler) GetGatarOccupancy(w http.ResponseWriter, r *h
 		LEFT JOIN entries e ON re.entry_id = e.id
 		WHERE re.room_no = $1
 		  AND re.floor = $2
-		  AND re.deleted_at IS NULL
 		ORDER BY re.gate_no, re.created_at DESC
 	`
 
@@ -356,8 +354,7 @@ func (h *RoomVisualizationHandler) GetGatarDetails(w http.ResponseWriter, r *htt
 		FROM room_entries re
 		LEFT JOIN entries e ON re.entry_id = e.id
 		LEFT JOIN customers c ON e.customer_id = c.id
-		WHERE re.deleted_at IS NULL
-		  AND (re.gate_no = $1 OR re.gate_no LIKE '%' || $1 || '%')
+		WHERE re.gate_no = $1 OR re.gate_no LIKE '%' || $1 || '%'
 		ORDER BY re.created_at DESC
 	`
 
