@@ -165,6 +165,11 @@ func (h *PageHandler) MonitoringDashboardPage(w http.ResponseWriter, r *http.Req
 	h.templates.ExecuteTemplate(w, "monitoring_dashboard.html", nil)
 }
 
+// RoomVisualizationPage serves the room visualization page for storage occupancy
+func (h *PageHandler) RoomVisualizationPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "room_visualization.html", nil)
+}
+
 // CustomerPDFExportPage serves the customer PDF export page
 func (h *PageHandler) CustomerPDFExportPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "customer_pdf_export.html", nil)

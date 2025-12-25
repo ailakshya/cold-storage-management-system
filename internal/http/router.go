@@ -37,6 +37,7 @@ func NewRouter(
 	reportHandler *handlers.ReportHandler,
 	accountHandler *handlers.AccountHandler,
 	entryRoomHandler *handlers.EntryRoomHandler,
+	roomVisualizationHandler *handlers.RoomVisualizationHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -94,6 +95,7 @@ func NewRouter(
 	r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
 	r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
+	r.HandleFunc("/room-visualization", pageHandler.RoomVisualizationPage).Methods("GET")
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 	r.HandleFunc("/customer-edit", pageHandler.CustomerEditPage).Methods("GET")
 
@@ -466,6 +468,16 @@ func NewRouter(
 		entryRoomAPI.Use(authMiddleware.Authenticate)
 		entryRoomAPI.HandleFunc("/summary", entryRoomHandler.GetSummary).Methods("GET")
 		entryRoomAPI.HandleFunc("/since", entryRoomHandler.GetDelta).Methods("GET")
+	}
+
+	// Protected API routes - Room Visualization (admin only)
+	if roomVisualizationHandler != nil {
+		vizAPI := r.PathPrefix("/api/room-visualization").Subrouter()
+		vizAPI.Use(authMiddleware.Authenticate)
+		vizAPI.Use(authMiddleware.RequireRole("admin"))
+		vizAPI.HandleFunc("/stats", roomVisualizationHandler.GetRoomStats).Methods("GET")
+		vizAPI.HandleFunc("/gatar", roomVisualizationHandler.GetGatarOccupancy).Methods("GET")
+		vizAPI.HandleFunc("/gatar-details", roomVisualizationHandler.GetGatarDetails).Methods("GET")
 	}
 
 	// Health endpoints (basic health for K8s probes, detailed requires auth)
