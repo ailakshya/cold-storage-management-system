@@ -249,14 +249,15 @@ func (h *RoomVisualizationHandler) GetGatarOccupancy(w http.ResponseWriter, r *h
 		return
 	}
 
-	// Query to get items in each gatar
+	// Query to get items in each gatar (including quantity_breakdown for accurate distribution)
 	query := `
 		SELECT
 			re.gate_no,
 			re.thock_number,
 			re.quantity,
 			COALESCE(e.remark, '') as variety,
-			re.entry_id
+			re.entry_id,
+			COALESCE(re.quantity_breakdown, '') as quantity_breakdown
 		FROM room_entries re
 		LEFT JOIN entries e ON re.entry_id = e.id
 		WHERE re.room_no = $1
@@ -276,31 +277,56 @@ func (h *RoomVisualizationHandler) GetGatarOccupancy(w http.ResponseWriter, r *h
 	gatarTotals := make(map[string]int)
 
 	for rows.Next() {
-		var gateNo, thockNumber, variety string
+		var gateNo, thockNumber, variety, quantityBreakdown string
 		var quantity, entryID int
 
-		if err := rows.Scan(&gateNo, &thockNumber, &quantity, &variety, &entryID); err != nil {
+		if err := rows.Scan(&gateNo, &thockNumber, &quantity, &variety, &entryID, &quantityBreakdown); err != nil {
 			http.Error(w, "Failed to scan row: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 
-		// Handle comma-separated gate numbers (e.g., "1, 2, 3")
+		// Parse gate numbers (comma-separated, e.g., "112, 114, 129, 131")
 		gateNos := strings.Split(gateNo, ",")
+		var cleanGatars []string
 		for _, g := range gateNos {
 			g = strings.TrimSpace(g)
-			if g == "" {
-				continue
+			if g != "" {
+				cleanGatars = append(cleanGatars, g)
 			}
+		}
+
+		if len(cleanGatars) == 0 {
+			continue
+		}
+
+		// Parse quantity_breakdown (comma-separated, e.g., "25, 24, 24, 24, 16, 21")
+		var breakdownValues []int
+		if quantityBreakdown != "" {
+			parts := strings.Split(quantityBreakdown, ",")
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if val, err := strconv.Atoi(p); err == nil {
+					breakdownValues = append(breakdownValues, val)
+				}
+			}
+		}
+
+		// Calculate per-gatar quantity distribution
+		gatarQuantities := distributeQuantity(quantity, cleanGatars, breakdownValues)
+
+		// Add items to each gatar with their distributed quantity
+		for i, g := range cleanGatars {
+			perGatarQty := gatarQuantities[i]
 
 			item := GatarItem{
 				ThockNumber: thockNumber,
-				Quantity:    quantity,
+				Quantity:    perGatarQty,
 				Variety:     variety,
 				EntryID:     entryID,
 			}
 
 			gatarItems[g] = append(gatarItems[g], item)
-			gatarTotals[g] += quantity
+			gatarTotals[g] += perGatarQty
 		}
 	}
 
@@ -350,7 +376,8 @@ func (h *RoomVisualizationHandler) GetGatarDetails(w http.ResponseWriter, r *htt
 			COALESCE(e.remark, '') as variety,
 			COALESCE(c.name, '') as customer_name,
 			COALESCE(c.phone, '') as customer_phone,
-			re.created_at
+			re.created_at,
+			COALESCE(re.quantity_breakdown, '') as quantity_breakdown
 		FROM room_entries re
 		LEFT JOIN entries e ON re.entry_id = e.id
 		LEFT JOIN customers c ON e.customer_id = c.id
@@ -366,20 +393,24 @@ func (h *RoomVisualizationHandler) GetGatarDetails(w http.ResponseWriter, r *htt
 	defer rows.Close()
 
 	type GatarDetail struct {
-		ID            int    `json:"id"`
-		ThockNumber   string `json:"thock_number"`
-		RoomNo        string `json:"room_no"`
-		Floor         string `json:"floor"`
-		GateNo        string `json:"gate_no"`
-		Quantity      int    `json:"quantity"`
-		Remark        string `json:"remark"`
-		Variety       string `json:"variety"`
-		CustomerName  string `json:"customer_name"`
-		CustomerPhone string `json:"customer_phone"`
-		CreatedAt     string `json:"created_at"`
+		ID                int    `json:"id"`
+		ThockNumber       string `json:"thock_number"`
+		RoomNo            string `json:"room_no"`
+		Floor             string `json:"floor"`
+		GateNo            string `json:"gate_no"`
+		Quantity          int    `json:"quantity"`
+		DistributedQty    int    `json:"distributed_qty"`
+		Remark            string `json:"remark"`
+		Variety           string `json:"variety"`
+		CustomerName      string `json:"customer_name"`
+		CustomerPhone     string `json:"customer_phone"`
+		CreatedAt         string `json:"created_at"`
+		QuantityBreakdown string `json:"quantity_breakdown"`
 	}
 
 	var details []GatarDetail
+	var totalDistributedQty int
+
 	for rows.Next() {
 		var d GatarDetail
 		var createdAt interface{}
@@ -387,7 +418,7 @@ func (h *RoomVisualizationHandler) GetGatarDetails(w http.ResponseWriter, r *htt
 		if err := rows.Scan(
 			&d.ID, &d.ThockNumber, &d.RoomNo, &d.Floor, &d.GateNo,
 			&d.Quantity, &d.Remark, &d.Variety, &d.CustomerName,
-			&d.CustomerPhone, &createdAt,
+			&d.CustomerPhone, &createdAt, &d.QuantityBreakdown,
 		); err != nil {
 			http.Error(w, "Failed to scan row: "+err.Error(), http.StatusInternalServerError)
 			return
@@ -398,21 +429,49 @@ func (h *RoomVisualizationHandler) GetGatarDetails(w http.ResponseWriter, r *htt
 			d.CreatedAt = t.Format("02/01/2006 15:04")
 		}
 
-		// Check if this gatar is actually in the gate_no (handle comma-separated)
+		// Parse gate numbers to find this gatar's index
 		gateNos := strings.Split(d.GateNo, ",")
+		var cleanGatars []string
+		gatarIndex := -1
 		for _, g := range gateNos {
-			if strings.TrimSpace(g) == gatar {
-				details = append(details, d)
-				break
+			g = strings.TrimSpace(g)
+			if g != "" {
+				cleanGatars = append(cleanGatars, g)
+				if g == gatar {
+					gatarIndex = len(cleanGatars) - 1
+				}
 			}
+		}
+
+		// If this gatar is in the list, calculate its distributed quantity
+		if gatarIndex >= 0 {
+			// Parse quantity_breakdown
+			var breakdownValues []int
+			if d.QuantityBreakdown != "" {
+				parts := strings.Split(d.QuantityBreakdown, ",")
+				for _, p := range parts {
+					p = strings.TrimSpace(p)
+					if val, err := strconv.Atoi(p); err == nil {
+						breakdownValues = append(breakdownValues, val)
+					}
+				}
+			}
+
+			// Calculate distribution for all gatars
+			distribution := distributeQuantity(d.Quantity, cleanGatars, breakdownValues)
+			d.DistributedQty = distribution[gatarIndex]
+			totalDistributedQty += d.DistributedQty
+
+			details = append(details, d)
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"gatar":   gatar,
-		"items":   details,
-		"count":   len(details),
+		"gatar":     gatar,
+		"items":     details,
+		"count":     len(details),
+		"total_qty": totalDistributedQty,
 	})
 }
 
@@ -426,4 +485,82 @@ func getRoomFloorFromGatar(gatarNum int) (string, string) {
 		}
 	}
 	return "", ""
+}
+
+// distributeQuantity distributes total bags across gatars based on breakdown
+// Logic:
+// 1. If only 1 gatar: all bags go to that gatar
+// 2. If breakdown count matches gatar count: map 1:1
+// 3. If breakdown has more items than gatars: distribute breakdown items sequentially
+//    (each gatar gets bags until ~200 capacity, then overflow to next)
+// 4. Fallback: divide total evenly across gatars
+func distributeQuantity(totalQty int, gatars []string, breakdown []int) []int {
+	numGatars := len(gatars)
+	result := make([]int, numGatars)
+
+	if numGatars == 0 {
+		return result
+	}
+
+	// Case 1: Single gatar - all bags go to it
+	if numGatars == 1 {
+		result[0] = totalQty
+		return result
+	}
+
+	// Case 2: Breakdown count matches gatar count - direct 1:1 mapping
+	if len(breakdown) == numGatars {
+		for i, val := range breakdown {
+			result[i] = val
+		}
+		return result
+	}
+
+	// Case 3: More breakdown items than gatars - distribute sequentially
+	// Each gatar has ~200 bag capacity, fill in order
+	if len(breakdown) > numGatars {
+		const gatarCapacity = 200
+		currentGatar := 0
+		currentGatarBags := 0
+
+		for _, bags := range breakdown {
+			// If current gatar would overflow, try to fit what we can
+			remainingCapacity := gatarCapacity - currentGatarBags
+
+			if bags <= remainingCapacity || currentGatar == numGatars-1 {
+				// Fits in current gatar OR this is the last gatar (must take overflow)
+				result[currentGatar] += bags
+				currentGatarBags += bags
+			} else {
+				// Split between current and next gatar
+				result[currentGatar] += remainingCapacity
+				currentGatar++
+				if currentGatar < numGatars {
+					result[currentGatar] += bags - remainingCapacity
+					currentGatarBags = bags - remainingCapacity
+				}
+			}
+
+			// Move to next gatar if current is at capacity
+			if currentGatarBags >= gatarCapacity && currentGatar < numGatars-1 {
+				currentGatar++
+				currentGatarBags = 0
+			}
+		}
+		return result
+	}
+
+	// Case 4: Fewer breakdown items than gatars OR no breakdown - divide evenly
+	baseQty := totalQty / numGatars
+	remainder := totalQty % numGatars
+
+	for i := 0; i < numGatars; i++ {
+		result[i] = baseQty
+		// Distribute remainder across first few gatars
+		if i < remainder {
+			result[i]++
+		}
+	}
+
+	return result
 }
