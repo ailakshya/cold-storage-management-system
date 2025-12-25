@@ -170,6 +170,7 @@
                             <th class="p-3 text-left">Date</th>
                             <th class="p-3 text-center">Entries</th>
                             <th class="p-3 text-center">Expected Qty</th>
+                            <th class="p-3 text-center">Not Stored</th>
                             <th class="p-3 text-center">Room Entries</th>
                             <th class="p-3 text-center">Qty</th>
                             <th class="p-3 text-center">Gate Passes</th>
@@ -180,7 +181,7 @@
                     </thead>
                     <tbody id="analyticsSummaryBody">
                         <tr>
-                            <td colspan="9" class="text-center p-4 text-gray-500">Loading...</td>
+                            <td colspan="10" class="text-center p-4 text-gray-500">Loading...</td>
                         </tr>
                     </tbody>
                     <tfoot id="analyticsSummaryFooter" class="border-t-2 border-black bg-gray-100 font-bold">
@@ -405,6 +406,7 @@
                     stats[dateStr] = {
                         entries: 0,
                         expectedQty: 0,
+                        notStored: 0,
                         roomEntries: 0,
                         quantity: 0,
                         gatePasses: 0,
@@ -432,6 +434,9 @@
                         // Only count expected qty if entry has room entries (stored in inventory)
                         if (storedEntryIds.has(entry.id)) {
                             stats[dateStr].expectedQty += entry.expected_quantity || 0;
+                        } else {
+                            // Entry not stored in inventory
+                            stats[dateStr].notStored += entry.expected_quantity || 0;
                         }
                     }
                 }
@@ -773,11 +778,12 @@
             const tfoot = document.getElementById('analyticsSummaryFooter');
             const sortedDates = Object.keys(stats).sort((a, b) => new Date(b) - new Date(a));
 
-            let totals = { entries: 0, expectedQty: 0, roomEntries: 0, quantity: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
+            let totals = { entries: 0, expectedQty: 0, notStored: 0, roomEntries: 0, quantity: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
 
             sortedDates.forEach(date => {
                 totals.entries += stats[date].entries;
                 totals.expectedQty += stats[date].expectedQty || 0;
+                totals.notStored += stats[date].notStored || 0;
                 totals.roomEntries += stats[date].roomEntries;
                 totals.quantity += stats[date].quantity;
                 totals.gatePasses += stats[date].gatePasses;
@@ -799,6 +805,7 @@
                         <td class="p-3 text-left">${formattedDate}${isToday ? ' <span class="text-xs bg-yellow-500 text-white px-1 rounded">TODAY</span>' : ''}</td>
                         <td class="p-3 text-center"><span class="text-green-600 font-bold">${d.entries}</span></td>
                         <td class="p-3 text-center"><span class="text-orange-600 font-bold">${d.expectedQty || 0}</span></td>
+                        <td class="p-3 text-center"><span class="text-red-600 font-bold">${d.notStored || 0}</span></td>
                         <td class="p-3 text-center"><span class="text-blue-600 font-bold">${d.roomEntries}</span></td>
                         <td class="p-3 text-center"><span class="text-teal-600 font-bold">${d.quantity}</span></td>
                         <td class="p-3 text-center"><span class="text-purple-600 font-bold">${d.gatePasses}</span></td>
@@ -814,6 +821,7 @@
                     <td class="p-3 text-left">TOTAL (${sortedDates.length} days)</td>
                     <td class="p-3 text-center text-green-600">${totals.entries}</td>
                     <td class="p-3 text-center text-orange-600">${totals.expectedQty.toLocaleString('en-IN')}</td>
+                    <td class="p-3 text-center text-red-600">${totals.notStored.toLocaleString('en-IN')}</td>
                     <td class="p-3 text-center text-blue-600">${totals.roomEntries}</td>
                     <td class="p-3 text-center text-teal-600">${totals.quantity.toLocaleString('en-IN')}</td>
                     <td class="p-3 text-center text-purple-600">${totals.gatePasses}</td>
