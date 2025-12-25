@@ -1,33 +1,34 @@
-/* Dark Mode Styles for Cold Storage App */
-/* Uses CSS custom properties for easy theme switching */
+/* Dark Mode Styles - YouTube-like Neutral Colors */
+/* Comfortable for extended viewing with neutral grays */
 
 :root {
     /* Light mode (default) */
     --bg-primary: #ecf0f1;
     --bg-card: #ffffff;
     --bg-input: #ffffff;
-    --bg-hover: #f8f9fa;
-    --text-primary: #1a1a1a;
-    --text-secondary: #4a5568;
-    --text-muted: #718096;
+    --bg-hover: #f5f5f5;
+    --text-primary: #0f0f0f;
+    --text-secondary: #606060;
+    --text-muted: #909090;
     --border-color: #000000;
-    --border-light: #e2e8f0;
+    --border-light: #e5e5e5;
     --shadow-color: rgba(0, 0, 0, 0.15);
     --shadow-neu: 4px 4px 0 #000;
 }
 
 [data-theme="dark"] {
-    --bg-primary: #0f172a;
-    --bg-card: #1e293b;
-    --bg-input: #334155;
-    --bg-hover: #475569;
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --border-color: #475569;
-    --border-light: #334155;
-    --shadow-color: rgba(0, 0, 0, 0.5);
-    --shadow-neu: 4px 4px 0 #0f172a;
+    /* YouTube-like neutral grays */
+    --bg-primary: #0f0f0f;
+    --bg-card: #212121;
+    --bg-input: #2f2f2f;
+    --bg-hover: #3f3f3f;
+    --text-primary: #f1f1f1;
+    --text-secondary: #aaaaaa;
+    --text-muted: #717171;
+    --border-color: #3f3f3f;
+    --border-light: #2f2f2f;
+    --shadow-color: rgba(0, 0, 0, 0.6);
+    --shadow-neu: 3px 3px 0 #181818;
 }
 
 /* ===== Body & Background ===== */
@@ -36,7 +37,13 @@ body.dark-mode {
     color: var(--text-primary) !important;
 }
 
-/* Override specific background colors used in templates */
+/* ===== Universal override for ALL Tailwind arbitrary bg colors ===== */
+/* This catches bg-[#XXXX] patterns used throughout the app */
+.dark-mode [class*="bg-[#"] {
+    background-color: var(--bg-card) !important;
+}
+
+/* Body-level background colors */
 body.dark-mode[class*="bg-[#"] {
     background-color: var(--bg-primary) !important;
 }
@@ -56,7 +63,7 @@ body.dark-mode[class*="bg-[#"] {
 
 /* ===== Inputs & Forms ===== */
 .dark-mode .neu-input,
-.dark-mode input:not([type="checkbox"]):not([type="radio"]),
+.dark-mode input:not([type="checkbox"]):not([type="radio"]):not([type="color"]),
 .dark-mode select,
 .dark-mode textarea {
     background-color: var(--bg-input) !important;
@@ -72,8 +79,8 @@ body.dark-mode[class*="bg-[#"] {
 .dark-mode input:focus,
 .dark-mode select:focus,
 .dark-mode textarea:focus {
-    border-color: #3b82f6 !important;
-    outline-color: #3b82f6 !important;
+    border-color: #3ea6ff !important;
+    outline-color: #3ea6ff !important;
 }
 
 /* ===== Buttons ===== */
@@ -84,37 +91,57 @@ body.dark-mode[class*="bg-[#"] {
 
 .dark-mode .neu-button:hover {
     transform: translate(2px, 2px);
-    box-shadow: 2px 2px 0 var(--border-color) !important;
+    box-shadow: 1px 1px 0 var(--border-color) !important;
 }
 
-/* Preserve accent button colors but adjust for dark mode */
-.dark-mode .bg-gray-200 {
+/* Gray buttons */
+.dark-mode .bg-gray-200,
+.dark-mode .bg-gray-100,
+.dark-mode .bg-gray-50 {
     background-color: var(--bg-input) !important;
     color: var(--text-primary) !important;
 }
 
-.dark-mode .bg-gray-100 {
-    background-color: var(--bg-card) !important;
+/* Accent buttons - muted versions for dark mode */
+.dark-mode .bg-green-500,
+.dark-mode .bg-green-600 {
+    background-color: #2e7d32 !important;
 }
 
-.dark-mode .bg-gray-50 {
-    background-color: var(--bg-card) !important;
+.dark-mode .bg-blue-500,
+.dark-mode .bg-blue-600 {
+    background-color: #1976d2 !important;
+}
+
+.dark-mode .bg-red-500,
+.dark-mode .bg-red-600 {
+    background-color: #c62828 !important;
+}
+
+.dark-mode .bg-yellow-500 {
+    background-color: #f9a825 !important;
 }
 
 /* ===== Tables ===== */
 .dark-mode table {
     color: var(--text-primary) !important;
+    background-color: var(--bg-card) !important;
 }
 
 .dark-mode thead,
 .dark-mode th {
-    background-color: var(--bg-card) !important;
+    background-color: #181818 !important;
     color: var(--text-primary) !important;
     border-color: var(--border-color) !important;
 }
 
 .dark-mode tbody tr {
     border-color: var(--border-light) !important;
+    background-color: var(--bg-card) !important;
+}
+
+.dark-mode tbody tr:nth-child(even) {
+    background-color: #1a1a1a !important;
 }
 
 .dark-mode tbody tr:hover {
@@ -123,14 +150,19 @@ body.dark-mode[class*="bg-[#"] {
 
 .dark-mode td {
     color: var(--text-primary) !important;
+    border-color: var(--border-light) !important;
 }
 
 /* Sticky table headers */
 .dark-mode .sticky {
-    background-color: var(--bg-card) !important;
+    background-color: #181818 !important;
 }
 
 /* ===== Text Colors ===== */
+.dark-mode .text-gray-400 {
+    color: var(--text-muted) !important;
+}
+
 .dark-mode .text-gray-500,
 .dark-mode .text-gray-600,
 .dark-mode .text-gray-700,
@@ -156,7 +188,12 @@ body.dark-mode[class*="bg-[#"] {
     color: var(--text-primary) !important;
 }
 
+.dark-mode span {
+    color: inherit;
+}
+
 /* ===== Borders ===== */
+.dark-mode .border-gray-100,
 .dark-mode .border-gray-200,
 .dark-mode .border-gray-300 {
     border-color: var(--border-light) !important;
@@ -166,13 +203,19 @@ body.dark-mode[class*="bg-[#"] {
     border-color: var(--border-color) !important;
 }
 
+.dark-mode .divide-gray-200 > * + * {
+    border-color: var(--border-light) !important;
+}
+
 /* ===== Modals & Overlays ===== */
-.dark-mode .bg-black.bg-opacity-50 {
-    background-color: rgba(0, 0, 0, 0.7) !important;
+.dark-mode .bg-black.bg-opacity-50,
+.dark-mode .bg-black\/50 {
+    background-color: rgba(0, 0, 0, 0.8) !important;
 }
 
 .dark-mode [class*="modal"] .bg-white,
-.dark-mode [id*="Modal"] .bg-white {
+.dark-mode [id*="Modal"] .bg-white,
+.dark-mode [id*="modal"] .bg-white {
     background-color: var(--bg-card) !important;
 }
 
@@ -183,8 +226,14 @@ body.dark-mode[class*="bg-[#"] {
     border-color: var(--border-color) !important;
 }
 
-.dark-mode .dropdown-item:hover {
+.dark-mode .dropdown-item:hover,
+.dark-mode option:hover {
     background-color: var(--bg-hover) !important;
+}
+
+.dark-mode option {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
 }
 
 /* ===== Navigation ===== */
@@ -197,31 +246,94 @@ body.dark-mode[class*="bg-[#"] {
     background-color: var(--bg-card) !important;
 }
 
-/* ===== Status Badges - Keep accent colors but improve contrast ===== */
-/* These stay colorful for visual distinction */
-.dark-mode .bg-green-100 { background-color: rgba(34, 197, 94, 0.2) !important; }
-.dark-mode .bg-red-100 { background-color: rgba(239, 68, 68, 0.2) !important; }
-.dark-mode .bg-yellow-100 { background-color: rgba(234, 179, 8, 0.2) !important; }
-.dark-mode .bg-blue-100 { background-color: rgba(59, 130, 246, 0.2) !important; }
-.dark-mode .bg-purple-100 { background-color: rgba(168, 85, 247, 0.2) !important; }
-.dark-mode .bg-orange-100 { background-color: rgba(249, 115, 22, 0.2) !important; }
-.dark-mode .bg-pink-100 { background-color: rgba(236, 72, 153, 0.2) !important; }
+/* ===== Status Badges - Muted colors for dark mode ===== */
+/* Green variants */
+.dark-mode .bg-green-100,
+.dark-mode .bg-green-50 {
+    background-color: rgba(46, 125, 50, 0.2) !important;
+}
+.dark-mode .text-green-600,
+.dark-mode .text-green-700,
+.dark-mode .text-green-800 {
+    color: #81c784 !important;
+}
 
-.dark-mode .bg-green-50 { background-color: rgba(34, 197, 94, 0.1) !important; }
-.dark-mode .bg-red-50 { background-color: rgba(239, 68, 68, 0.1) !important; }
-.dark-mode .bg-yellow-50 { background-color: rgba(234, 179, 8, 0.1) !important; }
-.dark-mode .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1) !important; }
+/* Red variants */
+.dark-mode .bg-red-100,
+.dark-mode .bg-red-50 {
+    background-color: rgba(198, 40, 40, 0.2) !important;
+}
+.dark-mode .text-red-600,
+.dark-mode .text-red-700,
+.dark-mode .text-red-800 {
+    color: #ef9a9a !important;
+}
+
+/* Yellow variants */
+.dark-mode .bg-yellow-100,
+.dark-mode .bg-yellow-50 {
+    background-color: rgba(249, 168, 37, 0.2) !important;
+}
+.dark-mode .text-yellow-600,
+.dark-mode .text-yellow-700,
+.dark-mode .text-yellow-800 {
+    color: #fff176 !important;
+}
+
+/* Blue variants */
+.dark-mode .bg-blue-100,
+.dark-mode .bg-blue-50 {
+    background-color: rgba(25, 118, 210, 0.2) !important;
+}
+.dark-mode .text-blue-600,
+.dark-mode .text-blue-700,
+.dark-mode .text-blue-800 {
+    color: #64b5f6 !important;
+}
+
+/* Purple variants */
+.dark-mode .bg-purple-100,
+.dark-mode .bg-purple-50 {
+    background-color: rgba(123, 31, 162, 0.2) !important;
+}
+.dark-mode .text-purple-600,
+.dark-mode .text-purple-700,
+.dark-mode .text-purple-800 {
+    color: #ba68c8 !important;
+}
+
+/* Orange variants */
+.dark-mode .bg-orange-100,
+.dark-mode .bg-orange-50 {
+    background-color: rgba(230, 81, 0, 0.2) !important;
+}
+.dark-mode .text-orange-600,
+.dark-mode .text-orange-700,
+.dark-mode .text-orange-800 {
+    color: #ffb74d !important;
+}
+
+/* Pink variants */
+.dark-mode .bg-pink-100,
+.dark-mode .bg-pink-50 {
+    background-color: rgba(173, 20, 87, 0.2) !important;
+}
 
 /* ===== Links ===== */
 .dark-mode a {
-    color: #60a5fa !important;
+    color: #3ea6ff !important;
 }
 
 .dark-mode a:hover {
-    color: #93c5fd !important;
+    color: #65b8ff !important;
 }
 
-/* ===== Scrollbars ===== */
+/* Keep white text on colored buttons */
+.dark-mode .text-white {
+    color: #ffffff !important;
+}
+
+/* ===== Scrollbars - Subtle dark scrollbars ===== */
 .dark-mode ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -232,12 +344,18 @@ body.dark-mode[class*="bg-[#"] {
 }
 
 .dark-mode ::-webkit-scrollbar-thumb {
-    background: var(--border-color);
+    background: #484848;
     border-radius: 4px;
 }
 
 .dark-mode ::-webkit-scrollbar-thumb:hover {
-    background: var(--text-muted);
+    background: #606060;
+}
+
+/* Firefox scrollbar */
+.dark-mode * {
+    scrollbar-color: #484848 var(--bg-primary);
+    scrollbar-width: thin;
 }
 
 /* ===== Icons ===== */
@@ -252,21 +370,81 @@ body.dark-mode[class*="bg-[#"] {
     border-color: var(--border-color) !important;
 }
 
-/* ===== Page-specific light backgrounds ===== */
-/* Override the pastel backgrounds used in different dashboards */
-.dark-mode[class*="bg-[#FFEBEB]"],
-.dark-mode[class*="bg-[#E8F5E9]"],
-.dark-mode[class*="bg-[#FFF9E6]"],
-.dark-mode[class*="bg-[#ecf0f1]"],
-.dark-mode[class*="bg-[#E3F2FD]"],
-.dark-mode[class*="bg-[#F3E5F5]"] {
-    background-color: var(--bg-primary) !important;
+/* ===== Specific Tailwind arbitrary color overrides ===== */
+/* These are commonly used in templates */
+
+/* Pastel backgrounds -> dark card */
+.dark-mode .bg-\[\#FFEBEB\],
+.dark-mode .bg-\[\#E8F5E9\],
+.dark-mode .bg-\[\#FFF9E6\],
+.dark-mode .bg-\[\#ecf0f1\],
+.dark-mode .bg-\[\#E3F2FD\],
+.dark-mode .bg-\[\#F3E5F5\],
+.dark-mode .bg-\[\#FFF3E0\],
+.dark-mode .bg-\[\#FFFDE7\],
+.dark-mode .bg-\[\#F1F8E9\] {
+    background-color: var(--bg-card) !important;
+}
+
+/* Bright accent backgrounds -> muted dark versions */
+.dark-mode .bg-\[\#7DEDFF\],
+.dark-mode .bg-\[\#A8D5FF\] {
+    background-color: rgba(25, 118, 210, 0.25) !important;
+}
+
+.dark-mode .bg-\[\#98EECC\],
+.dark-mode .bg-\[\#A8E6CF\],
+.dark-mode .bg-\[\#B4FF9F\],
+.dark-mode .bg-\[\#C9F4AA\] {
+    background-color: rgba(46, 125, 50, 0.25) !important;
+}
+
+.dark-mode .bg-\[\#FFB4B4\],
+.dark-mode .bg-\[\#FF6B6B\],
+.dark-mode .bg-\[\#FFCDD2\] {
+    background-color: rgba(198, 40, 40, 0.25) !important;
+}
+
+.dark-mode .bg-\[\#D4ADFC\],
+.dark-mode .bg-\[\#DFCCFB\],
+.dark-mode .bg-\[\#E1BEE7\] {
+    background-color: rgba(123, 31, 162, 0.25) !important;
+}
+
+.dark-mode .bg-\[\#FFE0B2\],
+.dark-mode .bg-\[\#FFCC80\] {
+    background-color: rgba(230, 81, 0, 0.25) !important;
+}
+
+.dark-mode .bg-\[\#FFF59D\],
+.dark-mode .bg-\[\#FFEB3B\] {
+    background-color: rgba(249, 168, 37, 0.25) !important;
 }
 
 /* ===== Alerts & Notifications ===== */
 .dark-mode .alert,
 .dark-mode [class*="alert-"] {
     border-color: var(--border-color) !important;
+    background-color: var(--bg-card) !important;
+}
+
+/* ===== Charts & Graphs ===== */
+.dark-mode canvas {
+    filter: brightness(0.9);
+}
+
+/* ===== Code/Pre blocks ===== */
+.dark-mode pre,
+.dark-mode code {
+    background-color: #181818 !important;
+    color: var(--text-primary) !important;
+}
+
+/* ===== Empty states ===== */
+.dark-mode .empty-state,
+.dark-mode [class*="no-data"],
+.dark-mode [class*="empty"] {
+    color: var(--text-muted) !important;
 }
 
 /* ===== Print Styles - Force light mode for printing ===== */
@@ -278,6 +456,17 @@ body.dark-mode[class*="bg-[#"] {
 
     .dark-mode .neu-border,
     .dark-mode .bg-white {
+        background-color: white !important;
+        color: black !important;
+        border-color: black !important;
+    }
+
+    .dark-mode table,
+    .dark-mode thead,
+    .dark-mode tbody,
+    .dark-mode tr,
+    .dark-mode td,
+    .dark-mode th {
         background-color: white !important;
         color: black !important;
     }
@@ -302,6 +491,37 @@ body,
 .neu-button,
 .neu-input,
 input, select, textarea,
-table, thead, tbody, tr, td, th {
-    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+table, thead, tbody, tr, td, th,
+a, span, p, h1, h2, h3, h4, h5, h6 {
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+/* ===== Focus styles ===== */
+.dark-mode *:focus-visible {
+    outline-color: #3ea6ff !important;
+}
+
+/* ===== Hover states for list items ===== */
+.dark-mode li:hover {
+    background-color: var(--bg-hover);
+}
+
+/* ===== Card shadows ===== */
+.dark-mode .shadow,
+.dark-mode .shadow-lg,
+.dark-mode .shadow-md,
+.dark-mode .shadow-sm {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+}
+
+/* ===== Ring utilities ===== */
+.dark-mode .ring-1,
+.dark-mode .ring-2 {
+    --tw-ring-color: var(--border-color) !important;
+}
+
+/* ===== Backdrop blur elements ===== */
+.dark-mode .backdrop-blur,
+.dark-mode [class*="backdrop"] {
+    background-color: rgba(15, 15, 15, 0.8) !important;
 }
