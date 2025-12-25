@@ -1073,6 +1073,104 @@ func (h *InfrastructureHandler) GetRecoveryStatus(w http.ResponseWriter, r *http
 	})
 }
 
+// GetBackupHistory returns backup history and status from the backup status file
+func (h *InfrastructureHandler) GetBackupHistory(w http.ResponseWriter, r *http.Request) {
+	statusFile := "/home/lakshya/backup/postgresql/backup_status.json"
+	backupDir := "/home/lakshya/backup/postgresql/base"
+
+	response := map[string]interface{}{
+		"status":        "unknown",
+		"last_backup":   nil,
+		"verify_status": "unknown",
+		"table_count":   0,
+		"backup_size":   "N/A",
+		"backup_count":  0,
+		"locations": map[string]bool{
+			"local":   false,
+			"nas":     false,
+			"offsite": false,
+		},
+		"next_scheduled": nil,
+		"history":        []map[string]interface{}{},
+	}
+
+	// Read status file
+	statusData, err := os.ReadFile(statusFile)
+	if err == nil {
+		var status map[string]interface{}
+		if err := json.Unmarshal(statusData, &status); err == nil {
+			// Copy status fields to response
+			for k, v := range status {
+				response[k] = v
+			}
+		}
+	}
+
+	// Get backup history from directory listing
+	entries, err := os.ReadDir(backupDir)
+	if err == nil {
+		history := []map[string]interface{}{}
+		for i := len(entries) - 1; i >= 0 && len(history) < 10; i-- {
+			entry := entries[i]
+			if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "backup_") {
+				continue
+			}
+
+			info, err := entry.Info()
+			if err != nil {
+				continue
+			}
+
+			backupPath := backupDir + "/" + entry.Name()
+			dumpPath := backupPath + "/full_backup.dump"
+
+			// Check if backup is verified by looking for backup_info.txt
+			infoPath := backupPath + "/backup_info.txt"
+			verified := "unknown"
+			if infoData, err := os.ReadFile(infoPath); err == nil {
+				if strings.Contains(string(infoData), "Verification: success") {
+					verified = "success"
+				} else if strings.Contains(string(infoData), "Verification: warning") {
+					verified = "warning"
+				} else if strings.Contains(string(infoData), "Verification: failed") {
+					verified = "failed"
+				}
+			}
+
+			// Get backup size
+			size := "N/A"
+			if dumpInfo, err := os.Stat(dumpPath); err == nil {
+				sizeBytes := dumpInfo.Size()
+				if sizeBytes < 1024 {
+					size = fmt.Sprintf("%d B", sizeBytes)
+				} else if sizeBytes < 1024*1024 {
+					size = fmt.Sprintf("%.1f KB", float64(sizeBytes)/1024)
+				} else if sizeBytes < 1024*1024*1024 {
+					size = fmt.Sprintf("%.1f MB", float64(sizeBytes)/(1024*1024))
+				} else {
+					size = fmt.Sprintf("%.2f GB", float64(sizeBytes)/(1024*1024*1024))
+				}
+			}
+
+			// Parse timestamp from directory name (backup_YYYYMMDD_HHMMSS)
+			timestamp := strings.TrimPrefix(entry.Name(), "backup_")
+
+			history = append(history, map[string]interface{}{
+				"id":          entry.Name(),
+				"timestamp":   timestamp,
+				"created_at":  info.ModTime().Format(time.RFC3339),
+				"size":        size,
+				"verified":    verified,
+				"path":        backupPath,
+			})
+		}
+		response["history"] = history
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
 // DownloadDatabase creates a pg_dump and streams it as a downloadable file
 func (h *InfrastructureHandler) DownloadDatabase(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

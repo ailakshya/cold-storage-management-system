@@ -250,14 +250,24 @@ func ConnectG(cfg *config.Config) *pgxpool.Pool {
 
 // TryConnectWithFallback attempts to connect to databases in order of fallback priority.
 // Tries all common passwords for each host to handle password sync issues.
-// Returns the pool if successful, or nil if all connections fail.
-func TryConnectWithFallback() (*pgxpool.Pool, string) {
+// Returns the pool, name, and connection string if successful, or nil if all connections fail.
+func TryConnectWithFallback() (*pgxpool.Pool, string, string) {
 	// Try each fallback database
 	for _, dbConfig := range config.DatabaseFallbacks {
-		log.Printf("[DB] Trying to connect to %s (%s:%d)...", dbConfig.Name, dbConfig.Host, dbConfig.Port)
+		if dbConfig.UsePeer {
+			log.Printf("[DB] Trying to connect to %s (Unix socket)...", dbConfig.Name)
+		} else {
+			log.Printf("[DB] Trying to connect to %s (%s:%d)...", dbConfig.Name, dbConfig.Host, dbConfig.Port)
+		}
+
+		// For peer auth, only try once with no password
+		passwords := config.CommonPasswords
+		if dbConfig.UsePeer {
+			passwords = []string{""}
+		}
 
 		// Try each password for this host
-		for _, password := range config.CommonPasswords {
+		for _, password := range passwords {
 			dsn := dbConfig.ConnectionStringWithPassword(password)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -290,11 +300,17 @@ func TryConnectWithFallback() (*pgxpool.Pool, string) {
 
 			cancel()
 			log.Printf("[DB] Successfully connected to %s", dbConfig.Name)
-			return pool, dbConfig.Name
+			// Return connection URI for psql
+			connURI := dbConfig.ConnectionURI(password)
+			return pool, dbConfig.Name, connURI
 		}
-		log.Printf("[DB] Failed to connect to %s (tried all passwords)", dbConfig.Name)
+		if dbConfig.UsePeer {
+			log.Printf("[DB] Failed to connect to %s", dbConfig.Name)
+		} else {
+			log.Printf("[DB] Failed to connect to %s (tried all passwords)", dbConfig.Name)
+		}
 	}
 
-	log.Println("[DB] All database connections failed - entering setup mode")
-	return nil, ""
+	log.Println("[DB] All database connections failed")
+	return nil, "", ""
 }

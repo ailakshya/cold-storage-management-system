@@ -3,24 +3,24 @@ package database
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Note: We read migrations from the filesystem at runtime
-// instead of embedding them, to allow easier updates without recompiling
-
 // Migrator handles database schema migrations
+// Supports both embedded and filesystem-based migrations
 type Migrator struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	migrationsFS fs.FS  // Embedded migrations (optional)
+	migrationsDir string // Filesystem migrations directory
 }
 
-// NewMigrator creates a new migration runner
+// NewMigrator creates a new migration runner using filesystem migrations
 //
 // Parameters:
 //   - pool: PostgreSQL connection pool
@@ -29,7 +29,25 @@ type Migrator struct {
 //   - *Migrator: New migrator instance
 func NewMigrator(pool *pgxpool.Pool) *Migrator {
 	return &Migrator{
-		pool: pool,
+		pool:          pool,
+		migrationsDir: "migrations",
+	}
+}
+
+// NewMigratorWithFS creates a new migration runner with embedded migrations
+//
+// Parameters:
+//   - pool: PostgreSQL connection pool
+//   - migrationsFS: Embedded filesystem containing migrations
+//   - migrationsDir: Directory path within the embedded FS (e.g., "migrations")
+//
+// Returns:
+//   - *Migrator: New migrator instance
+func NewMigratorWithFS(pool *pgxpool.Pool, migrationsFS fs.FS, migrationsDir string) *Migrator {
+	return &Migrator{
+		pool:          pool,
+		migrationsFS:  migrationsFS,
+		migrationsDir: migrationsDir,
 	}
 }
 
@@ -37,7 +55,7 @@ func NewMigrator(pool *pgxpool.Pool) *Migrator {
 //
 // This function:
 //   1. Creates a migrations tracking table if it doesn't exist
-//   2. Reads all migration files from the embedded filesystem
+//   2. Reads all migration files from embedded FS or filesystem
 //   3. Skips migrations that have already been run
 //   4. Executes new migrations in alphabetical order
 //   5. Records successful migrations in the tracking table
@@ -52,7 +70,6 @@ func (m *Migrator) RunMigrations(ctx context.Context) error {
 	log.Println("Starting database migrations...")
 
 	// Create migrations tracking table if it doesn't exist
-	// This table keeps track of which migrations have been run
 	if err := m.createMigrationsTable(ctx); err != nil {
 		return fmt.Errorf("failed to create migrations table: %w", err)
 	}
@@ -63,11 +80,24 @@ func (m *Migrator) RunMigrations(ctx context.Context) error {
 		return fmt.Errorf("failed to get applied migrations: %w", err)
 	}
 
-	// Read migration files from filesystem
-	migrationsDir := "migrations"
-	entries, err := os.ReadDir(migrationsDir)
-	if err != nil {
-		return fmt.Errorf("failed to read migrations directory: %w", err)
+	// Read migration files - try embedded FS first, then filesystem
+	var entries []fs.DirEntry
+	var useEmbedded bool
+
+	if m.migrationsFS != nil {
+		entries, err = fs.ReadDir(m.migrationsFS, m.migrationsDir)
+		if err == nil {
+			useEmbedded = true
+			log.Println("  Using embedded migrations")
+		}
+	}
+
+	if !useEmbedded {
+		entries, err = os.ReadDir(m.migrationsDir)
+		if err != nil {
+			return fmt.Errorf("failed to read migrations directory: %w", err)
+		}
+		log.Println("  Using filesystem migrations")
 	}
 
 	// Sort migrations alphabetically to ensure correct execution order
@@ -95,17 +125,33 @@ func (m *Migrator) RunMigrations(ctx context.Context) error {
 		}
 
 		// Read migration file content
-		filepath := filepath.Join("migrations", filename)
-		content, err := os.ReadFile(filepath)
+		var content []byte
+		if useEmbedded {
+			// Embedded FS uses filename directly (no directory prefix needed)
+			content, err = fs.ReadFile(m.migrationsFS, filename)
+		} else {
+			// Filesystem uses full path
+			filePath := m.migrationsDir + "/" + filename
+			content, err = os.ReadFile(filePath)
+		}
 		if err != nil {
 			return fmt.Errorf("failed to read migration %s: %w", filename, err)
 		}
 
 		// Execute the migration SQL
+		// Split into statements and execute individually for better compatibility
 		log.Printf("  → Running: %s", filename)
-		if _, err := m.pool.Exec(ctx, string(content)); err != nil {
-			return fmt.Errorf("failed to run migration %s: %w", filename, err)
+		statements := splitSQLStatements(string(content))
+		for i, stmt := range statements {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" || stmt == ";" {
+				continue
+			}
+			if _, err := m.pool.Exec(ctx, stmt); err != nil {
+				return fmt.Errorf("failed to run migration %s (statement %d): %w", filename, i+1, err)
+			}
 		}
+		log.Printf("    Executed %d statements", len(statements))
 
 		// Record successful migration
 		if err := m.recordMigration(ctx, filename); err != nil {
@@ -168,6 +214,48 @@ func (m *Migrator) getAppliedMigrations(ctx context.Context) (map[string]bool, e
 	}
 
 	return applied, rows.Err()
+}
+
+// splitSQLStatements splits SQL content into individual statements
+// Handles $$ quoted blocks (DO blocks and function definitions) correctly
+func splitSQLStatements(content string) []string {
+	var statements []string
+	var current strings.Builder
+	dollarQuoteDepth := 0
+	lines := strings.Split(content, "\n")
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Count $$ occurrences to track dollar-quoted strings
+		dollarCount := strings.Count(line, "$$")
+		dollarQuoteDepth += dollarCount
+
+		current.WriteString(line)
+		current.WriteString("\n")
+
+		// We're outside dollar quotes when depth is even (0, 2, 4...)
+		outsideDollarQuotes := dollarQuoteDepth%2 == 0
+
+		// If outside dollar quotes and line ends with semicolon, it's end of statement
+		if outsideDollarQuotes && strings.HasSuffix(trimmed, ";") {
+			// Skip comment-only lines
+			if !strings.HasPrefix(trimmed, "--") {
+				statements = append(statements, current.String())
+				current.Reset()
+			}
+		}
+	}
+
+	// Add any remaining content
+	if current.Len() > 0 {
+		remaining := strings.TrimSpace(current.String())
+		if remaining != "" && !strings.HasPrefix(remaining, "--") {
+			statements = append(statements, remaining)
+		}
+	}
+
+	return statements
 }
 
 // recordMigration records a successful migration in the tracking table

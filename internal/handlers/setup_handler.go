@@ -6,18 +6,23 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"cold-backend/internal/config"
+	"cold-backend/templates"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -26,7 +31,7 @@ type SetupHandler struct {
 }
 
 func NewSetupHandler() *SetupHandler {
-	tmpl, err := template.ParseFiles("templates/setup.html")
+	tmpl, err := template.ParseFS(templates.FS, "setup.html")
 	if err != nil {
 		// Template might not exist yet during development
 		tmpl = template.New("setup")
@@ -38,7 +43,7 @@ func NewSetupHandler() *SetupHandler {
 
 // SetupPage shows the initial setup page
 func (h *SetupHandler) SetupPage(w http.ResponseWriter, r *http.Request) {
-	tmpl, err := template.ParseFiles("templates/setup.html")
+	tmpl, err := template.ParseFS(templates.FS, "setup.html")
 	if err != nil {
 		http.Error(w, "Setup template not found", http.StatusInternalServerError)
 		return
@@ -144,7 +149,7 @@ JWT_SECRET=cold-backend-jwt-secret-2025
 	}()
 }
 
-// ListBackups lists available backups from R2
+// ListBackups lists available backups from R2 (returns latest 50 sorted by date)
 func (h *SetupHandler) ListBackups(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
 
@@ -170,22 +175,46 @@ func (h *SetupHandler) ListBackups(w http.ResponseWriter, r *http.Request) {
 		o.BaseEndpoint = aws.String(config.R2Endpoint)
 	})
 
-	// List objects in bucket
-	result, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(config.R2BucketName),
-		Prefix: aws.String("base/"),
-	})
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Failed to list backups: " + err.Error(),
+	// Collect all objects using pagination
+	var allObjects []types.Object
+	var continuationToken *string
+
+	for {
+		result, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(config.R2BucketName),
+			Prefix:            aws.String("base/"),
+			ContinuationToken: continuationToken,
 		})
-		return
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   "Failed to list backups: " + err.Error(),
+			})
+			return
+		}
+
+		allObjects = append(allObjects, result.Contents...)
+
+		if !*result.IsTruncated {
+			break
+		}
+		continuationToken = result.NextContinuationToken
+	}
+
+	// Sort by LastModified descending (newest first)
+	sort.Slice(allObjects, func(i, j int) bool {
+		return allObjects[i].LastModified.After(*allObjects[j].LastModified)
+	})
+
+	// Take only the latest 50 backups
+	limit := 50
+	if len(allObjects) < limit {
+		limit = len(allObjects)
 	}
 
 	var backups []map[string]interface{}
-	for _, obj := range result.Contents {
+	for _, obj := range allObjects[:limit] {
 		backups = append(backups, map[string]interface{}{
 			"key":          *obj.Key,
 			"size":         *obj.Size,
@@ -195,8 +224,10 @@ func (h *SetupHandler) ListBackups(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"backups": backups,
+		"success":      true,
+		"backups":      backups,
+		"total_count":  len(allObjects),
+		"showing":      limit,
 	})
 }
 
@@ -311,6 +342,10 @@ func (h *SetupHandler) RestoreFromR2(w http.ResponseWriter, r *http.Request) {
 
 	cmd := exec.Command("psql", connStr, "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
+
+	// Log restore output for debugging
+	log.Printf("[Restore] psql output: %s", string(output))
+
 	os.Remove(tmpFile) // Cleanup
 
 	if err != nil {
@@ -318,6 +353,17 @@ func (h *SetupHandler) RestoreFromR2(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
 			"error":   "Failed to restore: " + err.Error() + "\nOutput: " + string(output),
+		})
+		return
+	}
+
+	// Check if output contains PostgreSQL errors (not just any "ERROR" substring)
+	outputStr := string(output)
+	if strings.Contains(outputStr, "ERROR:") {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Restore completed with errors:\n" + outputStr,
 		})
 		return
 	}
@@ -344,6 +390,148 @@ JWT_SECRET=cold-backend-jwt-secret-2025
 		time.Sleep(2 * time.Second)
 		os.Exit(0)
 	}()
+}
+
+// AutoRestoreFromR2 automatically restores from R2 if database is empty after migrations.
+// This is called from main.go after migrations run for disaster recovery automation.
+// Returns true if restore was performed, false if DB already has data or restore failed.
+func AutoRestoreFromR2(connStr string) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	log.Println("[AutoRestore] Checking if database needs restoration from R2...")
+
+	// Use pgx to check if users table is empty
+	conn, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to connect: %v", err)
+		return false
+	}
+	defer conn.Close(ctx)
+
+	// Check if users table has any rows
+	var userCount int
+	err = conn.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&userCount)
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to check users table: %v", err)
+		return false
+	}
+
+	if userCount > 0 {
+		log.Printf("[AutoRestore] Database has %d users, skipping restore", userCount)
+		return false
+	}
+
+	log.Println("[AutoRestore] Database is empty, starting automatic restore from R2...")
+
+	// Create S3 client for R2
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			config.R2AccessKey,
+			config.R2SecretKey,
+			"",
+		)),
+		awsconfig.WithRegion(config.R2Region),
+	)
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to configure S3 client: %v", err)
+		return false
+	}
+
+	client := s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		o.BaseEndpoint = aws.String(config.R2Endpoint)
+	})
+
+	// Get latest backup
+	result, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(config.R2BucketName),
+		Prefix: aws.String("base/"),
+	})
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to list backups: %v", err)
+		return false
+	}
+
+	if len(result.Contents) == 0 {
+		log.Println("[AutoRestore] No backups found in R2")
+		return false
+	}
+
+	// Find most recent backup
+	var latestKey string
+	var latestTime time.Time
+	for _, obj := range result.Contents {
+		if obj.LastModified.After(latestTime) {
+			latestTime = *obj.LastModified
+			latestKey = *obj.Key
+		}
+	}
+
+	log.Printf("[AutoRestore] Found latest backup: %s (%s)", latestKey, latestTime.Format(time.RFC3339))
+
+	// Download the backup
+	resp, err := client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(config.R2BucketName),
+		Key:    aws.String(latestKey),
+	})
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to download backup: %v", err)
+		return false
+	}
+	defer resp.Body.Close()
+
+	// Save to temp file
+	tmpFile := filepath.Join(os.TempDir(), "cold_auto_restore.sql")
+	f, err := os.Create(tmpFile)
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to create temp file: %v", err)
+		return false
+	}
+
+	bytesWritten, err := io.Copy(f, resp.Body)
+	f.Close()
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to save backup: %v", err)
+		os.Remove(tmpFile)
+		return false
+	}
+
+	log.Printf("[AutoRestore] Downloaded backup: %.2f KB", float64(bytesWritten)/1024)
+
+	// Restore using psql
+	cmd := exec.Command("psql", connStr, "-f", tmpFile)
+	output, err := cmd.CombinedOutput()
+
+	os.Remove(tmpFile) // Cleanup
+
+	if err != nil {
+		log.Printf("[AutoRestore] psql failed: %v\nOutput: %s", err, string(output))
+		return false
+	}
+
+	// Check for PostgreSQL errors
+	outputStr := string(output)
+	if strings.Contains(outputStr, "ERROR:") {
+		log.Printf("[AutoRestore] Restore completed with errors:\n%s", outputStr)
+		return false
+	}
+
+	// Verify restore by counting users again
+	conn2, err := pgx.Connect(ctx, connStr)
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to verify restore: %v", err)
+		return true // Still return true, restore might have worked
+	}
+	defer conn2.Close(ctx)
+
+	err = conn2.QueryRow(ctx, "SELECT COUNT(*) FROM users").Scan(&userCount)
+	if err != nil {
+		log.Printf("[AutoRestore] Failed to count users after restore: %v", err)
+		return true
+	}
+
+	log.Printf("[AutoRestore] ✓ Restore complete! %d users restored from backup", userCount)
+	return true
 }
 
 // CheckR2Connection tests R2 connectivity

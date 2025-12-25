@@ -220,13 +220,27 @@ func createR2DatabaseBackup(ctx context.Context) ([]byte, error) {
 	}
 
 	var buffer bytes.Buffer
-	buffer.WriteString("-- Cold Storage Database Backup\n")
+	buffer.WriteString("-- Cold Storage Database Backup (Full Database)\n")
 	buffer.WriteString(fmt.Sprintf("-- Generated: %s\n\n", timeutil.Now().Format(time.RFC3339)))
 
-	tables := []string{
-		"users", "customers", "entries", "entry_events", "room_entries",
-		"system_settings", "rent_payments", "invoices", "gate_passes",
-		"gate_pass_pickups", "guard_entries", "token_colors", "season_requests",
+	// Get ALL tables from database dynamically
+	tableRows, err := r2BackupDBPool.Query(ctx, `
+		SELECT table_name FROM information_schema.tables
+		WHERE table_schema = 'public'
+		AND table_type = 'BASE TABLE'
+		AND table_name != 'schema_migrations'
+		ORDER BY table_name`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tables: %v", err)
+	}
+	defer tableRows.Close()
+
+	var tables []string
+	for tableRows.Next() {
+		var tableName string
+		if err := tableRows.Scan(&tableName); err == nil {
+			tables = append(tables, tableName)
+		}
 	}
 
 	tablesProcessed := 0
@@ -1238,14 +1252,27 @@ func (h *MonitoringHandler) createDatabaseBackup(ctx context.Context) ([]byte, e
 	defer db.Close()
 
 	var buffer bytes.Buffer
-	buffer.WriteString("-- Cold Storage Database Backup\n")
+	buffer.WriteString("-- Cold Storage Database Backup (Full Database)\n")
 	buffer.WriteString(fmt.Sprintf("-- Generated: %s\n\n", timeutil.Now().Format(time.RFC3339)))
 
-	// Get all tables
-	tables := []string{
-		"users", "customers", "entries", "entry_events", "room_entries",
-		"system_settings", "rent_payments", "invoices", "gate_passes",
-		"gate_pass_pickups", "guard_entries", "token_colors", "season_requests",
+	// Get ALL tables from database dynamically
+	tableRows, err := db.QueryContext(ctx, `
+		SELECT table_name FROM information_schema.tables
+		WHERE table_schema = 'public'
+		AND table_type = 'BASE TABLE'
+		AND table_name != 'schema_migrations'
+		ORDER BY table_name`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tables: %v", err)
+	}
+	defer tableRows.Close()
+
+	var tables []string
+	for tableRows.Next() {
+		var tableName string
+		if err := tableRows.Scan(&tableName); err == nil {
+			tables = append(tables, tableName)
+		}
 	}
 
 	for _, table := range tables {

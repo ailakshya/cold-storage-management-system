@@ -3,7 +3,8 @@ package handlers
 import (
 	"html/template"
 	"net/http"
-	"path/filepath"
+
+	"cold-backend/templates"
 )
 
 type PageHandler struct {
@@ -11,8 +12,8 @@ type PageHandler struct {
 }
 
 func NewPageHandler() *PageHandler {
-	// Parse all templates
-	templates := template.Must(template.ParseGlob(filepath.Join("templates", "*.html")))
+	// Parse all templates from embedded filesystem
+	templates := template.Must(template.ParseFS(templates.FS, "*.html"))
 
 	return &PageHandler{
 		templates: templates,

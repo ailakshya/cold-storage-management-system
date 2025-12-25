@@ -1,11 +1,15 @@
 package http
 
 import (
+	"io/fs"
 	"net/http"
-	"github.com/gorilla/mux"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/middleware"
+	"cold-backend/static"
+
+	"github.com/gorilla/mux"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 func NewRouter(
@@ -38,6 +42,7 @@ func NewRouter(
 	accountHandler *handlers.AccountHandler,
 	entryRoomHandler *handlers.EntryRoomHandler,
 	roomVisualizationHandler *handlers.RoomVisualizationHandler,
+	setupHandler *handlers.SetupHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -50,8 +55,9 @@ func NewRouter(
 		r.Use(apiLoggingMiddleware.Handler)
 	}
 
-	// Serve static files
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Serve static files from embedded filesystem
+	staticFS, _ := fs.Sub(static.FS, ".")
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	// Public HTML pages (NO AUTHENTICATION REQUIRED)
 	r.HandleFunc("/", pageHandler.LoginPage).Methods("GET")
@@ -61,6 +67,17 @@ func NewRouter(
 	// Public API routes - Authentication (with rate limiting)
 	r.HandleFunc("/auth/signup", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(authHandler.Signup)).ServeHTTP).Methods("POST")
 	r.HandleFunc("/auth/login", middleware.LoginRateLimiter.Middleware(http.HandlerFunc(authHandler.Login)).ServeHTTP).Methods("POST")
+
+	// Setup routes - Always available for disaster recovery
+	// Allows restoring from R2 backup even when DB is connected
+	if setupHandler != nil {
+		r.HandleFunc("/setup", setupHandler.SetupPage).Methods("GET")
+		r.HandleFunc("/setup/test", setupHandler.TestConnection).Methods("POST")
+		r.HandleFunc("/setup/save", setupHandler.SaveConfig).Methods("POST")
+		r.HandleFunc("/setup/r2-check", setupHandler.CheckR2Connection).Methods("GET")
+		r.HandleFunc("/setup/backups", setupHandler.ListBackups).Methods("GET")
+		r.HandleFunc("/setup/restore", setupHandler.RestoreFromR2).Methods("POST")
+	}
 
 	// Protected HTML pages - Client-side authentication via localStorage
 	// These pages load without server-side auth and use JavaScript to check localStorage
@@ -328,6 +345,7 @@ func NewRouter(
 	infraAPI.Use(authMiddleware.Authenticate)
 	// Read-only endpoints - any authenticated user can view
 	infraAPI.HandleFunc("/backup-status", infraHandler.GetBackupStatus).Methods("GET")
+	infraAPI.HandleFunc("/backup-history", infraHandler.GetBackupHistory).Methods("GET")
 	infraAPI.HandleFunc("/k3s-status", infraHandler.GetK3sStatus).Methods("GET")
 	infraAPI.HandleFunc("/postgresql-status", infraHandler.GetPostgreSQLStatus).Methods("GET")
 	infraAPI.HandleFunc("/postgresql-pods", infraHandler.GetPostgreSQLPods).Methods("GET")
@@ -505,8 +523,9 @@ func NewCustomerRouter(
 	r.Use(middleware.HTTPSRedirect)
 	r.Use(middleware.SecurityHeaders)
 
-	// Serve static files
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
+	// Serve static files from embedded filesystem
+	staticFS, _ := fs.Sub(static.FS, ".")
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	// Public routes - Customer portal login
 	r.HandleFunc("/", pageHandler.CustomerPortalLoginPage).Methods("GET")
