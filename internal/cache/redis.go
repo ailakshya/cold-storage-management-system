@@ -151,3 +151,125 @@ func InvalidateRoomCache(ctx context.Context) {
 		client.Del(ctx, keys...)
 	}
 }
+
+// ============================================
+// Generic Cache Functions
+// ============================================
+
+// GetCached returns cached data for a key
+func GetCached(ctx context.Context, key string) ([]byte, bool) {
+	if client == nil {
+		return nil, false
+	}
+	data, err := client.Get(ctx, key).Bytes()
+	if err != nil {
+		return nil, false
+	}
+	return data, true
+}
+
+// SetCached stores data with a TTL
+func SetCached(ctx context.Context, key string, data []byte, ttl time.Duration) {
+	if client == nil {
+		return
+	}
+	client.Set(ctx, key, data, ttl)
+}
+
+// ============================================
+// Cache Invalidation Functions
+// ============================================
+
+// InvalidatePattern removes all keys matching a glob pattern
+func InvalidatePattern(ctx context.Context, pattern string) {
+	if client == nil {
+		return
+	}
+	keys, err := client.Keys(ctx, pattern).Result()
+	if err == nil && len(keys) > 0 {
+		client.Del(ctx, keys...)
+	}
+}
+
+// InvalidateKeys removes specific cache keys
+func InvalidateKeys(ctx context.Context, keys ...string) {
+	if client == nil || len(keys) == 0 {
+		return
+	}
+	client.Del(ctx, keys...)
+}
+
+// ============================================
+// Entity-Based Cache Invalidators
+// ============================================
+
+// InvalidateCustomerCaches clears all customer-related caches
+// Called when: CreateCustomer, UpdateCustomer, DeleteCustomer
+func InvalidateCustomerCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "customers:*")
+	InvalidateKeys(ctx, "account:summary")
+}
+
+// InvalidateEntryCaches clears all entry-related caches
+// Called when: CreateEntry, UpdateEntry, DeleteEntry
+func InvalidateEntryCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "entries:*")
+	InvalidateKeys(ctx, "account:summary", "entry:room:summary")
+	// Also invalidate room cache since entries affect room occupancy
+	InvalidateRoomCache(ctx)
+}
+
+// InvalidateRoomEntryCaches clears all room entry-related caches
+// Called when: CreateRoomEntry, UpdateRoomEntry, DeleteRoomEntry
+func InvalidateRoomEntryCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "room:*")
+	InvalidateKeys(ctx, "account:summary", "entry:room:summary")
+}
+
+// InvalidateGatePassCaches clears all gate pass-related caches
+// Called when: CreateGatePass, ApproveGatePass, CompleteGatePass, RecordPickup
+func InvalidateGatePassCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "gate_pass:*")
+	InvalidateKeys(ctx, "account:summary")
+}
+
+// InvalidateGuardEntryCaches clears all guard entry-related caches
+// Called when: CreateGuardEntry, ProcessGuardEntry, DeleteGuardEntry
+func InvalidateGuardEntryCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "guard:*")
+	InvalidateKeys(ctx, "entry:room:summary")
+}
+
+// InvalidateUserCaches clears all user-related caches
+// Called when: CreateUser, UpdateUser, DeleteUser, ToggleStatus
+func InvalidateUserCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "users:*")
+}
+
+// InvalidateSettingCaches clears all setting-related caches
+// Called when: UpdateSetting
+func InvalidateSettingCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "settings:*")
+	// Settings like rent_per_item affect account calculations
+	InvalidateKeys(ctx, "account:summary")
+}
+
+// InvalidatePaymentCaches clears all payment-related caches
+// Called when: CreatePayment
+func InvalidatePaymentCaches(ctx context.Context) {
+	InvalidatePattern(ctx, "payments:*")
+	InvalidateKeys(ctx, "account:summary")
+}
+
+// InvalidateAllBusinessCaches clears ALL business data caches
+// Called when: ApproveSeasonRequest (archives all data - full reset)
+func InvalidateAllBusinessCaches(ctx context.Context) {
+	patterns := []string{
+		"customers:*", "entries:*", "room:*", "gate_pass:*",
+		"guard:*", "payments:*", "account:*", "entry:room:*",
+		"settings:*",
+	}
+	for _, p := range patterns {
+		InvalidatePattern(ctx, p)
+	}
+}

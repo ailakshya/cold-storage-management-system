@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
@@ -46,6 +47,9 @@ func (h *GuardEntryHandler) CreateGuardEntry(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Invalidate guard entries cache
+	cache.InvalidateGuardEntryCaches(r.Context())
 
 	// Log guard entry creation
 	ipAddress := r.Header.Get("X-Forwarded-For")
@@ -124,6 +128,9 @@ func (h *GuardEntryHandler) ProcessGuardEntry(w http.ResponseWriter, r *http.Req
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Invalidate guard entries cache
+	cache.InvalidateGuardEntryCaches(r.Context())
 
 	// Log guard entry processing
 	ipAddress := r.Header.Get("X-Forwarded-For")
@@ -206,6 +213,9 @@ func (h *GuardEntryHandler) DeleteGuardEntry(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	// Invalidate guard entries cache
+	cache.InvalidateGuardEntryCaches(r.Context())
+
 	// Log guard entry deletion
 	userID, _ := middleware.GetUserIDFromContext(r.Context())
 	ipAddress := r.Header.Get("X-Forwarded-For")
@@ -249,6 +259,9 @@ func (h *GuardEntryHandler) ProcessPortion(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Invalidate guard entries cache
+	cache.InvalidateGuardEntryCaches(r.Context())
 
 	// Log portion processing
 	ipAddress := r.Header.Get("X-Forwarded-For")

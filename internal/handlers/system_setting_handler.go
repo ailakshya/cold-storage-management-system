@@ -4,11 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
+
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/services"
+
 	"github.com/gorilla/mux"
 )
+
+const settingsCacheTTL = 24 * time.Hour
 
 type SystemSettingHandler struct {
 	Service *services.SystemSettingService
@@ -33,14 +39,30 @@ func (h *SystemSettingHandler) GetSetting(w http.ResponseWriter, r *http.Request
 }
 
 func (h *SystemSettingHandler) ListSettings(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cacheKey := "settings:list"
+
+	// Try cache first
+	if data, ok := cache.GetCached(ctx, cacheKey); ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		w.Write(data)
+		return
+	}
+
 	settings, err := h.Service.ListSettings(context.Background())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Cache the response
+	data, _ := json.Marshal(settings)
+	cache.SetCached(ctx, cacheKey, data, settingsCacheTTL)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(settings)
+	w.Header().Set("X-Cache", "MISS")
+	w.Write(data)
 }
 
 func (h *SystemSettingHandler) UpdateSetting(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +85,9 @@ func (h *SystemSettingHandler) UpdateSetting(w http.ResponseWriter, r *http.Requ
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Invalidate settings cache
+	cache.InvalidateSettingCaches(r.Context())
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "Setting updated successfully"})

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/services"
@@ -157,6 +158,9 @@ func (h *SeasonHandler) ApproveRequest(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Full cache reset - season approval archives all business data
+	cache.InvalidateAllBusinessCaches(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{

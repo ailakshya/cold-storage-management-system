@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
@@ -14,6 +16,8 @@ import (
 
 	"github.com/gorilla/mux"
 )
+
+const usersCacheTTL = 1 * time.Hour
 
 type UserHandler struct {
 	Service         *services.UserService
@@ -66,6 +70,9 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Invalidate users cache
+	cache.InvalidateUserCaches(r.Context())
+
 	// Log admin action
 	ipAddress := getIPAddress(r)
 	description := fmt.Sprintf("Created user: %s (%s) with role: %s", user.Name, user.Email, user.Role)
@@ -96,8 +103,10 @@ func (h *UserHandler) GetUser(w http.ResponseWriter, r *http.Request) {
 
 // ListUsers returns all users
 func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	// CRITICAL FIX: Verify admin role before listing all users
-	role, ok := middleware.GetRoleFromContext(r.Context())
+	role, ok := middleware.GetRoleFromContext(ctx)
 	if !ok {
 		http.Error(w, "Unauthorized - role not found", http.StatusUnauthorized)
 		return
@@ -108,14 +117,29 @@ func (h *UserHandler) ListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cacheKey := "users:list"
+
+	// Try cache first
+	if data, ok := cache.GetCached(ctx, cacheKey); ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		w.Write(data)
+		return
+	}
+
 	users, err := h.Service.ListUsers(context.Background())
 	if err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
 
+	// Cache the response
+	data, _ := json.Marshal(users)
+	cache.SetCached(ctx, cacheKey, data, usersCacheTTL)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(users)
+	w.Header().Set("X-Cache", "MISS")
+	w.Write(data)
 }
 
 // UpdateUser updates an existing user
@@ -164,6 +188,9 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
+	// Invalidate users cache
+	cache.InvalidateUserCaches(r.Context())
 
 	// Log admin action
 	ipAddress := getIPAddress(r)
@@ -217,6 +244,9 @@ func (h *UserHandler) DeleteUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Invalidate users cache
+	cache.InvalidateUserCaches(r.Context())
+
 	// Log admin action
 	ipAddress := getIPAddress(r)
 	description := "Deleted user"
@@ -263,6 +293,9 @@ func (h *UserHandler) ToggleActiveStatus(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), 500)
 		return
 	}
+
+	// Invalidate users cache
+	cache.InvalidateUserCaches(r.Context())
 
 	// Log admin action
 	ipAddress := getIPAddress(r)

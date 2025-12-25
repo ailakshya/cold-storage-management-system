@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
@@ -46,6 +47,9 @@ func (h *GatePassHandler) CreateGatePass(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Invalidate gate pass cache
+	cache.InvalidateGatePassCaches(r.Context())
 
 	// Log admin action
 	ipAddress := getIPAddress(r)
@@ -125,6 +129,9 @@ func (h *GatePassHandler) ApproveGatePass(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Invalidate gate pass cache
+	cache.InvalidateGatePassCaches(r.Context())
+
 	// Log admin action
 	ipAddress := getIPAddress(r)
 	description := fmt.Sprintf("Approved gate pass #%d - %d items at gate %s", id, req.ApprovedQuantity, req.GateNo)
@@ -162,6 +169,10 @@ func (h *GatePassHandler) CompleteGatePass(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Invalidate gate pass and room caches (items leaving affects room occupancy)
+	cache.InvalidateGatePassCaches(r.Context())
+	cache.InvalidateRoomEntryCaches(r.Context())
+
 	// Log admin action
 	ipAddress := getIPAddress(r)
 	description := fmt.Sprintf("Completed gate pass #%d - items physically taken out by customer", id)
@@ -197,6 +208,10 @@ func (h *GatePassHandler) RecordPickup(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Invalidate gate pass and room caches (pickup affects room occupancy)
+	cache.InvalidateGatePassCaches(r.Context())
+	cache.InvalidateRoomEntryCaches(r.Context())
 
 	// Log admin action
 	ipAddress := getIPAddress(r)

@@ -5,13 +5,17 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/services"
 
 	"github.com/gorilla/mux"
 )
+
+const customersCacheTTL = 30 * time.Minute
 
 type CustomerHandler struct {
 	Service *services.CustomerService
@@ -33,6 +37,9 @@ func (h *CustomerHandler) CreateCustomer(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Invalidate customers cache
+	cache.InvalidateCustomerCaches(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(customer)
@@ -87,14 +94,30 @@ func (h *CustomerHandler) SearchByPhone(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *CustomerHandler) ListCustomers(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cacheKey := "customers:list"
+
+	// Try cache first
+	if data, ok := cache.GetCached(ctx, cacheKey); ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		w.Write(data)
+		return
+	}
+
 	customers, err := h.Service.ListCustomers(context.Background())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// Cache the response
+	data, _ := json.Marshal(customers)
+	cache.SetCached(ctx, cacheKey, data, customersCacheTTL)
+
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(customers)
+	w.Header().Set("X-Cache", "MISS")
+	w.Write(data)
 }
 
 func (h *CustomerHandler) UpdateCustomer(w http.ResponseWriter, r *http.Request) {
@@ -125,6 +148,9 @@ func (h *CustomerHandler) UpdateCustomer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Invalidate customers cache
+	cache.InvalidateCustomerCaches(r.Context())
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(customer)
 }
@@ -149,6 +175,9 @@ func (h *CustomerHandler) DeleteCustomer(w http.ResponseWriter, r *http.Request)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Invalidate customers cache
+	cache.InvalidateCustomerCaches(r.Context())
 
 	w.WriteHeader(http.StatusNoContent)
 }

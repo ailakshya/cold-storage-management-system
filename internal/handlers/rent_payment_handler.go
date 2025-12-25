@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/services"
+
 	"github.com/gorilla/mux"
 )
 
@@ -61,6 +64,9 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Invalidate payment caches
+	cache.InvalidatePaymentCaches(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(payment)

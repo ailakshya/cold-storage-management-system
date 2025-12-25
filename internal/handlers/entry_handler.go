@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
@@ -45,6 +46,9 @@ func (h *EntryHandler) CreateEntry(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Invalidate entries cache
+	cache.InvalidateEntryCaches(r.Context())
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(entry)
@@ -208,6 +212,9 @@ func (h *EntryHandler) UpdateEntry(w http.ResponseWriter, r *http.Request) {
 			h.EditLogRepo.CreateEditLog(context.Background(), editLog)
 		}
 	}
+
+	// Invalidate entries cache
+	cache.InvalidateEntryCaches(r.Context())
 
 	// Fetch updated entry to return the new thock number
 	entry, err := h.Service.GetEntry(context.Background(), id)
