@@ -7,6 +7,7 @@
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
     <style>
         * {
@@ -43,6 +44,7 @@
             box-shadow: 3px 3px 0px #000;
         }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-[#ecf0f1] min-h-screen relative">
     <!-- Language Selector -->
@@ -52,6 +54,11 @@
             <option value="en">English</option>
             <option value="hi">हिंदी</option>
         </select>
+                <!-- Theme Toggle -->
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
     </div>
 
     <main class="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-screen">

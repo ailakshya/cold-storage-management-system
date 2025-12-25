@@ -71,6 +71,7 @@
         .status-expired { background: #fee2e2; color: #991b1b; }
         .status-partially_completed { background: #fed7aa; color: #9a3412; }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="p-3 md:p-4">
     <div class="max-w-6xl mx-auto">
@@ -87,6 +88,11 @@
                         <option value="en">EN</option>
                         <option value="hi">हिं</option>
                     </select>
+                <!-- Theme Toggle -->
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
                     <button onclick="logout()" class="neu-button bg-red-500 text-sm md:text-base" data-i18n="logout">Logout</button>
                 </div>
             </div>
@@ -142,6 +148,11 @@
                     <select id="thockSelect" class="neu-input" required>
                         <option value="" data-i18n="select_truck_option">-- Select Truck --</option>
                     </select>
+                <!-- Theme Toggle -->
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
                 </div>
                 <div>
                     <label class="block font-semibold mb-2 text-sm md:text-base" data-i18n="quantity">Quantity</label>

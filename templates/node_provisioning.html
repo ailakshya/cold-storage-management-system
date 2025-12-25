@@ -8,6 +8,7 @@
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
     <style>
         * { font-family: 'Space Grotesk', sans-serif; }
         .neu-border {
@@ -45,6 +46,7 @@
         .log-running { color: #3b82f6; }
     </style>
 <script src="/static/js/prefetch.js"></script>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-gray-100 p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
@@ -59,6 +61,10 @@
                     <p class="text-gray-600 text-sm md:text-base">Manage K3s cluster nodes - Add, Remove, Provision</p>
                 </div>
                 <div class="flex gap-2">
+                    <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2 text-sm" title="Toggle Dark Mode">
+                        <i class="bi bi-moon-fill theme-icon-moon"></i>
+                        <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                    </button>
                     <a href="/infrastructure" class="neu-border bg-gray-200 text-black px-4 py-2 text-sm">
                         <i class="bi bi-arrow-left"></i> Back
                     </a>

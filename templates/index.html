@@ -8,6 +8,7 @@
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
     <style>
         * {
             font-family: 'Space Grotesk', sans-serif;
@@ -33,6 +34,7 @@
             box-shadow: 6px 6px 0 #000;
         }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-[#ecf0f1] min-h-screen">
     <!-- Navigation -->
@@ -43,6 +45,10 @@
                 <h1 class="text-2xl font-bold">Cold Storage Management</h1>
             </div>
             <div class="flex gap-4">
+                <button onclick="theme.toggle()" class="neu-brutal bg-gray-200 px-4 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
                 <a href="/dashboard" class="neu-brutal bg-[#3498db] text-white px-6 py-2">
                     <i class="bi bi-grid"></i> Dashboard
                 </a>

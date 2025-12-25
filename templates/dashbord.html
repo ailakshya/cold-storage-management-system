@@ -8,6 +8,7 @@ x<!DOCTYPE html>
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
     
     <style>
         * {
@@ -44,6 +45,7 @@ x<!DOCTYPE html>
             font-size: 2rem;
         }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-[#FFEBEB] min-h-screen p-8">
     <div class="max-w-6xl mx-auto">
@@ -53,6 +55,10 @@ x<!DOCTYPE html>
                 <p class="text-gray-600">Navigation Hub</p>
             </div>
             <nav class="flex gap-4">
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-4 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
                 <button class="neu-border bg-[#FFB4B4] px-6 py-2" onclick="window.location.href='/settings'">
                     <i class="bi bi-gear-fill"></i> Settings
                 </button>

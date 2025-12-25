@@ -8,6 +8,7 @@
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
     <style>
         * { font-family: 'Space Grotesk', sans-serif; }
         .status-healthy { background: #10b981; }
@@ -26,6 +27,7 @@
             50% { opacity: .5; }
         }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-gray-100 p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
@@ -42,9 +44,15 @@
                 <div class="text-left md:text-right w-full md:w-auto">
                     <div class="text-sm text-gray-600">Last Update</div>
                     <div id="lastUpdate" class="text-lg font-bold">--:--:--</div>
-                    <button onclick="refreshAll()" class="mt-2 neu-border bg-blue-500 text-white px-4 py-2 text-sm">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+                    <div class="flex gap-2 mt-2">
+                        <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2 text-sm" title="Toggle Dark Mode">
+                            <i class="bi bi-moon-fill theme-icon-moon"></i>
+                            <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                        </button>
+                        <button onclick="refreshAll()" class="neu-border bg-blue-500 text-white px-4 py-2 text-sm">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

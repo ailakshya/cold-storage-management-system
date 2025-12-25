@@ -80,6 +80,7 @@
             display: none;
         }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="flex items-center justify-center p-4">
     <!-- Language Selector -->
@@ -89,6 +90,11 @@
             <option value="en">EN</option>
             <option value="hi">हिं</option>
         </select>
+                <!-- Theme Toggle -->
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
     </div>
 
     <div class="neu-card w-full max-w-md p-6 md:p-8">

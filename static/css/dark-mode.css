@@ -1,0 +1,307 @@
+/* Dark Mode Styles for Cold Storage App */
+/* Uses CSS custom properties for easy theme switching */
+
+:root {
+    /* Light mode (default) */
+    --bg-primary: #ecf0f1;
+    --bg-card: #ffffff;
+    --bg-input: #ffffff;
+    --bg-hover: #f8f9fa;
+    --text-primary: #1a1a1a;
+    --text-secondary: #4a5568;
+    --text-muted: #718096;
+    --border-color: #000000;
+    --border-light: #e2e8f0;
+    --shadow-color: rgba(0, 0, 0, 0.15);
+    --shadow-neu: 4px 4px 0 #000;
+}
+
+[data-theme="dark"] {
+    --bg-primary: #0f172a;
+    --bg-card: #1e293b;
+    --bg-input: #334155;
+    --bg-hover: #475569;
+    --text-primary: #f1f5f9;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --border-color: #475569;
+    --border-light: #334155;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+    --shadow-neu: 4px 4px 0 #0f172a;
+}
+
+/* ===== Body & Background ===== */
+body.dark-mode {
+    background-color: var(--bg-primary) !important;
+    color: var(--text-primary) !important;
+}
+
+/* Override specific background colors used in templates */
+body.dark-mode[class*="bg-[#"] {
+    background-color: var(--bg-primary) !important;
+}
+
+/* ===== Cards & Containers ===== */
+.dark-mode .neu-border,
+.dark-mode .bg-white,
+.dark-mode [class*="bg-white"] {
+    background-color: var(--bg-card) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.dark-mode .neu-border {
+    box-shadow: var(--shadow-neu) !important;
+}
+
+/* ===== Inputs & Forms ===== */
+.dark-mode .neu-input,
+.dark-mode input:not([type="checkbox"]):not([type="radio"]),
+.dark-mode select,
+.dark-mode textarea {
+    background-color: var(--bg-input) !important;
+    border-color: var(--border-color) !important;
+    color: var(--text-primary) !important;
+}
+
+.dark-mode input::placeholder,
+.dark-mode textarea::placeholder {
+    color: var(--text-muted) !important;
+}
+
+.dark-mode input:focus,
+.dark-mode select:focus,
+.dark-mode textarea:focus {
+    border-color: #3b82f6 !important;
+    outline-color: #3b82f6 !important;
+}
+
+/* ===== Buttons ===== */
+.dark-mode .neu-button {
+    border-color: var(--border-color) !important;
+    box-shadow: var(--shadow-neu) !important;
+}
+
+.dark-mode .neu-button:hover {
+    transform: translate(2px, 2px);
+    box-shadow: 2px 2px 0 var(--border-color) !important;
+}
+
+/* Preserve accent button colors but adjust for dark mode */
+.dark-mode .bg-gray-200 {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+}
+
+.dark-mode .bg-gray-100 {
+    background-color: var(--bg-card) !important;
+}
+
+.dark-mode .bg-gray-50 {
+    background-color: var(--bg-card) !important;
+}
+
+/* ===== Tables ===== */
+.dark-mode table {
+    color: var(--text-primary) !important;
+}
+
+.dark-mode thead,
+.dark-mode th {
+    background-color: var(--bg-card) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+.dark-mode tbody tr {
+    border-color: var(--border-light) !important;
+}
+
+.dark-mode tbody tr:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+.dark-mode td {
+    color: var(--text-primary) !important;
+}
+
+/* Sticky table headers */
+.dark-mode .sticky {
+    background-color: var(--bg-card) !important;
+}
+
+/* ===== Text Colors ===== */
+.dark-mode .text-gray-500,
+.dark-mode .text-gray-600,
+.dark-mode .text-gray-700,
+.dark-mode .text-gray-800,
+.dark-mode .text-gray-900 {
+    color: var(--text-secondary) !important;
+}
+
+.dark-mode .text-black {
+    color: var(--text-primary) !important;
+}
+
+.dark-mode h1, .dark-mode h2, .dark-mode h3,
+.dark-mode h4, .dark-mode h5, .dark-mode h6 {
+    color: var(--text-primary) !important;
+}
+
+.dark-mode p {
+    color: var(--text-secondary) !important;
+}
+
+.dark-mode label {
+    color: var(--text-primary) !important;
+}
+
+/* ===== Borders ===== */
+.dark-mode .border-gray-200,
+.dark-mode .border-gray-300 {
+    border-color: var(--border-light) !important;
+}
+
+.dark-mode .border-black {
+    border-color: var(--border-color) !important;
+}
+
+/* ===== Modals & Overlays ===== */
+.dark-mode .bg-black.bg-opacity-50 {
+    background-color: rgba(0, 0, 0, 0.7) !important;
+}
+
+.dark-mode [class*="modal"] .bg-white,
+.dark-mode [id*="Modal"] .bg-white {
+    background-color: var(--bg-card) !important;
+}
+
+/* ===== Dropdowns ===== */
+.dark-mode .dropdown,
+.dark-mode [class*="dropdown"] {
+    background-color: var(--bg-card) !important;
+    border-color: var(--border-color) !important;
+}
+
+.dark-mode .dropdown-item:hover {
+    background-color: var(--bg-hover) !important;
+}
+
+/* ===== Navigation ===== */
+.dark-mode nav,
+.dark-mode header {
+    background-color: var(--bg-card) !important;
+}
+
+.dark-mode .nav-header {
+    background-color: var(--bg-card) !important;
+}
+
+/* ===== Status Badges - Keep accent colors but improve contrast ===== */
+/* These stay colorful for visual distinction */
+.dark-mode .bg-green-100 { background-color: rgba(34, 197, 94, 0.2) !important; }
+.dark-mode .bg-red-100 { background-color: rgba(239, 68, 68, 0.2) !important; }
+.dark-mode .bg-yellow-100 { background-color: rgba(234, 179, 8, 0.2) !important; }
+.dark-mode .bg-blue-100 { background-color: rgba(59, 130, 246, 0.2) !important; }
+.dark-mode .bg-purple-100 { background-color: rgba(168, 85, 247, 0.2) !important; }
+.dark-mode .bg-orange-100 { background-color: rgba(249, 115, 22, 0.2) !important; }
+.dark-mode .bg-pink-100 { background-color: rgba(236, 72, 153, 0.2) !important; }
+
+.dark-mode .bg-green-50 { background-color: rgba(34, 197, 94, 0.1) !important; }
+.dark-mode .bg-red-50 { background-color: rgba(239, 68, 68, 0.1) !important; }
+.dark-mode .bg-yellow-50 { background-color: rgba(234, 179, 8, 0.1) !important; }
+.dark-mode .bg-blue-50 { background-color: rgba(59, 130, 246, 0.1) !important; }
+
+/* ===== Links ===== */
+.dark-mode a {
+    color: #60a5fa !important;
+}
+
+.dark-mode a:hover {
+    color: #93c5fd !important;
+}
+
+/* ===== Scrollbars ===== */
+.dark-mode ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.dark-mode ::-webkit-scrollbar-track {
+    background: var(--bg-primary);
+}
+
+.dark-mode ::-webkit-scrollbar-thumb {
+    background: var(--border-color);
+    border-radius: 4px;
+}
+
+.dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* ===== Icons ===== */
+.dark-mode i[class*="bi-"] {
+    color: inherit;
+}
+
+/* ===== Language Selector ===== */
+.dark-mode .lang-selector {
+    background-color: var(--bg-input) !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* ===== Page-specific light backgrounds ===== */
+/* Override the pastel backgrounds used in different dashboards */
+.dark-mode[class*="bg-[#FFEBEB]"],
+.dark-mode[class*="bg-[#E8F5E9]"],
+.dark-mode[class*="bg-[#FFF9E6]"],
+.dark-mode[class*="bg-[#ecf0f1]"],
+.dark-mode[class*="bg-[#E3F2FD]"],
+.dark-mode[class*="bg-[#F3E5F5]"] {
+    background-color: var(--bg-primary) !important;
+}
+
+/* ===== Alerts & Notifications ===== */
+.dark-mode .alert,
+.dark-mode [class*="alert-"] {
+    border-color: var(--border-color) !important;
+}
+
+/* ===== Print Styles - Force light mode for printing ===== */
+@media print {
+    body.dark-mode {
+        background-color: white !important;
+        color: black !important;
+    }
+
+    .dark-mode .neu-border,
+    .dark-mode .bg-white {
+        background-color: white !important;
+        color: black !important;
+    }
+}
+
+/* ===== Theme Toggle Button Icons ===== */
+.theme-icon-sun {
+    display: none;
+}
+
+[data-theme="dark"] .theme-icon-moon {
+    display: none !important;
+}
+
+[data-theme="dark"] .theme-icon-sun {
+    display: inline !important;
+}
+
+/* ===== Transition for smooth theme switching ===== */
+body,
+.neu-border,
+.neu-button,
+.neu-input,
+input, select, textarea,
+table, thead, tbody, tr, td, th {
+    transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}

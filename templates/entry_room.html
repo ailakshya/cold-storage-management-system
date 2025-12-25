@@ -8,6 +8,7 @@
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
 
     <style>
         * {
@@ -107,6 +108,7 @@
             background-color: #059669;
         }
     </style>
+    <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
@@ -127,6 +129,11 @@
                     <option value="en">EN</option>
                     <option value="hi">हिं</option>
                 </select>
+                <!-- Theme Toggle -->
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
                 <button onclick="goBack()" class="neu-button bg-gray-200">
                     <i class="bi bi-arrow-left"></i> <span data-i18n="back">Back</span>
                 </button>
@@ -499,6 +506,11 @@
                             <option value="seed">SEED (1-1500)</option>
                             <option value="sell">SELL (1501+)</option>
                         </select>
+                <!-- Theme Toggle -->
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
                     </div>
                     <div>
                         <label class="block text-sm font-semibold mb-1" data-i18n="variety">Variety</label>
@@ -2409,7 +2421,8 @@
                                 .container { gap: 10px; }
                             }
                         </style>
-                    </head>
+                        <script src="/static/js/theme.js"></script>
+</head>
                     <body>
                         <div class="container">
                             ${receiptHTML}
