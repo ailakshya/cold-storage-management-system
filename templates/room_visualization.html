@@ -58,13 +58,21 @@
 
         /* Floor tabs */
         .floor-tab {
-            padding: 12px 32px;
+            padding: 12px 24px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
-            border-radius: 8px 8px 0 0;
             background: #e5e7eb;
             color: #4b5563;
+            border: none;
+        }
+
+        .floor-tab:first-child {
+            border-radius: 8px 0 0 8px;
+        }
+
+        .floor-tab:last-child {
+            border-radius: 0 8px 8px 0;
         }
 
         .floor-tab:hover {
@@ -76,43 +84,48 @@
             color: #1e2a4a;
         }
 
-        /* Storage blocks */
-        .storage-block {
-            width: 60px;
-            height: 50px;
-            border: 2px solid #d1d5db;
-            border-radius: 6px;
+        /* Storage blocks - Grid layout matching room-config */
+        .gatar-grid {
+            display: grid;
+            gap: 2px;
+            justify-content: center;
+        }
+
+        .gatar-cell {
+            width: 42px;
+            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
-            cursor: pointer;
-            transition: all 0.15s ease;
             font-size: 11px;
             font-weight: 600;
-            background: white;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.15s ease;
+            border: 2px solid transparent;
         }
 
-        .storage-block:hover {
-            transform: scale(1.08);
+        .gatar-cell:hover {
+            transform: scale(1.1);
             z-index: 10;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
         }
 
-        .storage-block.occupied {
+        .gatar-cell.occupied {
             background: #f5c518;
             border-color: #eab308;
             color: #1e2a4a;
         }
 
-        .storage-block.empty {
+        .gatar-cell.empty {
             background: white;
             border-color: #d1d5db;
             color: #9ca3af;
         }
 
-        .storage-block.selected {
+        .gatar-cell.selected {
             border: 3px solid #1e2a4a;
-            box-shadow: 0 0 0 3px rgba(245, 197, 24, 0.5);
+            box-shadow: 0 0 0 2px rgba(245, 197, 24, 0.5);
         }
 
         /* Detail panel */
@@ -123,7 +136,7 @@
             border: 1px solid #e5e7eb;
         }
 
-        /* Neumorphic style for cards */
+        /* Neumorphic cards */
         .neu-card {
             border: 3px solid #000;
             box-shadow: 4px 4px 0 #000;
@@ -152,18 +165,27 @@
             animation: pulse 1.5s infinite;
         }
 
-        /* Section labels */
-        .section-label {
-            position: absolute;
-            top: -20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1e2a4a;
-            color: white;
-            padding: 2px 12px;
-            border-radius: 4px;
-            font-size: 11px;
+        /* Room tab styling */
+        .room-tab {
+            padding: 10px 20px;
             font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-radius: 8px 8px 0 0;
+            background: #e5e7eb;
+            color: #4b5563;
+            border: 2px solid transparent;
+            border-bottom: none;
+        }
+
+        .room-tab:hover {
+            background: #fef3c7;
+        }
+
+        .room-tab.active {
+            background: white;
+            color: #1e2a4a;
+            border-color: #e5e7eb;
         }
     </style>
     <script src="/static/js/theme.js"></script>
@@ -204,21 +226,21 @@
                 <i class="bi bi-bar-chart text-lg"></i>
                 <span>Reports</span>
             </a>
-            <div class="mt-auto pt-6 border-t border-gray-700 mx-4">
-                <a href="/logout" class="sidebar-item text-red-400 hover:text-red-300">
-                    <i class="bi bi-box-arrow-left text-lg"></i>
-                    <span>Log out</span>
-                </a>
-            </div>
         </nav>
 
-        <!-- Theme toggle at bottom -->
-        <div class="absolute bottom-4 left-4 right-4">
+        <div class="absolute bottom-20 left-4 right-4">
             <button onclick="theme.toggle()" class="w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-gray-300 text-sm flex items-center justify-center gap-2">
                 <i class="bi bi-moon-fill theme-icon-moon"></i>
                 <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
-                <span>Toggle Theme</span>
+                <span>Theme</span>
             </button>
+        </div>
+
+        <div class="absolute bottom-4 left-4 right-4">
+            <a href="/logout" class="w-full py-2 px-4 bg-red-900 hover:bg-red-800 rounded-lg text-red-300 text-sm flex items-center justify-center gap-2">
+                <i class="bi bi-box-arrow-left"></i>
+                <span>Log out</span>
+            </a>
         </div>
     </aside>
 
@@ -240,13 +262,9 @@
                 <p class="text-gray-500">Visual floor plan of storage occupancy</p>
             </div>
             <div class="flex gap-3">
-                <button onclick="loadStats()" class="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-2">
+                <button onclick="loadData()" class="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg hover:bg-gray-50 font-medium flex items-center gap-2">
                     <i class="bi bi-arrow-clockwise"></i>
                     Refresh
-                </button>
-                <button onclick="goBack()" class="px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 font-medium flex items-center gap-2">
-                    <i class="bi bi-arrow-left"></i>
-                    Back
                 </button>
             </div>
         </div>
@@ -304,28 +322,28 @@
             <!-- Left: Floor Plan -->
             <div class="flex-1">
                 <!-- Room Tabs -->
-                <div class="flex gap-2 mb-0">
-                    <button onclick="selectRoom('1')" id="room-tab-1" class="floor-tab active">
-                        Room 1
+                <div class="flex gap-1 mb-0">
+                    <button onclick="selectRoom('1')" id="room-tab-1" class="room-tab active">
+                        Room 1 <span class="text-xs">(Seed)</span>
                     </button>
-                    <button onclick="selectRoom('2')" id="room-tab-2" class="floor-tab">
-                        Room 2
+                    <button onclick="selectRoom('2')" id="room-tab-2" class="room-tab">
+                        Room 2 <span class="text-xs">(Seed)</span>
                     </button>
-                    <button onclick="selectRoom('3')" id="room-tab-3" class="floor-tab">
-                        Room 3
+                    <button onclick="selectRoom('3')" id="room-tab-3" class="room-tab">
+                        Room 3 <span class="text-xs">(Sell)</span>
                     </button>
                 </div>
 
                 <!-- Floor Plan Card -->
                 <div class="bg-white rounded-b-lg rounded-tr-lg p-6 shadow-sm border border-gray-200">
                     <!-- Floor Tabs -->
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex gap-2">
-                            <button onclick="selectFloor('4')" id="floor-tab-4" class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200">Floor 4</button>
-                            <button onclick="selectFloor('3')" id="floor-tab-3" class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200">Floor 3</button>
-                            <button onclick="selectFloor('2')" id="floor-tab-2" class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200">Floor 2</button>
-                            <button onclick="selectFloor('1')" id="floor-tab-1" class="px-4 py-2 text-sm font-medium rounded-lg bg-gray-100 hover:bg-gray-200">Floor 1</button>
-                            <button onclick="selectFloor('0')" id="floor-tab-0" class="px-4 py-2 text-sm font-medium rounded-lg bg-yellow-400 text-gray-800">Floor 0</button>
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="inline-flex rounded-lg overflow-hidden border border-gray-300">
+                            <button onclick="selectFloor('0')" id="floor-tab-0" class="floor-tab active">Floor 0</button>
+                            <button onclick="selectFloor('1')" id="floor-tab-1" class="floor-tab">Floor 1</button>
+                            <button onclick="selectFloor('2')" id="floor-tab-2" class="floor-tab">Floor 2</button>
+                            <button onclick="selectFloor('3')" id="floor-tab-3" class="floor-tab">Floor 3</button>
+                            <button onclick="selectFloor('4')" id="floor-tab-4" class="floor-tab">Floor 4</button>
                         </div>
                         <div class="flex items-center gap-4 text-sm">
                             <div class="flex items-center gap-2">
@@ -340,10 +358,10 @@
                     </div>
 
                     <!-- Floor Info -->
-                    <div class="mb-4 p-3 bg-gray-50 rounded-lg flex items-center justify-between">
+                    <div class="mb-4 p-3 bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg flex items-center justify-between border border-blue-200">
                         <div>
-                            <span class="font-bold text-gray-800" id="floorTitle">Room 1 - Floor 0</span>
-                            <span class="text-gray-500 ml-2" id="floorRange">(Gatar 1-140)</span>
+                            <span class="font-bold text-blue-800" id="floorTitle">Room 1 - Floor 0</span>
+                            <span class="text-blue-600 ml-2 text-sm" id="floorRange">(Gatar 1-140)</span>
                         </div>
                         <div class="text-sm">
                             <span class="text-yellow-600 font-bold" id="floorOccupied">0</span>
@@ -353,10 +371,10 @@
                         </div>
                     </div>
 
-                    <!-- Storage Block Grid -->
-                    <div class="overflow-auto" style="max-height: 500px;">
-                        <div id="blockGrid" class="flex flex-wrap gap-1 justify-center p-4 bg-gray-50 rounded-lg min-h-[200px]">
-                            <div class="text-center text-gray-500 loading-pulse w-full py-8">
+                    <!-- Storage Block Grid (matching room-config layout) -->
+                    <div class="overflow-auto bg-gray-50 rounded-lg p-4 border border-gray-200" style="max-height: 480px;">
+                        <div id="blockGrid" class="flex justify-center">
+                            <div class="text-center text-gray-500 loading-pulse py-8">
                                 <i class="bi bi-hourglass-split text-2xl"></i>
                                 <p class="mt-2">Loading floor plan...</p>
                             </div>
@@ -372,7 +390,7 @@
                         <div class="text-center py-8 text-gray-400">
                             <i class="bi bi-hand-index text-4xl"></i>
                             <p class="mt-3 font-medium">Select a Block</p>
-                            <p class="text-sm">Click on any block to view details</p>
+                            <p class="text-sm">Click on any gatar to view details</p>
                         </div>
                     </div>
                 </div>
@@ -381,7 +399,7 @@
                 <div class="detail-panel p-6 mt-4">
                     <h3 class="font-bold text-gray-800 mb-4 flex items-center gap-2">
                         <i class="bi bi-bar-chart-fill text-yellow-500"></i>
-                        Room Summary
+                        Floor Summary
                     </h3>
                     <div id="roomSummary" class="space-y-3">
                         <div class="text-center text-gray-400 text-sm">Loading...</div>
@@ -397,66 +415,78 @@
         let currentFloor = '0';
         let selectedGatar = null;
         let statsData = null;
-        let gatarData = null;
+        let occupiedGatars = new Set(); // Store occupied gatar numbers
 
-        // Gatar ranges
+        // Gatar ranges (same as room-config-1.html)
         const gatarRanges = {
             '1': {
-                '0': { start: 1, end: 140, total: 140 },
-                '1': { start: 141, end: 280, total: 140 },
-                '2': { start: 281, end: 420, total: 140 },
-                '3': { start: 421, end: 560, total: 140 },
-                '4': { start: 561, end: 680, total: 120 }
+                '0': { start: 1, end: 140, cols: 14, rows: 10 },
+                '1': { start: 141, end: 280, cols: 14, rows: 10 },
+                '2': { start: 281, end: 420, cols: 14, rows: 10 },
+                '3': { start: 421, end: 560, cols: 14, rows: 10 },
+                '4': { start: 561, end: 680, cols: 12, rows: 10 }
             },
             '2': {
-                '0': { start: 681, end: 820, total: 140 },
-                '1': { start: 821, end: 960, total: 140 },
-                '2': { start: 961, end: 1100, total: 140 },
-                '3': { start: 1101, end: 1240, total: 140 },
-                '4': { start: 1241, end: 1360, total: 120 }
+                '0': { start: 681, end: 820, cols: 14, rows: 10 },
+                '1': { start: 821, end: 960, cols: 14, rows: 10 },
+                '2': { start: 961, end: 1100, cols: 14, rows: 10 },
+                '3': { start: 1101, end: 1240, cols: 14, rows: 10 },
+                '4': { start: 1241, end: 1360, cols: 12, rows: 10 }
             },
             '3': {
-                '0': { start: 1361, end: 1500, total: 140 },
-                '1': { start: 1501, end: 1640, total: 140 },
-                '2': { start: 1641, end: 1780, total: 140 },
-                '3': { start: 1781, end: 1920, total: 140 },
-                '4': { start: 1921, end: 2040, total: 120 }
+                '0': { start: 1361, end: 1500, cols: 14, rows: 10 },
+                '1': { start: 1501, end: 1640, cols: 14, rows: 10 },
+                '2': { start: 1641, end: 1780, cols: 14, rows: 10 },
+                '3': { start: 1781, end: 1920, cols: 14, rows: 10 },
+                '4': { start: 1921, end: 2040, cols: 12, rows: 10 }
             }
         };
 
+        // Function to get gatar number at grid position (same as room-config)
+        function getGatarAtPosition(floorData, row, col) {
+            const cols = floorData.cols || 14;
+            const pairIndex = Math.floor(col / 2);
+            const isLeftCol = col % 2 === 0;
+            const baseForPair = floorData.start + (pairIndex * 20);
+            const gatarOffset = isLeftCol ? (row * 2 + 1) : (row * 2 + 2);
+            return baseForPair + gatarOffset - 1;
+        }
+
         // Load on page load
         window.addEventListener('load', () => {
-            loadStats();
+            loadData();
         });
 
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('open');
         }
 
-        async function loadStats() {
+        async function loadData() {
             try {
-                const response = await fetch('/api/room-visualization/stats', {
+                // Load stats
+                const statsResponse = await fetch('/api/room-visualization/stats', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
-                if (!response.ok) throw new Error('Failed to load stats');
-
-                statsData = await response.json();
+                if (!statsResponse.ok) throw new Error('Failed to load stats');
+                statsData = await statsResponse.json();
                 updateSummary(statsData.summary);
                 updateRoomSummary();
-                loadFloorPlan();
+
+                // Load current floor gatars
+                await loadFloorPlan();
             } catch (error) {
-                console.error('Error loading stats:', error);
+                console.error('Error loading data:', error);
                 document.getElementById('blockGrid').innerHTML =
-                    '<div class="text-center text-red-500 w-full py-8"><i class="bi bi-exclamation-circle text-2xl"></i><p class="mt-2">Failed to load data</p></div>';
+                    '<div class="text-center text-red-500 py-8"><i class="bi bi-exclamation-circle text-2xl"></i><p class="mt-2">Failed to load data. Please refresh.</p></div>';
             }
         }
 
         function updateSummary(summary) {
-            document.getElementById('totalQty').textContent = summary.total_qty.toLocaleString('en-IN');
-            document.getElementById('occupiedGatars').textContent = summary.occupied_gatars.toLocaleString('en-IN');
-            document.getElementById('emptyGatars').textContent = (summary.total_gatars - summary.occupied_gatars).toLocaleString('en-IN');
-            const rate = ((summary.occupied_gatars / summary.total_gatars) * 100).toFixed(1);
+            document.getElementById('totalQty').textContent = (summary.total_qty || 0).toLocaleString('en-IN');
+            document.getElementById('occupiedGatars').textContent = (summary.occupied_gatars || 0).toLocaleString('en-IN');
+            document.getElementById('emptyGatars').textContent = ((summary.total_gatars || 0) - (summary.occupied_gatars || 0)).toLocaleString('en-IN');
+            const rate = summary.total_gatars ? ((summary.occupied_gatars / summary.total_gatars) * 100).toFixed(1) : '0';
             document.getElementById('occupancyRate').textContent = rate + '%';
         }
 
@@ -464,18 +494,22 @@
             if (!statsData) return;
 
             const roomData = statsData.rooms.find(r => r.room_no === currentRoom);
-            if (!roomData) return;
+            if (!roomData) {
+                document.getElementById('roomSummary').innerHTML = '<div class="text-gray-400 text-sm">No data</div>';
+                return;
+            }
 
             let html = '';
             roomData.floors.forEach(floor => {
-                const pct = ((floor.occupied_gatars / floor.total_gatars) * 100).toFixed(0);
+                const pct = floor.total_gatars ? ((floor.occupied_gatars / floor.total_gatars) * 100).toFixed(0) : 0;
+                const isActive = floor.floor === currentFloor;
                 html += `
-                    <div class="flex items-center gap-3">
-                        <span class="w-16 text-sm font-medium text-gray-600">Floor ${floor.floor}</span>
+                    <div class="flex items-center gap-3 ${isActive ? 'bg-yellow-50 -mx-2 px-2 py-1 rounded' : ''}">
+                        <span class="w-16 text-sm font-medium ${isActive ? 'text-yellow-700' : 'text-gray-600'}">Floor ${floor.floor}</span>
                         <div class="flex-1 h-3 bg-gray-200 rounded-full overflow-hidden">
-                            <div class="h-full bg-yellow-400 rounded-full" style="width: ${pct}%"></div>
+                            <div class="h-full ${isActive ? 'bg-yellow-500' : 'bg-yellow-400'} rounded-full transition-all" style="width: ${pct}%"></div>
                         </div>
-                        <span class="text-xs text-gray-500 w-12 text-right">${floor.occupied_gatars}/${floor.total_gatars}</span>
+                        <span class="text-xs text-gray-500 w-14 text-right">${floor.occupied_gatars}/${floor.total_gatars}</span>
                     </div>
                 `;
             });
@@ -505,76 +539,100 @@
             currentFloor = floorNo;
             selectedGatar = null;
             updateFloorTabs();
+            updateRoomSummary();
             loadFloorPlan();
             resetDetailPanel();
         }
 
         function updateFloorTabs() {
             document.querySelectorAll('[id^="floor-tab-"]').forEach(tab => {
-                tab.classList.remove('bg-yellow-400', 'text-gray-800');
-                tab.classList.add('bg-gray-100');
+                tab.classList.remove('active');
             });
             const activeTab = document.getElementById(`floor-tab-${currentFloor}`);
             if (activeTab) {
-                activeTab.classList.remove('bg-gray-100');
-                activeTab.classList.add('bg-yellow-400', 'text-gray-800');
+                activeTab.classList.add('active');
             }
         }
 
         async function loadFloorPlan() {
             const gridDiv = document.getElementById('blockGrid');
-            gridDiv.innerHTML = '<div class="text-center text-gray-500 loading-pulse w-full py-8"><i class="bi bi-hourglass-split text-2xl"></i><p class="mt-2">Loading floor plan...</p></div>';
+            gridDiv.innerHTML = '<div class="text-center text-gray-500 loading-pulse py-8"><i class="bi bi-hourglass-split text-2xl"></i><p class="mt-2">Loading floor plan...</p></div>';
 
-            // Update floor info
-            const range = gatarRanges[currentRoom]?.[currentFloor];
-            if (range) {
-                document.getElementById('floorTitle').textContent = `Room ${currentRoom} - Floor ${currentFloor}`;
-                document.getElementById('floorRange').textContent = `(Gatar ${range.start}-${range.end})`;
-                document.getElementById('floorTotal').textContent = range.total;
+            const floorData = gatarRanges[currentRoom]?.[currentFloor];
+            if (!floorData) {
+                gridDiv.innerHTML = '<div class="text-center text-gray-500 py-8">No layout data for this floor</div>';
+                return;
             }
 
+            // Update floor info
+            document.getElementById('floorTitle').textContent = `Room ${currentRoom} - Floor ${currentFloor}`;
+            document.getElementById('floorRange').textContent = `(Gatar ${floorData.start}-${floorData.end})`;
+            document.getElementById('floorTotal').textContent = floorData.end - floorData.start + 1;
+
             try {
+                // Load gatar occupancy data
                 const response = await fetch(`/api/room-visualization/gatar?room=${currentRoom}&floor=${currentFloor}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (!response.ok) throw new Error('Failed to load gatar data');
 
-                gatarData = await response.json();
-                renderBlockGrid(gatarData.gatars);
+                const data = await response.json();
 
-                // Update occupied count
-                const occupied = gatarData.gatars.filter(g => g.occupied).length;
-                document.getElementById('floorOccupied').textContent = occupied;
+                // Build set of occupied gatars
+                occupiedGatars = new Set();
+                let occupiedCount = 0;
+                data.gatars.forEach(g => {
+                    if (g.occupied) {
+                        occupiedGatars.add(g.gatar);
+                        occupiedCount++;
+                    }
+                });
+
+                document.getElementById('floorOccupied').textContent = occupiedCount;
+
+                // Render the grid using room-config layout
+                renderGatarGrid(floorData);
             } catch (error) {
                 console.error('Error loading floor plan:', error);
-                gridDiv.innerHTML = '<div class="text-center text-red-500 w-full py-8"><i class="bi bi-exclamation-circle text-2xl"></i><p class="mt-2">Failed to load floor plan</p></div>';
+                // Still render the grid, just without occupancy data
+                occupiedGatars = new Set();
+                document.getElementById('floorOccupied').textContent = '0';
+                renderGatarGrid(floorData);
             }
         }
 
-        function renderBlockGrid(gatars) {
+        function renderGatarGrid(floorData) {
             const gridDiv = document.getElementById('blockGrid');
+            const cols = floorData.cols || 14;
+            const rows = floorData.rows || 10;
 
-            // Create grid with 14 columns for floors 0-3, 12 for floor 4
-            const cols = currentFloor === '4' ? 12 : 14;
+            let html = `<div class="gatar-grid" style="grid-template-columns: repeat(${cols}, 42px);">`;
 
-            let html = `<div class="grid gap-1" style="grid-template-columns: repeat(${cols}, 60px);">`;
+            for (let row = 0; row < rows; row++) {
+                for (let col = 0; col < cols; col++) {
+                    const gatarNum = getGatarAtPosition(floorData, row, col);
 
-            gatars.forEach(g => {
-                const isOccupied = g.occupied;
-                const isSelected = selectedGatar === g.gatar;
-                const blockClass = isOccupied ? 'occupied' : 'empty';
-                const selectedClass = isSelected ? 'selected' : '';
-                const title = isOccupied ? `Gatar ${g.gatar}: ${g.total_qty} bags` : `Gatar ${g.gatar}: Empty`;
+                    // Check if gatar is within valid range
+                    if (gatarNum < floorData.start || gatarNum > floorData.end) {
+                        html += `<div class="gatar-cell" style="visibility: hidden;"></div>`;
+                        continue;
+                    }
 
-                html += `
-                    <div class="storage-block ${blockClass} ${selectedClass}"
-                         onclick="selectBlock('${g.gatar}')"
-                         title="${title}">
-                        ${g.gatar}
-                    </div>
-                `;
-            });
+                    const isOccupied = occupiedGatars.has(gatarNum.toString());
+                    const isSelected = selectedGatar === gatarNum.toString();
+                    const cellClass = isOccupied ? 'occupied' : 'empty';
+                    const selectedClass = isSelected ? 'selected' : '';
+
+                    html += `
+                        <div class="gatar-cell ${cellClass} ${selectedClass}"
+                             onclick="selectBlock('${gatarNum}')"
+                             title="Gatar ${gatarNum}">
+                            ${gatarNum}
+                        </div>
+                    `;
+                }
+            }
 
             html += '</div>';
             gridDiv.innerHTML = html;
@@ -584,12 +642,13 @@
             selectedGatar = gatarNo;
 
             // Update visual selection
-            document.querySelectorAll('.storage-block').forEach(block => {
-                block.classList.remove('selected');
+            document.querySelectorAll('.gatar-cell').forEach(cell => {
+                cell.classList.remove('selected');
+                if (cell.textContent.trim() === gatarNo) {
+                    cell.classList.add('selected');
+                }
             });
-            event.currentTarget.classList.add('selected');
 
-            // Load details
             const detailContent = document.getElementById('detailContent');
             detailContent.innerHTML = '<div class="text-center py-8 text-gray-400 loading-pulse"><i class="bi bi-hourglass-split text-2xl"></i><p class="mt-2">Loading...</p></div>';
 
@@ -602,7 +661,7 @@
 
                 const data = await response.json();
 
-                if (data.items.length === 0) {
+                if (!data.items || data.items.length === 0) {
                     detailContent.innerHTML = `
                         <div class="text-center py-8">
                             <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -622,7 +681,7 @@
                                 </div>
                                 <div>
                                     <h3 class="font-bold text-gray-800">Gatar ${gatarNo}</h3>
-                                    <p class="text-sm text-gray-500">${data.items.length} item(s) stored</p>
+                                    <p class="text-sm text-gray-500">${data.items.length} item(s)</p>
                                 </div>
                             </div>
                         </div>
@@ -630,16 +689,15 @@
                     `;
 
                     data.items.forEach(item => {
-                        totalQty += item.quantity;
+                        totalQty += item.quantity || 0;
                         html += `
                             <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
                                 <div class="flex justify-between items-start mb-2">
-                                    <span class="font-bold text-gray-800">${item.thock_number}</span>
-                                    <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold">${item.quantity} bags</span>
+                                    <span class="font-bold text-gray-800">${item.thock_number || '-'}</span>
+                                    <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold">${item.quantity || 0} bags</span>
                                 </div>
-                                <p class="text-sm text-gray-600">${item.customer_name || 'Unknown Customer'}</p>
+                                <p class="text-sm text-gray-600">${item.customer_name || 'Unknown'}</p>
                                 ${item.variety ? `<p class="text-xs text-green-600 mt-1"><i class="bi bi-tag-fill mr-1"></i>${item.variety}</p>` : ''}
-                                ${item.remark ? `<p class="text-xs text-gray-500 mt-1"><i class="bi bi-chat-text mr-1"></i>${item.remark}</p>` : ''}
                             </div>
                         `;
                     });
@@ -657,8 +715,16 @@
                     detailContent.innerHTML = html;
                 }
             } catch (error) {
-                console.error('Error loading block details:', error);
-                detailContent.innerHTML = '<div class="text-center text-red-500 py-8"><i class="bi bi-exclamation-circle text-2xl"></i><p class="mt-2">Failed to load details</p></div>';
+                console.error('Error loading details:', error);
+                detailContent.innerHTML = `
+                    <div class="text-center py-8">
+                        <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="bi bi-grid-3x3-gap text-3xl text-gray-400"></i>
+                        </div>
+                        <h3 class="font-bold text-gray-800 mb-1">Gatar ${gatarNo}</h3>
+                        <p class="text-gray-500 text-sm">Click to view stored items</p>
+                    </div>
+                `;
             }
         }
 
@@ -667,13 +733,9 @@
                 <div class="text-center py-8 text-gray-400">
                     <i class="bi bi-hand-index text-4xl"></i>
                     <p class="mt-3 font-medium">Select a Block</p>
-                    <p class="text-sm">Click on any block to view details</p>
+                    <p class="text-sm">Click on any gatar to view details</p>
                 </div>
             `;
-        }
-
-        function goBack() {
-            window.history.back();
         }
     </script>
 </body>
