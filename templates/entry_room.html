@@ -564,6 +564,9 @@
         // Category counts
         let seedCount = 0;
         let sellCount = 0;
+        // Next thock numbers (considering skip ranges)
+        let nextSeedNum = 1;
+        let nextSellNum = 1501;
 
         // Phone list from database - will be populated on load
         let customerPhones = [];
@@ -1490,32 +1493,36 @@
             document.getElementById('sellCount').classList.add('hidden');
 
             try {
-                // Fetch count for selected category
-                const response = await fetch(`/api/entries/count?category=${category}`, {
+                // Fetch next thock preview (considers skip ranges)
+                const response = await fetch('/api/entries/next-thock-preview', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch count');
+                    throw new Error('Failed to fetch thock preview');
                 }
 
                 const data = await response.json();
 
-                // Store count in global variable
+                // Store counts and next numbers (considering skip ranges)
+                seedCount = data.seed_count;
+                sellCount = data.sell_count;
+                nextSeedNum = data.next_seed_num;
+                nextSellNum = data.next_sell_num;
+
+                // Display based on selected category
                 if (category === 'seed') {
-                    seedCount = data.count;
-                    document.getElementById('seedCount').textContent = `Current: ${data.count} | Next number: ${data.next}`;
+                    document.getElementById('seedCount').textContent = `Current: ${seedCount} | Next number: ${data.next_seed}`;
                     document.getElementById('seedCount').classList.remove('hidden');
                 } else if (category === 'sell') {
-                    sellCount = data.count;
-                    document.getElementById('sellCount').textContent = `Current: ${data.count} | Next number: ${data.next}`;
+                    document.getElementById('sellCount').textContent = `Current: ${sellCount} | Next number: ${data.next_sell}`;
                     document.getElementById('sellCount').classList.remove('hidden');
                 }
 
                 // Update truck preview
                 updateTruckPreview();
             } catch (error) {
-                console.error('Error fetching category count:', error);
+                console.error('Error fetching category info:', error);
             }
         }
 
@@ -1529,15 +1536,14 @@
             }
 
             const category = categoryRadio.value;
-            let nextNumber;
             let thockNumber;
 
             if (category === 'seed') {
-                nextNumber = seedCount + 1;
-                thockNumber = String(nextNumber).padStart(3, '0') + '/' + quantity;
+                // Use stored next number (considers skip ranges)
+                thockNumber = String(nextSeedNum).padStart(4, '0') + '/' + quantity;
             } else if (category === 'sell') {
-                nextNumber = 1501 + sellCount;
-                thockNumber = nextNumber + '/' + quantity;
+                // Use stored next number (considers skip ranges)
+                thockNumber = nextSellNum + '/' + quantity;
             }
 
             document.getElementById('previewThockNumber').textContent = thockNumber;
