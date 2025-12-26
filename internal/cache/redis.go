@@ -19,34 +19,55 @@ const (
 
 var client *redis.Client
 
-// Init initializes the Redis connection
+// Init initializes the Redis connection with auto-discovery
 func Init() error {
-	// K8s sets REDIS_SERVICE_HOST and REDIS_SERVICE_PORT for services
-	host := os.Getenv("REDIS_SERVICE_HOST")
-	if host == "" {
-		host = "redis"  // fallback to service name
+	// Try hosts in order of preference
+	hosts := []string{}
+
+	// 1. Check environment variable first
+	if envHost := os.Getenv("REDIS_SERVICE_HOST"); envHost != "" {
+		port := os.Getenv("REDIS_SERVICE_PORT")
+		if port == "" {
+			port = "6379"
+		}
+		hosts = append(hosts, envHost+":"+port)
 	}
-	port := os.Getenv("REDIS_SERVICE_PORT")
-	if port == "" {
-		port = "6379"
-	}
 
-	client = redis.NewClient(&redis.Options{
-		Addr:     host + ":" + port,
-		Password: os.Getenv("REDIS_PASSWORD"),
-		DB:       0,
-	})
+	// 2. Add known Redis locations
+	hosts = append(hosts,
+		"redis:6379",           // K8s service name
+		"192.168.15.210:6379",  // VIP-DB (production)
+		"192.168.15.120:6379",  // DB node 1
+		"192.168.15.121:6379",  // DB node 2
+		"192.168.15.122:6379",  // DB node 3
+		"localhost:6379",       // Local Redis
+	)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	password := os.Getenv("REDIS_PASSWORD")
 
-	if err := client.Ping(ctx).Err(); err != nil {
-		// Close the failed client and set to nil for graceful degradation
+	// Try each host
+	for _, addr := range hosts {
+		client = redis.NewClient(&redis.Options{
+			Addr:     addr,
+			Password: password,
+			DB:       0,
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		err := client.Ping(ctx).Err()
+		cancel()
+
+		if err == nil {
+			// Connected successfully
+			return nil
+		}
+
+		// Close failed client and try next
 		client.Close()
 		client = nil
-		return err
 	}
-	return nil
+
+	return fmt.Errorf("no Redis server available")
 }
 
 // GetClient returns the Redis client
