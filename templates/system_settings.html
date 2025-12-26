@@ -309,7 +309,7 @@
                     <input type="number" id="seedSkipTo" min="1" max="1500"
                            class="neu-input w-24" placeholder="10" oninput="updateSkipPreview('seed')">
                     <span id="seedSkipPreview" class="text-green-700 font-bold hidden">
-                        <i class="bi bi-arrow-right"></i> Next: <span id="seedNextPreview"></span>
+                        <i class="bi bi-skip-forward"></i> <span id="seedFromPreview"></span> - <span id="seedToPreview"></span> <i class="bi bi-arrow-right"></i> Next: <span id="seedNextPreview"></span>
                     </span>
                     <button onclick="addSkipRange('seed')" class="neu-button bg-green-500 text-white">
                         <i class="bi bi-plus-circle"></i> Add Range
@@ -334,7 +334,7 @@
                     <input type="number" id="sellSkipTo" min="1501"
                            class="neu-input w-24" placeholder="1510" oninput="updateSkipPreview('sell')">
                     <span id="sellSkipPreview" class="text-orange-700 font-bold hidden">
-                        <i class="bi bi-arrow-right"></i> Next: <span id="sellNextPreview"></span>
+                        <i class="bi bi-skip-forward"></i> <span id="sellFromPreview"></span> - <span id="sellToPreview"></span> <i class="bi bi-arrow-right"></i> Next: <span id="sellNextPreview"></span>
                     </span>
                     <button onclick="addSkipRange('sell')" class="neu-button bg-orange-500 text-white">
                         <i class="bi bi-plus-circle"></i> Add Range
@@ -1449,17 +1449,25 @@
         }
 
         function updateSkipPreview(category) {
+            const fromInput = document.getElementById(`${category}SkipFrom`);
             const toInput = document.getElementById(`${category}SkipTo`);
             const previewSpan = document.getElementById(`${category}SkipPreview`);
+            const fromSpan = document.getElementById(`${category}FromPreview`);
+            const toSpan = document.getElementById(`${category}ToPreview`);
             const nextSpan = document.getElementById(`${category}NextPreview`);
 
+            const from = parseInt(fromInput.value);
             const to = parseInt(toInput.value);
 
-            if (!isNaN(to) && to > 0) {
-                const nextNum = to + 1;
+            if (!isNaN(from) && from > 0) {
+                const nextNum = (!isNaN(to) && to >= from) ? to + 1 : from;
                 if (category === 'seed') {
+                    fromSpan.textContent = String(from).padStart(4, '0');
+                    toSpan.textContent = (!isNaN(to) && to >= from) ? String(to).padStart(4, '0') : '...';
                     nextSpan.textContent = String(nextNum).padStart(4, '0');
                 } else {
+                    fromSpan.textContent = from;
+                    toSpan.textContent = (!isNaN(to) && to >= from) ? to : '...';
                     nextSpan.textContent = nextNum;
                 }
                 previewSpan.classList.remove('hidden');
