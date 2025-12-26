@@ -243,13 +243,17 @@ type SkipRangeEntry struct {
 func (h *EntryHandler) GetNextThockPreview(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	// Get current counts
+	// Get current counts for display
 	seedCount, _ := h.Service.GetCountByCategory(ctx, "seed")
 	sellCount, _ := h.Service.GetCountByCategory(ctx, "sell")
 
-	// Calculate base next numbers
-	nextSeed := seedCount + 1
-	nextSell := 1501 + sellCount
+	// Get max thock numbers (more accurate when skip ranges exist)
+	maxSeed, _ := h.Service.GetMaxThockNumber(ctx, "seed")
+	maxSell, _ := h.Service.GetMaxThockNumber(ctx, "sell")
+
+	// Calculate base next numbers from MAX
+	nextSeed := maxSeed + 1
+	nextSell := maxSell + 1
 
 	// Get skip ranges from settings if SettingService is available
 	if h.SettingService != nil {

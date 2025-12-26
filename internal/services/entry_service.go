@@ -172,6 +172,14 @@ func (s *EntryService) GetCountByCategory(ctx context.Context, category string) 
 	return s.EntryRepo.GetCountByCategory(ctx, category)
 }
 
+// GetMaxThockNumber returns the highest thock number for a category
+func (s *EntryService) GetMaxThockNumber(ctx context.Context, category string) (int, error) {
+	if category != "seed" && category != "sell" {
+		return 0, errors.New("category must be 'seed' or 'sell'")
+	}
+	return s.EntryRepo.GetMaxThockNumber(ctx, category)
+}
+
 func (s *EntryService) UpdateEntry(ctx context.Context, id int, req *models.UpdateEntryRequest) error {
 	// Get existing entry
 	entry, err := s.EntryRepo.Get(ctx, id)

@@ -76,30 +76,30 @@ func (r *EntryRepository) CreateWithSkipRanges(ctx context.Context, e *models.En
 		).Scan(&e.ID, &e.ThockNumber, &e.CreatedAt, &e.UpdatedAt)
 	}
 
-	// With skip ranges, we need to calculate the next number in Go
-	// First get the count
-	var count int
-	err := r.DB.QueryRow(ctx, "SELECT COUNT(*) FROM entries WHERE thock_category = $1", e.ThockCategory).Scan(&count)
+	// With skip ranges, use MAX thock number to find the highest used number
+	// This correctly handles entries created after skip ranges
+	var maxThock int
+	query := `
+		SELECT COALESCE(MAX(
+			CAST(SPLIT_PART(thock_number, '/', 1) AS INTEGER)
+		), $1 - 1)
+		FROM entries
+		WHERE thock_category = $2
+	`
+	err := r.DB.QueryRow(ctx, query, baseOffset, e.ThockCategory).Scan(&maxThock)
 	if err != nil {
-		return fmt.Errorf("failed to get entry count: %w", err)
+		return fmt.Errorf("failed to get max thock number: %w", err)
 	}
 
-	// Calculate base next number
-	nextNum := count + baseOffset
+	// Next number is max + 1
+	nextNum := maxThock + 1
 
-	// Apply skip ranges - keep incrementing if in a skip range
-	// Also count how many skipped numbers we've passed
+	// Apply skip ranges - if next number is in a skip range, jump past it
 	for {
 		inSkipRange := false
 		for _, sr := range skipRanges {
 			if nextNum >= sr.From && nextNum <= sr.To {
-				// Count how many numbers in this range we're skipping
-				skipCount := sr.To - nextNum + 1
 				nextNum = sr.To + 1
-				// We need to account for these skipped numbers by not counting them
-				// Actually, we need to add them since they're "phantom" entries
-				count += skipCount
-				nextNum = count + baseOffset
 				inSkipRange = true
 				break
 			}
@@ -118,13 +118,13 @@ func (r *EntryRepository) CreateWithSkipRanges(ctx context.Context, e *models.En
 	}
 
 	// Insert with the calculated thock number
-	query := `
+	insertQuery := `
 		INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, remark, created_by_user_id)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id, thock_number, created_at, updated_at
 	`
 
-	return r.DB.QueryRow(ctx, query,
+	return r.DB.QueryRow(ctx, insertQuery,
 		e.CustomerID,         // $1
 		e.Phone,              // $2
 		e.Name,               // $3
@@ -265,6 +265,30 @@ func (r *EntryRepository) GetCountByCategory(ctx context.Context, category strin
 	var count int
 	err := r.DB.QueryRow(ctx, "SELECT COUNT(*) FROM entries WHERE thock_category = $1", category).Scan(&count)
 	return count, err
+}
+
+// GetMaxThockNumber returns the highest thock number for a category
+func (r *EntryRepository) GetMaxThockNumber(ctx context.Context, category string) (int, error) {
+	if category != "seed" && category != "sell" {
+		return 0, fmt.Errorf("invalid category: %s", category)
+	}
+
+	// Default starting values
+	baseOffset := 1
+	if category == "sell" {
+		baseOffset = 1501
+	}
+
+	var maxThock int
+	query := `
+		SELECT COALESCE(MAX(
+			CAST(SPLIT_PART(thock_number, '/', 1) AS INTEGER)
+		), $1 - 1)
+		FROM entries
+		WHERE thock_category = $2
+	`
+	err := r.DB.QueryRow(ctx, query, baseOffset, category).Scan(&maxThock)
+	return maxThock, err
 }
 
 func (r *EntryRepository) ListUnassigned(ctx context.Context) ([]*models.Entry, error) {
