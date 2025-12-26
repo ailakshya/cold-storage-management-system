@@ -159,15 +159,77 @@ for i in {1..30}; do
 done
 
 # ============================================
-# CREATE DATABASE
+# CREATE DATABASE AND CONFIGURE USERS
 # ============================================
-echo -e "${GREEN}[3/5]${NC} Creating database..."
+echo -e "${GREEN}[3/5]${NC} Configuring database..."
+
+# Set password for postgres user
+echo "  Setting postgres password..."
+sudo -u postgres psql -c "ALTER USER postgres PASSWORD 'SecurePostgresPassword123';" > /dev/null 2>&1
+
+# Create cold_user (used in migrations for GRANT statements)
+echo "  Creating cold_user..."
+sudo -u postgres psql -c "CREATE USER cold_user WITH PASSWORD 'SecurePostgresPassword123';" 2>/dev/null || \
+    sudo -u postgres psql -c "ALTER USER cold_user PASSWORD 'SecurePostgresPassword123';" 2>/dev/null
+
+# Create database if not exists
 if sudo -u postgres psql -lqt | cut -d \| -f 1 | grep -qw cold_db; then
     echo "  Database 'cold_db' already exists"
 else
-    sudo -u postgres psql -c "CREATE DATABASE cold_db;" > /dev/null
+    sudo -u postgres psql -c "CREATE DATABASE cold_db OWNER postgres;" > /dev/null
     echo "  Database 'cold_db' created"
 fi
+
+# Grant cold_user access to cold_db
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cold_db TO cold_user;" > /dev/null 2>&1
+
+# Configure pg_hba.conf for password authentication
+echo "  Configuring authentication..."
+PG_HBA=$(sudo -u postgres psql -t -c "SHOW hba_file;" 2>/dev/null | xargs)
+if [ -f "$PG_HBA" ]; then
+    # Check if already configured
+    if ! grep -q "host.*cold_db.*127.0.0.1" "$PG_HBA" 2>/dev/null; then
+        # Backup original
+        cp "$PG_HBA" "${PG_HBA}.bak"
+
+        # Add password auth entries at the beginning of the file (before other host entries)
+        {
+            echo "# Cold Storage authentication (added by installer)"
+            echo "host    cold_db         postgres        127.0.0.1/32            scram-sha-256"
+            echo "host    cold_db         postgres        ::1/128                 scram-sha-256"
+            echo "host    cold_db         cold_user       127.0.0.1/32            scram-sha-256"
+            echo "host    cold_db         cold_user       ::1/128                 scram-sha-256"
+            echo "host    cold_db         postgres        0.0.0.0/0               scram-sha-256"
+            echo "host    cold_db         cold_user       0.0.0.0/0               scram-sha-256"
+            cat "$PG_HBA"
+        } > "${PG_HBA}.new"
+        mv "${PG_HBA}.new" "$PG_HBA"
+        chown postgres:postgres "$PG_HBA"
+
+        echo "  Password authentication configured"
+    else
+        echo "  Authentication already configured"
+    fi
+
+    # Enable listening on all interfaces (for remote DR access)
+    PG_CONF=$(sudo -u postgres psql -t -c "SHOW config_file;" 2>/dev/null | xargs)
+    if [ -f "$PG_CONF" ]; then
+        if ! grep -q "^listen_addresses.*=.*'\*'" "$PG_CONF" 2>/dev/null; then
+            # Update listen_addresses
+            if grep -q "^#*listen_addresses" "$PG_CONF"; then
+                sed -i "s/^#*listen_addresses.*/listen_addresses = '*'/" "$PG_CONF"
+            else
+                echo "listen_addresses = '*'" >> "$PG_CONF"
+            fi
+            echo "  Configured to listen on all interfaces"
+        fi
+    fi
+
+    # Reload PostgreSQL to apply changes
+    systemctl reload postgresql 2>/dev/null || systemctl restart postgresql
+fi
+
+echo "  Database configuration complete"
 
 # ============================================
 # SETUP SYSTEMD SERVICE
@@ -221,10 +283,11 @@ RestartSec=5
 StandardOutput=journal
 StandardError=journal
 
-# Environment
+# Environment - matches production DR setup
 Environment="DB_HOST=localhost"
 Environment="DB_PORT=5432"
-Environment="DB_USER=postgres"
+Environment="DB_USER=cold_user"
+Environment="DB_PASSWORD=SecurePostgresPassword123"
 Environment="DB_NAME=cold_db"
 
 [Install]
