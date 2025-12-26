@@ -410,68 +410,34 @@
                         <span class="text-3xl font-bold text-green-700" id="totalQuantity">0</span>
                     </div>
 
+                    <!-- Quality Buttons (N/U/D/G) -->
+                    <div class="mb-4 p-3 bg-purple-50 border-2 border-purple-300 rounded-lg">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-bold text-purple-800">
+                                <i class="bi bi-bookmark-check mr-1"></i>
+                                <span data-i18n="quality_mark">Quality Mark</span>
+                            </span>
+                            <span id="pendingQtyDisplay" class="text-sm text-purple-600 font-bold hidden">
+                                Qty: <span id="pendingQtyValue">0</span>
+                            </span>
+                        </div>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button type="button" onclick="addWithQuality('N')" class="neu-button bg-green-400 hover:bg-green-500 text-white py-3 text-xl font-bold">N</button>
+                            <button type="button" onclick="addWithQuality('U')" class="neu-button bg-yellow-400 hover:bg-yellow-500 text-white py-3 text-xl font-bold">U</button>
+                            <button type="button" onclick="addWithQuality('D')" class="neu-button bg-red-400 hover:bg-red-500 text-white py-3 text-xl font-bold">D</button>
+                            <button type="button" onclick="addWithQuality('G')" class="neu-button bg-blue-400 hover:bg-blue-500 text-white py-3 text-xl font-bold">G</button>
+                        </div>
+                        <!-- Quality Remarks Display -->
+                        <div id="qualityRemarksList" class="flex flex-wrap gap-2 mt-3 min-h-[30px]">
+                        </div>
+                    </div>
+
                     <!-- Clear All Button -->
                     <button type="button" onclick="clearAllQuantities()" class="neu-button bg-red-500 text-white w-full py-2 text-base font-bold">
                         <i class="bi bi-trash"></i> <span data-i18n="clear_all_values">Clear All Values</span>
                     </button>
-
-                    <!-- Quality Remarks Section (N/U/D/G) -->
-                    <div class="mt-4 p-4 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                        <h3 class="text-sm font-bold text-purple-800 mb-2">
-                            <i class="bi bi-bookmark-check mr-1"></i>
-                            <span data-i18n="quality_remarks">Quality Remarks</span>
-                        </h3>
-                        <div id="qualityRemarksList" class="flex flex-wrap gap-2 min-h-[40px]">
-                            <span class="text-sm text-purple-400" data-i18n="no_quality_remarks">No quality remarks added</span>
-                        </div>
-                    </div>
                 </div>
             </div>
-        </div>
-    </div>
-
-    <!-- Quality Option Modal (N/U/D/G) -->
-    <div id="qualityModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-        <div class="bg-white neu-border p-6 max-w-sm w-full mx-4">
-            <h3 class="text-xl font-bold mb-4 text-center">
-                <i class="bi bi-bookmark-star text-purple-600 mr-2"></i>
-                <span data-i18n="select_quality">Select Quality</span>
-            </h3>
-            <p class="text-center text-gray-600 mb-4">
-                <span data-i18n="quantity_label">Quantity</span>: <span id="modalQuantityDisplay" class="font-bold text-2xl text-blue-600"></span>
-            </p>
-
-            <!-- Quality Options -->
-            <div class="grid grid-cols-2 gap-3 mb-4">
-                <button type="button" onclick="selectQualityOption('N')" class="neu-button bg-green-100 hover:bg-green-200 py-4 text-lg font-bold">
-                    <span class="text-2xl">N</span>
-                    <div class="text-xs text-green-700" data-i18n="quality_normal">Normal</div>
-                </button>
-                <button type="button" onclick="selectQualityOption('U')" class="neu-button bg-yellow-100 hover:bg-yellow-200 py-4 text-lg font-bold">
-                    <span class="text-2xl">U</span>
-                    <div class="text-xs text-yellow-700" data-i18n="quality_unripe">Unripe</div>
-                </button>
-                <button type="button" onclick="selectQualityOption('D')" class="neu-button bg-red-100 hover:bg-red-200 py-4 text-lg font-bold">
-                    <span class="text-2xl">D</span>
-                    <div class="text-xs text-red-700" data-i18n="quality_damaged">Damaged</div>
-                </button>
-                <button type="button" onclick="selectQualityOption('G')" class="neu-button bg-blue-100 hover:bg-blue-200 py-4 text-lg font-bold">
-                    <span class="text-2xl">G</span>
-                    <div class="text-xs text-blue-700" data-i18n="quality_good">Good</div>
-                </button>
-            </div>
-
-            <!-- Skip Quality Option -->
-            <button type="button" onclick="skipQualityOption()" class="neu-button bg-gray-200 hover:bg-gray-300 w-full py-3 text-base font-bold">
-                <i class="bi bi-skip-forward mr-2"></i>
-                <span data-i18n="skip_no_quality">Skip (No Quality Mark)</span>
-            </button>
-
-            <!-- Cancel Button -->
-            <button type="button" onclick="closeQualityModal()" class="mt-3 w-full text-center text-gray-500 hover:text-gray-700 py-2">
-                <i class="bi bi-x-circle mr-1"></i>
-                <span data-i18n="cancel">Cancel</span>
-            </button>
         </div>
     </div>
 
@@ -1056,69 +1022,56 @@
         // Quantity Calculator Functions
         function addQuantity(value) {
             if (value && value > 0) {
-                // Show quality modal instead of directly adding
+                // Set pending quantity and show it
                 pendingQuantity = value;
-                document.getElementById('modalQuantityDisplay').textContent = value;
-                document.getElementById('qualityModal').classList.remove('hidden');
+                document.getElementById('pendingQtyValue').textContent = value;
+                document.getElementById('pendingQtyDisplay').classList.remove('hidden');
+
+                // Also add to quantity values directly (without quality)
+                quantityValues.push(value);
+                updateQuantityDisplay();
             }
         }
 
-        // Quality Modal Functions
-        function selectQualityOption(quality) {
+        // Add quantity with quality mark (N/U/D/G)
+        function addWithQuality(quality) {
             if (pendingQuantity && pendingQuantity > 0) {
-                // Add to quantity values
-                quantityValues.push(pendingQuantity);
-
-                // Add to quality remarks
+                // Add quality remark for the last added quantity
                 qualityRemarks.push({
                     quantity: pendingQuantity,
                     quality: quality
                 });
-
-                updateQuantityDisplay();
                 updateQualityRemarksDisplay();
-            }
-            closeQualityModal();
-        }
 
-        function skipQualityOption() {
-            if (pendingQuantity && pendingQuantity > 0) {
-                // Add to quantity values without quality mark
-                quantityValues.push(pendingQuantity);
-                updateQuantityDisplay();
+                // Clear pending
+                pendingQuantity = null;
+                document.getElementById('pendingQtyDisplay').classList.add('hidden');
             }
-            closeQualityModal();
-        }
-
-        function closeQualityModal() {
-            pendingQuantity = null;
-            document.getElementById('qualityModal').classList.add('hidden');
         }
 
         function updateQualityRemarksDisplay() {
             const container = document.getElementById('qualityRemarksList');
 
             if (qualityRemarks.length === 0) {
-                const noRemarksMsg = i18n.t('no_quality_remarks', 'No quality remarks added');
-                container.innerHTML = `<span class="text-sm text-purple-400">${noRemarksMsg}</span>`;
+                container.innerHTML = '';
                 return;
             }
 
-            // Get quality colors and labels
+            // Get quality colors
             const qualityColors = {
-                'N': { bg: 'bg-green-500', text: 'text-white', label: 'Normal' },
-                'U': { bg: 'bg-yellow-500', text: 'text-white', label: 'Unripe' },
-                'D': { bg: 'bg-red-500', text: 'text-white', label: 'Damaged' },
-                'G': { bg: 'bg-blue-500', text: 'text-white', label: 'Good' }
+                'N': { bg: 'bg-green-500', text: 'text-white' },
+                'U': { bg: 'bg-yellow-500', text: 'text-white' },
+                'D': { bg: 'bg-red-500', text: 'text-white' },
+                'G': { bg: 'bg-blue-500', text: 'text-white' }
             };
 
             container.innerHTML = qualityRemarks.map((item, index) => {
                 const style = qualityColors[item.quality] || { bg: 'bg-gray-500', text: 'text-white' };
                 return `
-                    <span class="inline-flex items-center gap-1 px-3 py-1 ${style.bg} ${style.text} rounded-full text-sm font-bold border-2 border-black">
+                    <span class="inline-flex items-center gap-1 px-2 py-1 ${style.bg} ${style.text} rounded text-sm font-bold">
                         ${item.quantity}-${item.quality}
-                        <button type="button" onclick="removeQualityRemark(${index})" class="hover:bg-red-700 rounded-full p-0.5 transition-colors" title="Remove">
-                            <i class="bi bi-x-lg text-xs"></i>
+                        <button type="button" onclick="removeQualityRemark(${index})" class="hover:bg-red-700 rounded p-0.5" title="Remove">
+                            <i class="bi bi-x text-xs"></i>
                         </button>
                     </span>
                 `;
@@ -1126,20 +1079,8 @@
         }
 
         function removeQualityRemark(index) {
-            // Find the quantity value to remove
-            const removedRemark = qualityRemarks[index];
-            if (removedRemark) {
-                // Find and remove the corresponding quantity from quantityValues
-                const qtyIndex = quantityValues.indexOf(removedRemark.quantity);
-                if (qtyIndex > -1) {
-                    quantityValues.splice(qtyIndex, 1);
-                }
-            }
-
             // Remove from quality remarks
             qualityRemarks.splice(index, 1);
-
-            updateQuantityDisplay();
             updateQualityRemarksDisplay();
         }
 
@@ -1171,22 +1112,15 @@
         }
 
         function removeQuantity(index) {
-            const removedValue = quantityValues[index];
             quantityValues.splice(index, 1);
-
-            // Also remove from quality remarks if this quantity has a quality mark
-            const qualityIndex = qualityRemarks.findIndex(r => r.quantity === removedValue);
-            if (qualityIndex > -1) {
-                qualityRemarks.splice(qualityIndex, 1);
-                updateQualityRemarksDisplay();
-            }
-
             updateQuantityDisplay();
         }
 
         function clearAllQuantities() {
             quantityValues = [];
             qualityRemarks = [];
+            pendingQuantity = null;
+            document.getElementById('pendingQtyDisplay').classList.add('hidden');
             updateQuantityDisplay();
             updateQualityRemarksDisplay();
         }
