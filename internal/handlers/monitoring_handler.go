@@ -302,9 +302,23 @@ func createR2DatabaseBackup(ctx context.Context) ([]byte, error) {
 							jsonBytes, _ := json.Marshal(val)
 							buffer.WriteString(fmt.Sprintf("'%s'", strings.ReplaceAll(string(jsonBytes), "'", "''")))
 						default:
-							// Quote everything else as string (safer)
+							// Check for numeric types (pgtype.Numeric shows as struct)
 							str := fmt.Sprintf("%v", val)
-							buffer.WriteString(fmt.Sprintf("'%s'", strings.ReplaceAll(str, "'", "''")))
+							// If it looks like pgtype internal representation, extract the value
+							if strings.HasPrefix(str, "{") && strings.Contains(str, " ") {
+								// pgtype.Numeric: {value exp negative finite nan}
+								// Try to use the type's String() method if available
+								if stringer, ok := val.(fmt.Stringer); ok {
+									str = stringer.String()
+								}
+							}
+							// If still looks like struct, try to convert to number
+							if strings.HasPrefix(str, "{") {
+								// Skip this value or use NULL
+								buffer.WriteString("NULL")
+							} else {
+								buffer.WriteString(fmt.Sprintf("'%s'", strings.ReplaceAll(str, "'", "''")))
+							}
 						}
 					}
 				}
