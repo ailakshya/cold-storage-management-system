@@ -595,3 +595,135 @@ func (h *SetupHandler) CheckR2Connection(w http.ResponseWriter, r *http.Request)
 		"message": "R2 connection successful!",
 	})
 }
+
+// UploadRestore handles file upload and database restore from .sql file
+func (h *SetupHandler) UploadRestore(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse multipart form (max 50MB)
+	if err := r.ParseMultipartForm(50 << 20); err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to parse form: " + err.Error(),
+		})
+		return
+	}
+
+	// Get uploaded file
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "No file uploaded: " + err.Error(),
+		})
+		return
+	}
+	defer file.Close()
+
+	// Validate file extension
+	if !strings.HasSuffix(strings.ToLower(header.Filename), ".sql") {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Only .sql files are allowed",
+		})
+		return
+	}
+
+	log.Printf("[UploadRestore] Received file: %s (%d bytes)", header.Filename, header.Size)
+
+	// Save to temp file
+	tmpFile := filepath.Join(os.TempDir(), "cold_upload_"+time.Now().Format("20060102_150405")+".sql")
+	f, err := os.Create(tmpFile)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to create temp file: " + err.Error(),
+		})
+		return
+	}
+
+	bytesWritten, err := io.Copy(f, file)
+	f.Close()
+	if err != nil {
+		os.Remove(tmpFile)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to save file: " + err.Error(),
+		})
+		return
+	}
+
+	log.Printf("[UploadRestore] Saved to temp file: %s (%.2f KB)", tmpFile, float64(bytesWritten)/1024)
+
+	// Get DB connection params from form
+	host := r.FormValue("host")
+	port := r.FormValue("port")
+	user := r.FormValue("user")
+	password := r.FormValue("password")
+	database := r.FormValue("database")
+
+	if host == "" || port == "" || user == "" || database == "" {
+		os.Remove(tmpFile)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Missing database connection parameters",
+		})
+		return
+	}
+
+	// Build connection string
+	connStr := fmt.Sprintf("postgresql://%s:%s@%s:%s/%s",
+		user, password, host, port, database)
+
+	log.Printf("[UploadRestore] Restoring to %s:%s/%s", host, port, database)
+
+	// Execute psql restore
+	cmd := exec.Command("psql", connStr, "-f", tmpFile)
+	output, err := cmd.CombinedOutput()
+
+	os.Remove(tmpFile) // Cleanup
+
+	if err != nil {
+		log.Printf("[UploadRestore] psql error: %v\nOutput: %s", err, string(output))
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Restore failed: " + err.Error() + "\n" + string(output),
+		})
+		return
+	}
+
+	// Check for PostgreSQL errors in output
+	outputStr := string(output)
+	if strings.Contains(outputStr, "ERROR:") {
+		log.Printf("[UploadRestore] Restore completed with errors:\n%s", outputStr)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Restore completed with errors:\n" + outputStr,
+		})
+		return
+	}
+
+	log.Printf("[UploadRestore] Restore successful!")
+
+	// Save config
+	envContent := fmt.Sprintf(`DB_HOST=%s
+DB_PORT=%s
+DB_USER=%s
+DB_PASSWORD=%s
+DB_NAME=%s
+JWT_SECRET=cold-backend-jwt-secret-2025
+`, host, port, user, password, database)
+
+	os.WriteFile(".env", []byte(envContent), 0600)
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Database restored successfully! Restarting server...",
+	})
+
+	// Trigger restart
+	go func() {
+		time.Sleep(2 * time.Second)
+		os.Exit(0)
+	}()
+}

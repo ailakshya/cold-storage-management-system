@@ -31,6 +31,23 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+        .backup-item {
+            transition: all 0.2s ease;
+        }
+        .backup-item:hover {
+            background-color: #f3f4f6;
+        }
+        .backup-item.selected {
+            background-color: #dbeafe;
+            border: 2px solid #3b82f6;
+        }
+        .drop-zone {
+            transition: all 0.2s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
@@ -46,12 +63,15 @@
         <div id="statusMessage" class="hidden mb-6 p-4 rounded-lg"></div>
 
         <!-- Tabs -->
-        <div class="flex mb-6 border-b">
-            <button onclick="showTab('manual')" id="tabManual" class="px-6 py-3 font-semibold text-blue-600 border-b-2 border-blue-600">
+        <div class="flex mb-6 border-b overflow-x-auto">
+            <button onclick="showTab('manual')" id="tabManual" class="px-4 py-3 font-semibold text-blue-600 border-b-2 border-blue-600 whitespace-nowrap">
                 Manual Setup
             </button>
-            <button onclick="showTab('restore')" id="tabRestore" class="px-6 py-3 font-semibold text-gray-500 hover:text-blue-600">
-                Restore from Backup
+            <button onclick="showTab('restore')" id="tabRestore" class="px-4 py-3 font-semibold text-gray-500 hover:text-blue-600 whitespace-nowrap">
+                Restore from R2
+            </button>
+            <button onclick="showTab('upload')" id="tabUpload" class="px-4 py-3 font-semibold text-gray-500 hover:text-blue-600 whitespace-nowrap">
+                Upload SQL File
             </button>
         </div>
 
@@ -102,57 +122,136 @@
 
         <!-- Restore Tab -->
         <div id="restoreTab" class="hidden">
-            <div class="text-center py-8">
-                <div class="text-6xl mb-4">☁️</div>
-                <h2 class="text-xl font-semibold text-gray-800 mb-2">Restore from Cloud Backup</h2>
-                <p class="text-gray-600 mb-6">Restore your database from Cloudflare R2 backup</p>
+            <div class="py-4">
+                <div class="text-center mb-4">
+                    <div class="text-5xl mb-2">☁️</div>
+                    <h2 class="text-xl font-semibold text-gray-800">Restore from Cloud Backup</h2>
+                    <p class="text-gray-600 text-sm">Select a backup from Cloudflare R2 to restore</p>
+                </div>
 
                 <!-- R2 Status -->
-                <div id="r2Status" class="mb-6 p-4 bg-gray-100 rounded-lg">
+                <div id="r2Status" class="mb-4 p-3 bg-gray-100 rounded-lg text-center">
                     <span class="text-gray-600">Checking R2 connection...</span>
                 </div>
 
                 <!-- Restore Form -->
-                <div class="text-left space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
+                <div class="text-left space-y-3 mb-4">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Target Host</label>
                             <input type="text" id="restoreHost" value="localhost"
-                                   class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-1">Port</label>
                             <input type="number" id="restorePort" value="5432"
-                                   class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
-                        <input type="text" id="restoreUser" value="postgres"
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                        <input type="password" id="restorePassword"
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                            <input type="text" id="restoreUser" value="postgres"
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <input type="password" id="restorePassword"
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
                     </div>
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Database Name</label>
                         <input type="text" id="restoreDatabase" value="cold_db"
-                               class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500">
+                               class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
                     </div>
                 </div>
 
                 <!-- Available Backups -->
-                <div id="backupsList" class="mt-6 text-left hidden">
-                    <h3 class="font-semibold text-gray-700 mb-2">Available Backups:</h3>
-                    <div id="backupsContainer" class="space-y-2 max-h-48 overflow-y-auto"></div>
+                <div id="backupsList" class="mb-4 hidden">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="font-semibold text-gray-700">Available Backups:</h3>
+                        <span id="backupCount" class="text-xs text-gray-500"></span>
+                    </div>
+                    <div id="backupsContainer" class="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2"></div>
+                    <p id="selectedBackupInfo" class="text-sm text-blue-600 mt-2 hidden"></p>
                 </div>
 
-                <button onclick="restoreFromR2()" id="restoreBtn"
-                        class="w-full mt-6 btn-success text-white py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center justify-center gap-2">
-                    <span id="restoreSpinner" class="spinner hidden"></span>
-                    Restore Latest Backup
+                <!-- Restore Buttons -->
+                <div class="flex gap-3">
+                    <button onclick="restoreSelected()" id="restoreSelectedBtn"
+                            class="flex-1 btn-primary text-white py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center justify-center gap-2 hidden">
+                        <span id="restoreSelectedSpinner" class="spinner hidden"></span>
+                        Restore Selected
+                    </button>
+                    <button onclick="restoreFromR2('')" id="restoreLatestBtn"
+                            class="flex-1 btn-success text-white py-3 rounded-lg font-semibold hover:opacity-90 transition flex items-center justify-center gap-2">
+                        <span id="restoreSpinner" class="spinner hidden"></span>
+                        Restore Latest
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Tab -->
+        <div id="uploadTab" class="hidden">
+            <div class="py-4">
+                <div class="text-center mb-4">
+                    <div class="text-5xl mb-2">📁</div>
+                    <h2 class="text-xl font-semibold text-gray-800">Restore from Local File</h2>
+                    <p class="text-gray-600 text-sm">Upload a .sql backup file to restore</p>
+                </div>
+
+                <!-- Upload Form -->
+                <div class="text-left space-y-3 mb-4">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Target Host</label>
+                            <input type="text" id="uploadHost" value="localhost"
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Port</label>
+                            <input type="number" id="uploadPort" value="5432"
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                            <input type="text" id="uploadUser" value="postgres"
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                            <input type="password" id="uploadPassword"
+                                   class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Database Name</label>
+                        <input type="text" id="uploadDatabase" value="cold_db"
+                               class="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                    </div>
+                </div>
+
+                <!-- File Upload -->
+                <div class="drop-zone border-2 border-dashed border-gray-300 rounded-lg p-8 mb-4 text-center cursor-pointer"
+                     id="dropZone"
+                     onclick="document.getElementById('sqlFile').click()"
+                     ondragover="handleDragOver(event)"
+                     ondragleave="handleDragLeave(event)"
+                     ondrop="handleDrop(event)">
+                    <input type="file" id="sqlFile" accept=".sql" class="hidden" onchange="fileSelected(this)">
+                    <div id="uploadIcon" class="text-4xl mb-2">📄</div>
+                    <p id="fileName" class="text-gray-600">Click to select .sql file or drag & drop</p>
+                    <p class="text-xs text-gray-400 mt-1">Max file size: 50MB</p>
+                </div>
+
+                <button onclick="uploadAndRestore()" id="uploadRestoreBtn" disabled
+                        class="w-full btn-success text-white py-3 rounded-lg font-semibold hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                    <span id="uploadSpinner" class="spinner hidden"></span>
+                    Upload & Restore
                 </button>
             </div>
         </div>
@@ -165,20 +264,35 @@
     </div>
 
     <script>
-        function showTab(tab) {
-            document.getElementById('manualTab').classList.toggle('hidden', tab !== 'manual');
-            document.getElementById('restoreTab').classList.toggle('hidden', tab !== 'restore');
-            document.getElementById('tabManual').classList.toggle('text-blue-600', tab === 'manual');
-            document.getElementById('tabManual').classList.toggle('border-blue-600', tab === 'manual');
-            document.getElementById('tabManual').classList.toggle('border-b-2', tab === 'manual');
-            document.getElementById('tabManual').classList.toggle('text-gray-500', tab !== 'manual');
-            document.getElementById('tabRestore').classList.toggle('text-blue-600', tab === 'restore');
-            document.getElementById('tabRestore').classList.toggle('border-blue-600', tab === 'restore');
-            document.getElementById('tabRestore').classList.toggle('border-b-2', tab === 'restore');
-            document.getElementById('tabRestore').classList.toggle('text-gray-500', tab !== 'restore');
+        let selectedBackupKey = '';
 
-            if (tab === 'restore') {
+        function showTab(tab) {
+            // Hide all tabs
+            document.getElementById('manualTab').classList.add('hidden');
+            document.getElementById('restoreTab').classList.add('hidden');
+            document.getElementById('uploadTab').classList.add('hidden');
+
+            // Remove active state from all tab buttons
+            ['tabManual', 'tabRestore', 'tabUpload'].forEach(id => {
+                const btn = document.getElementById(id);
+                btn.classList.remove('text-blue-600', 'border-blue-600', 'border-b-2');
+                btn.classList.add('text-gray-500');
+            });
+
+            // Show selected tab and activate button
+            if (tab === 'manual') {
+                document.getElementById('manualTab').classList.remove('hidden');
+                document.getElementById('tabManual').classList.add('text-blue-600', 'border-blue-600', 'border-b-2');
+                document.getElementById('tabManual').classList.remove('text-gray-500');
+            } else if (tab === 'restore') {
+                document.getElementById('restoreTab').classList.remove('hidden');
+                document.getElementById('tabRestore').classList.add('text-blue-600', 'border-blue-600', 'border-b-2');
+                document.getElementById('tabRestore').classList.remove('text-gray-500');
                 checkR2Connection();
+            } else if (tab === 'upload') {
+                document.getElementById('uploadTab').classList.remove('hidden');
+                document.getElementById('tabUpload').classList.add('text-blue-600', 'border-blue-600', 'border-b-2');
+                document.getElementById('tabUpload').classList.remove('text-gray-500');
             }
         }
 
@@ -187,6 +301,31 @@
             el.textContent = message;
             el.className = `mb-6 p-4 rounded-lg ${isError ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`;
             el.classList.remove('hidden');
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Parse backup key to extract folder info
+        function parseBackupPath(key) {
+            // Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
+            // OR old format: base/cold_db_YYYYMMDD_HHMMSS.sql
+            const parts = key.split('/');
+            if (parts.length >= 5) {
+                return {
+                    year: parts[1],
+                    month: parts[2],
+                    day: parts[3],
+                    hour: parts[4],
+                    filename: parts[parts.length - 1]
+                };
+            }
+            return { filename: parts[parts.length - 1] };
         }
 
         async function testConnection() {
@@ -278,12 +417,32 @@
 
                 if (data.success && data.backups && data.backups.length > 0) {
                     const container = document.getElementById('backupsContainer');
-                    container.innerHTML = data.backups.map(b => `
-                        <div class="p-3 bg-gray-50 rounded-lg flex justify-between items-center">
-                            <span class="text-sm">${b.key}</span>
-                            <span class="text-xs text-gray-500">${new Date(b.lastModified).toLocaleString()}</span>
-                        </div>
-                    `).join('');
+                    document.getElementById('backupCount').textContent = `Showing ${data.showing} of ${data.total_count} backups`;
+
+                    container.innerHTML = data.backups.map(b => {
+                        const pathInfo = parseBackupPath(b.key);
+                        const dateStr = pathInfo.year ?
+                            `${pathInfo.year}/${pathInfo.month}/${pathInfo.day} ${pathInfo.hour}:00` :
+                            new Date(b.lastModified).toLocaleDateString();
+
+                        return `
+                            <div class="backup-item p-3 bg-gray-50 rounded-lg cursor-pointer"
+                                 data-key="${b.key}"
+                                 onclick="selectBackup('${b.key}')">
+                                <div class="flex justify-between items-start">
+                                    <div class="flex-1 min-w-0">
+                                        <span class="font-medium text-sm truncate block">${pathInfo.filename}</span>
+                                        <span class="text-xs text-gray-500">${formatBytes(b.size)}</span>
+                                    </div>
+                                    <div class="text-right ml-2">
+                                        <span class="text-xs text-gray-500 block">${new Date(b.lastModified).toLocaleString()}</span>
+                                        ${pathInfo.year ? `<span class="text-xs text-blue-600">${dateStr}</span>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+
                     document.getElementById('backupsList').classList.remove('hidden');
                 }
             } catch (error) {
@@ -291,8 +450,37 @@
             }
         }
 
-        async function restoreFromR2() {
-            const spinner = document.getElementById('restoreSpinner');
+        function selectBackup(key) {
+            selectedBackupKey = key;
+
+            // Update UI - remove selected from all
+            document.querySelectorAll('.backup-item').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // Add selected to clicked item
+            const selectedEl = document.querySelector(`[data-key="${key}"]`);
+            if (selectedEl) {
+                selectedEl.classList.add('selected');
+            }
+
+            // Show selected info and button
+            const pathInfo = parseBackupPath(key);
+            document.getElementById('selectedBackupInfo').textContent = `Selected: ${pathInfo.filename}`;
+            document.getElementById('selectedBackupInfo').classList.remove('hidden');
+            document.getElementById('restoreSelectedBtn').classList.remove('hidden');
+        }
+
+        function restoreSelected() {
+            if (!selectedBackupKey) {
+                showStatus('Please select a backup first', true);
+                return;
+            }
+            restoreFromR2(selectedBackupKey);
+        }
+
+        async function restoreFromR2(backupKey) {
+            const spinner = backupKey ? document.getElementById('restoreSelectedSpinner') : document.getElementById('restoreSpinner');
             spinner.classList.remove('hidden');
 
             try {
@@ -305,7 +493,7 @@
                         user: document.getElementById('restoreUser').value,
                         password: document.getElementById('restorePassword').value,
                         database: document.getElementById('restoreDatabase').value,
-                        backup_key: ''  // Empty = latest
+                        backup_key: backupKey
                     })
                 });
                 const data = await response.json();
@@ -320,6 +508,93 @@
                 }
             } catch (error) {
                 showStatus('Error: ' + error.message, true);
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        // File upload handlers
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('dropZone').classList.remove('dragover');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.name.toLowerCase().endsWith('.sql')) {
+                    document.getElementById('sqlFile').files = files;
+                    fileSelected(document.getElementById('sqlFile'));
+                } else {
+                    showStatus('Only .sql files are allowed', true);
+                }
+            }
+        }
+
+        function fileSelected(input) {
+            const file = input.files[0];
+            if (file) {
+                if (file.size > 50 * 1024 * 1024) {
+                    showStatus('File too large. Max size is 50MB', true);
+                    return;
+                }
+                document.getElementById('fileName').textContent = file.name + ' (' + formatBytes(file.size) + ')';
+                document.getElementById('uploadIcon').textContent = '✅';
+                document.getElementById('uploadRestoreBtn').disabled = false;
+            }
+        }
+
+        async function uploadAndRestore() {
+            const fileInput = document.getElementById('sqlFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                showStatus('Please select a file first', true);
+                return;
+            }
+
+            const spinner = document.getElementById('uploadSpinner');
+            spinner.classList.remove('hidden');
+            document.getElementById('uploadRestoreBtn').disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('host', document.getElementById('uploadHost').value);
+            formData.append('port', document.getElementById('uploadPort').value);
+            formData.append('user', document.getElementById('uploadUser').value);
+            formData.append('password', document.getElementById('uploadPassword').value);
+            formData.append('database', document.getElementById('uploadDatabase').value);
+
+            try {
+                const response = await fetch('/setup/upload-restore', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    showStatus('Restore successful! Server will restart in 2 seconds...');
+                    setTimeout(() => {
+                        window.location.href = '/';
+                    }, 3000);
+                } else {
+                    showStatus('Restore failed: ' + data.error, true);
+                    document.getElementById('uploadRestoreBtn').disabled = false;
+                }
+            } catch (error) {
+                showStatus('Error: ' + error.message, true);
+                document.getElementById('uploadRestoreBtn').disabled = false;
             } finally {
                 spinner.classList.add('hidden');
             }

@@ -118,8 +118,15 @@ func runR2Backup() {
 		return
 	}
 
-	// Generate backup filename with IST timestamp
-	backupKey := fmt.Sprintf("base/cold_db_%s.sql", timeutil.Now().Format("20060102_150405"))
+	// Generate backup filename with structured hourly folders
+	// Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
+	now := timeutil.Now()
+	backupKey := fmt.Sprintf("base/%s/%s/%s/%s/cold_db_%s.sql",
+		now.Format("2006"),           // Year
+		now.Format("01"),             // Month
+		now.Format("02"),             // Day
+		now.Format("15"),             // Hour (24h)
+		now.Format("20060102_150405")) // Full timestamp
 
 	// Upload to R2
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
@@ -1241,8 +1248,15 @@ func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate backup filename with IST timestamp
-	backupKey := fmt.Sprintf("base/cold_db_%s.sql", timeutil.Now().Format("20060102_150405"))
+	// Generate backup filename with structured hourly folders
+	// Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
+	now := timeutil.Now()
+	backupKey := fmt.Sprintf("base/%s/%s/%s/%s/cold_db_%s.sql",
+		now.Format("2006"),           // Year
+		now.Format("01"),             // Month
+		now.Format("02"),             // Day
+		now.Format("15"),             // Hour (24h)
+		now.Format("20060102_150405")) // Full timestamp
 
 	// Upload to R2
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{

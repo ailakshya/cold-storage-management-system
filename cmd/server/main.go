@@ -45,6 +45,7 @@ func startSetupMode(cfg *config.Config) {
 	mux.HandleFunc("/setup/r2-check", setupHandler.CheckR2Connection)
 	mux.HandleFunc("/setup/backups", setupHandler.ListBackups)
 	mux.HandleFunc("/setup/restore", setupHandler.RestoreFromR2)
+	mux.HandleFunc("/setup/upload-restore", setupHandler.UploadRestore)
 
 	// Serve static files from embedded filesystem
 	staticFS, _ := fs.Sub(static.FS, ".")
