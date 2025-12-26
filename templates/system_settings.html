@@ -301,13 +301,16 @@
                 <div class="flex flex-wrap gap-2 mb-3" id="seedSkipsList">
                     <!-- Populated by JS -->
                 </div>
-                <div class="flex gap-2 items-center">
+                <div class="flex gap-2 items-center flex-wrap">
                     <span class="text-gray-600 font-medium">From:</span>
                     <input type="number" id="seedSkipFrom" min="1" max="1500"
-                           class="neu-input w-24" placeholder="1">
+                           class="neu-input w-24" placeholder="1" oninput="updateSkipPreview('seed')">
                     <span class="text-gray-600 font-medium">To:</span>
                     <input type="number" id="seedSkipTo" min="1" max="1500"
-                           class="neu-input w-24" placeholder="10">
+                           class="neu-input w-24" placeholder="10" oninput="updateSkipPreview('seed')">
+                    <span id="seedSkipPreview" class="text-green-700 font-bold hidden">
+                        <i class="bi bi-arrow-right"></i> Next: <span id="seedNextPreview"></span>
+                    </span>
                     <button onclick="addSkipRange('seed')" class="neu-button bg-green-500 text-white">
                         <i class="bi bi-plus-circle"></i> Add Range
                     </button>
@@ -323,13 +326,16 @@
                 <div class="flex flex-wrap gap-2 mb-3" id="sellSkipsList">
                     <!-- Populated by JS -->
                 </div>
-                <div class="flex gap-2 items-center">
+                <div class="flex gap-2 items-center flex-wrap">
                     <span class="text-gray-600 font-medium">From:</span>
                     <input type="number" id="sellSkipFrom" min="1501"
-                           class="neu-input w-24" placeholder="1501">
+                           class="neu-input w-24" placeholder="1501" oninput="updateSkipPreview('sell')">
                     <span class="text-gray-600 font-medium">To:</span>
                     <input type="number" id="sellSkipTo" min="1501"
-                           class="neu-input w-24" placeholder="1510">
+                           class="neu-input w-24" placeholder="1510" oninput="updateSkipPreview('sell')">
+                    <span id="sellSkipPreview" class="text-orange-700 font-bold hidden">
+                        <i class="bi bi-arrow-right"></i> Next: <span id="sellNextPreview"></span>
+                    </span>
                     <button onclick="addSkipRange('sell')" class="neu-button bg-orange-500 text-white">
                         <i class="bi bi-plus-circle"></i> Add Range
                     </button>
@@ -1440,6 +1446,26 @@
             document.getElementById('skipSuccessMessage').classList.add('hidden');
             document.getElementById('skipErrorText').textContent = message;
             document.getElementById('skipErrorMessage').classList.remove('hidden');
+        }
+
+        function updateSkipPreview(category) {
+            const toInput = document.getElementById(`${category}SkipTo`);
+            const previewSpan = document.getElementById(`${category}SkipPreview`);
+            const nextSpan = document.getElementById(`${category}NextPreview`);
+
+            const to = parseInt(toInput.value);
+
+            if (!isNaN(to) && to > 0) {
+                const nextNum = to + 1;
+                if (category === 'seed') {
+                    nextSpan.textContent = String(nextNum).padStart(4, '0');
+                } else {
+                    nextSpan.textContent = nextNum;
+                }
+                previewSpan.classList.remove('hidden');
+            } else {
+                previewSpan.classList.add('hidden');
+            }
         }
 
         // Load skip ranges on page load
