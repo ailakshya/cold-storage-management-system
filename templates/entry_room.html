@@ -1289,9 +1289,26 @@
             }
 
             try {
+                // Don't attempt refresh if no token
+                if (!token) {
+                    stopAutoRefresh();
+                    window.location.href = '/login';
+                    return;
+                }
+
                 const response = await fetch(`/api/entry-room/since?t=${encodeURIComponent(lastRefreshTime)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
+
+                // Handle authentication errors
+                if (response.status === 401) {
+                    console.warn('Session expired, redirecting to login');
+                    stopAutoRefresh();
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    window.location.href = '/login';
+                    return;
+                }
 
                 if (!response.ok) {
                     throw new Error('Failed to load delta');
