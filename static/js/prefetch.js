@@ -214,17 +214,12 @@
 })();
 
 /**
- * Auto-Fullscreen for Tablets
- * Automatically enters fullscreen mode on first user interaction (touch/click)
- * Only activates on touch devices (tablets/phones)
+ * Fullscreen Support for All Devices
+ * - Auto-fullscreen on first touch (tablets only)
+ * - Manual toggle button works on all devices
  */
 (function() {
     'use strict';
-
-    // Only run on touch devices (tablets/phones)
-    if (!('ontouchstart' in window) && navigator.maxTouchPoints === 0) {
-        return;
-    }
 
     // Check if already in fullscreen
     function isFullscreen() {
@@ -237,43 +232,42 @@
 
         const elem = document.documentElement;
 
-        if (elem.requestFullscreen) {
-            elem.requestFullscreen().catch(() => {});
-        } else if (elem.webkitRequestFullscreen) {
-            elem.webkitRequestFullscreen();
-        } else if (elem.mozRequestFullScreen) {
-            elem.mozRequestFullScreen();
+        try {
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen();
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            } else if (elem.mozRequestFullScreen) {
+                elem.mozRequestFullScreen();
+            } else if (elem.msRequestFullscreen) {
+                elem.msRequestFullscreen();
+            }
+        } catch (e) {
+            console.log('Fullscreen not supported:', e);
         }
     }
 
-    // Auto-fullscreen on first interaction
-    function setupAutoFullscreen() {
-        const handler = function() {
-            requestFullscreen();
-            // Remove listener after first trigger
-            document.removeEventListener('click', handler);
-            document.removeEventListener('touchstart', handler);
-        };
-
-        document.addEventListener('click', handler, { once: true });
-        document.addEventListener('touchstart', handler, { once: true });
-    }
-
-    // Initialize
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', setupAutoFullscreen);
-    } else {
-        setupAutoFullscreen();
-    }
-
-    // Manual fullscreen toggle with icon update
-    window.toggleFullscreen = function() {
-        if (isFullscreen()) {
+    // Exit fullscreen
+    function exitFullscreen() {
+        try {
             if (document.exitFullscreen) {
                 document.exitFullscreen();
             } else if (document.webkitExitFullscreen) {
                 document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
             }
+        } catch (e) {
+            console.log('Exit fullscreen error:', e);
+        }
+    }
+
+    // Manual fullscreen toggle - works on ALL devices
+    window.toggleFullscreen = function() {
+        if (isFullscreen()) {
+            exitFullscreen();
         } else {
             requestFullscreen();
         }
@@ -293,5 +287,24 @@
 
     document.addEventListener('fullscreenchange', updateFullscreenIcon);
     document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+    document.addEventListener('mozfullscreenchange', updateFullscreenIcon);
+    document.addEventListener('MSFullscreenChange', updateFullscreenIcon);
+
+    // Auto-fullscreen on first interaction (TABLETS ONLY)
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        function setupAutoFullscreen() {
+            const handler = function() {
+                requestFullscreen();
+            };
+            document.addEventListener('click', handler, { once: true });
+            document.addEventListener('touchstart', handler, { once: true });
+        }
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', setupAutoFullscreen);
+        } else {
+            setupAutoFullscreen();
+        }
+    }
 
 })();
