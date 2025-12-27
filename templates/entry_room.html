@@ -1287,6 +1287,12 @@
 
         // Delta refresh - only fetch new entries since last refresh
         async function refreshEntryRoomDelta() {
+            // Skip if auth expired or no token
+            if (authExpired || !token) {
+                stopAutoRefresh();
+                return;
+            }
+
             if (!lastRefreshTime) {
                 // First load - do full refresh
                 await loadEntryRoomData();
@@ -2515,12 +2521,25 @@
             }, 5000);
         }
 
+        let authExpired = false; // Flag to prevent further API calls after 401
+
         function stopAutoRefresh() {
+            authExpired = true;
             if (roomEntriesRefreshInterval) {
                 clearInterval(roomEntriesRefreshInterval);
+                roomEntriesRefreshInterval = null;
             }
             if (entriesRefreshInterval) {
                 clearInterval(entriesRefreshInterval);
+                entriesRefreshInterval = null;
+            }
+            if (guardEntriesRefreshInterval) {
+                clearInterval(guardEntriesRefreshInterval);
+                guardEntriesRefreshInterval = null;
+            }
+            if (guardTimerInterval) {
+                clearInterval(guardTimerInterval);
+                guardTimerInterval = null;
             }
         }
 
