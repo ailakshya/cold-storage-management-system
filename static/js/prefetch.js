@@ -266,7 +266,7 @@
         setupAutoFullscreen();
     }
 
-    // Also expose manual fullscreen toggle
+    // Manual fullscreen toggle with icon update
     window.toggleFullscreen = function() {
         if (isFullscreen()) {
             if (document.exitFullscreen) {
@@ -278,5 +278,20 @@
             requestFullscreen();
         }
     };
+
+    // Update icon when fullscreen state changes
+    function updateFullscreenIcon() {
+        const icon = document.getElementById('fullscreenIcon');
+        if (icon) {
+            if (isFullscreen()) {
+                icon.className = 'bi bi-fullscreen-exit';
+            } else {
+                icon.className = 'bi bi-fullscreen';
+            }
+        }
+    }
+
+    document.addEventListener('fullscreenchange', updateFullscreenIcon);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
 })();
