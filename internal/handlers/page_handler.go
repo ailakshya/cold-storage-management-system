@@ -168,6 +168,9 @@ func (h *PageHandler) MonitoringDashboardPage(w http.ResponseWriter, r *http.Req
 
 // RoomVisualizationPage serves the room visualization page for storage occupancy
 func (h *PageHandler) RoomVisualizationPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	h.templates.ExecuteTemplate(w, "room_visualization.html", nil)
 }
 

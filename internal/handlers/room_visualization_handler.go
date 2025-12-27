@@ -113,6 +113,11 @@ var gatarRanges = map[string]map[string]struct{ Start, End, Total int }{
 
 // GetRoomStats returns aggregated statistics for all rooms and floors
 func (h *RoomVisualizationHandler) GetRoomStats(w http.ResponseWriter, r *http.Request) {
+	// Prevent browser caching
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
 	ctx := r.Context()
 
 	// Check Redis cache first
@@ -242,6 +247,11 @@ func (h *RoomVisualizationHandler) GetRoomStats(w http.ResponseWriter, r *http.R
 
 // GetGatarOccupancy returns detailed gatar-level data for a specific room/floor
 func (h *RoomVisualizationHandler) GetGatarOccupancy(w http.ResponseWriter, r *http.Request) {
+	// Prevent browser caching
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
 	ctx := r.Context()
 
 	roomNo := r.URL.Query().Get("room")
@@ -382,6 +392,11 @@ func (h *RoomVisualizationHandler) GetGatarOccupancy(w http.ResponseWriter, r *h
 
 // GetGatarDetails returns details for a specific gatar
 func (h *RoomVisualizationHandler) GetGatarDetails(w http.ResponseWriter, r *http.Request) {
+	// Prevent browser caching
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
 	ctx := r.Context()
 
 	gatar := r.URL.Query().Get("gatar")

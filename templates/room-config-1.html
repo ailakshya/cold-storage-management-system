@@ -106,9 +106,40 @@
             </nav>
         </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
-            <!-- Left: Room Entry Form -->
-            <div class="lg:col-span-2">
+        <div class="space-y-6">
+            <!-- Main Content: Recent Main Entries + Room Entry Form + Recent Room Entries -->
+            <div class="max-w-4xl mx-auto">
+                <!-- Recent Main Entries (Unassigned) - NOW AT TOP -->
+                <div class="neu-border bg-white p-4 md:p-6 mb-6">
+                    <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
+                        <h2 class="text-xl md:text-2xl font-bold flex items-center gap-2">
+                            <i class="bi bi-inbox"></i>
+                            <span data-i18n="recent_main_entries">Recent Main Entries</span>
+                        </h2>
+                        <span class="text-xs text-gray-600 bg-green-50 px-2 py-1 border-2 border-black flex items-center gap-1">
+                            <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> <span data-i18n="auto_refresh">Auto-refresh</span> (5s)
+                        </span>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4" data-i18n="click_entry_assign">Click an entry to assign to room</p>
+                    <div class="overflow-auto" style="max-height: 300px;">
+                        <table class="w-full">
+                            <thead class="sticky top-0 bg-white">
+                                <tr class="border-b-2 border-black">
+                                    <th class="text-left p-2 font-bold" data-i18n="truck_number">Truck No</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="name">Name</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="unassignedEntriesTableBody">
+                                <tr>
+                                    <td colspan="3" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Room Entry Form -->
                 <div class="neu-border bg-white p-6 mb-8">
                     <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
                         <i class="bi bi-door-closed"></i>
@@ -178,35 +209,95 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                    <span data-i18n="gatar_no">Gatar No</span> *
-                                </label>
-                                <input
-                                    type="text"
-                                    id="gateNo"
-                                    required
-                                    class="w-full neu-input"
-                                    data-i18n-placeholder="enter_gatar_number"
-                                    placeholder="Enter gatar number"
-                                >
-                                <div id="gatarHint" class="mt-2 text-sm hidden"></div>
+                        <!-- Gatar Input -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                <span data-i18n="gatar_no">Gatar No</span> *
+                            </label>
+                            <input
+                                type="text"
+                                id="gateNo"
+                                required
+                                class="w-full neu-input"
+                                data-i18n-placeholder="enter_gatar_number"
+                                placeholder="Enter gatar number (or select from grid above)"
+                            >
+                            <div id="gatarHint" class="mt-2 text-sm hidden"></div>
+                        </div>
+
+                        <!-- Quantity Calculator (Now inside form) -->
+                        <div class="mb-6 neu-border bg-purple-50 p-4">
+                            <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                                <i class="bi bi-calculator text-purple-600"></i>
+                                <span data-i18n="quantity_calculator">Quantity Calculator</span>
+                                <span class="ml-auto text-2xl font-bold text-purple-700" id="totalQuantity">0</span>
+                            </h3>
+                            <!-- Hidden input for form submission -->
+                            <input type="hidden" id="quantity" required min="1">
+
+                            <!-- Preset Value Buttons -->
+                            <div class="grid grid-cols-8 gap-1 mb-3">
+                                <button type="button" onclick="addQuantity(1)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">1</button>
+                                <button type="button" onclick="addQuantity(2)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">2</button>
+                                <button type="button" onclick="addQuantity(3)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">3</button>
+                                <button type="button" onclick="addQuantity(4)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">4</button>
+                                <button type="button" onclick="addQuantity(5)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">5</button>
+                                <button type="button" onclick="addQuantity(6)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">6</button>
+                                <button type="button" onclick="addQuantity(7)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">7</button>
+                                <button type="button" onclick="addQuantity(8)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">8</button>
+                                <button type="button" onclick="addQuantity(9)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">9</button>
+                                <button type="button" onclick="addQuantity(10)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">10</button>
+                                <button type="button" onclick="addQuantity(12)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">12</button>
+                                <button type="button" onclick="addQuantity(14)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">14</button>
+                                <button type="button" onclick="addQuantity(15)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">15</button>
+                                <button type="button" onclick="addQuantity(16)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">16</button>
+                                <button type="button" onclick="addQuantity(17)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">17</button>
+                                <button type="button" onclick="addQuantity(18)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">18</button>
+                                <button type="button" onclick="addQuantity(20)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">20</button>
+                                <button type="button" onclick="addQuantity(21)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">21</button>
+                                <button type="button" onclick="addQuantity(24)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">24</button>
+                                <button type="button" onclick="addQuantity(25)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">25</button>
+                                <button type="button" onclick="addQuantity(26)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">26</button>
+                                <button type="button" onclick="addQuantity(27)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">27</button>
+                                <button type="button" onclick="addQuantity(30)" class="neu-button bg-yellow-100 hover:bg-yellow-200 py-2 text-sm font-bold">30</button>
+                                <button type="button" onclick="showCustomInput()" class="neu-button bg-purple-100 hover:bg-purple-200 py-2 text-xs font-bold col-span-1">+</button>
                             </div>
 
-                            <div>
-                                <label class="block text-sm font-semibold text-gray-700 mb-2">
-                                    <span data-i18n="quantity">Quantity</span> *
-                                </label>
-                                <!-- Hidden input for form submission -->
-                                <input type="hidden" id="quantity" required min="1">
-                                <!-- Quantity Display (Calculator is below Recent Main Entries) -->
-                                <div class="neu-border bg-blue-50 p-4 text-center">
-                                    <p class="text-sm text-gray-600 mb-1" data-i18n="current_total">Current Total</p>
-                                    <p class="text-3xl font-bold text-blue-700" id="totalQuantityDisplay">0</p>
-                                    <p class="text-xs text-gray-500 mt-2" data-i18n="use_calculator_below">Use calculator below ↓</p>
+                            <!-- Custom Input (Hidden by default) -->
+                            <div id="customInputDiv" class="hidden mb-3">
+                                <div class="flex gap-2">
+                                    <input type="number" id="customQuantityInput" min="1" class="flex-1 border-2 border-black p-2 text-base" placeholder="Custom value">
+                                    <button type="button" onclick="addCustomQuantity()" class="neu-button bg-green-500 text-white px-3 text-sm">Add</button>
+                                    <button type="button" onclick="hideCustomInput()" class="neu-button bg-gray-300 px-3 text-sm">✕</button>
                                 </div>
                             </div>
+
+                            <!-- Selected Values (Chips) -->
+                            <div id="quantityChips" class="flex flex-wrap gap-2 min-h-[40px] p-2 bg-white border-2 border-gray-300 rounded mb-3">
+                                <span class="text-sm text-gray-400 self-center" data-i18n="click_values_add">Click values above to add...</span>
+                            </div>
+
+                            <!-- Quality Buttons (N/U/D/G) - Now inside calculator -->
+                            <div class="flex items-center gap-2 mb-3">
+                                <span class="text-sm font-bold text-purple-800">
+                                    <i class="bi bi-bookmark-check mr-1"></i>Quality:
+                                </span>
+                                <span id="pendingQtyDisplay" class="text-sm text-purple-600 font-bold hidden">
+                                    (<span id="pendingQtyValue">0</span>)
+                                </span>
+                                <div class="flex gap-1 ml-2">
+                                    <button type="button" onclick="addWithQuality('N')" class="neu-button bg-green-400 hover:bg-green-500 text-white py-1 px-3 text-sm font-bold">N</button>
+                                    <button type="button" onclick="addWithQuality('U')" class="neu-button bg-yellow-400 hover:bg-yellow-500 text-white py-1 px-3 text-sm font-bold">U</button>
+                                    <button type="button" onclick="addWithQuality('D')" class="neu-button bg-red-400 hover:bg-red-500 text-white py-1 px-3 text-sm font-bold">D</button>
+                                    <button type="button" onclick="addWithQuality('G')" class="neu-button bg-blue-400 hover:bg-blue-500 text-white py-1 px-3 text-sm font-bold">G</button>
+                                </div>
+                                <button type="button" onclick="clearAllQuantities()" class="ml-auto neu-button bg-red-500 text-white py-1 px-3 text-sm font-bold">
+                                    <i class="bi bi-trash"></i> Clear
+                                </button>
+                            </div>
+
+                            <!-- Quality Remarks Display -->
+                            <div id="qualityRemarksList" class="flex flex-wrap gap-2 min-h-[24px]"></div>
                         </div>
 
                         <!-- Quantity Warning Banner (shown when less than expected) -->
@@ -309,135 +400,6 @@
                 </div>
             </div>
 
-            <!-- Right: Recent Main Entries (Unassigned) -->
-            <div class="lg:col-span-1">
-                <div class="neu-border bg-white p-4 md:p-6">
-                    <div class="flex flex-wrap justify-between items-center mb-4 gap-2">
-                        <h2 class="text-xl md:text-2xl font-bold flex items-center gap-2">
-                            <i class="bi bi-inbox"></i>
-                            <span data-i18n="recent_main_entries">Recent Main Entries</span>
-                        </h2>
-                        <span class="text-xs text-gray-600 bg-green-50 px-2 py-1 border-2 border-black flex items-center gap-1">
-                            <i class="bi bi-arrow-clockwise" id="refreshIcon"></i> <span data-i18n="auto_refresh">Auto-refresh</span> (5s)
-                        </span>
-                    </div>
-                    <p class="text-sm text-gray-600 mb-4" data-i18n="click_entry_assign">Click an entry to assign to room</p>
-                    <div class="overflow-auto" style="max-height: 1200px;">
-                        <table class="w-full">
-                            <thead class="sticky top-0 bg-white">
-                                <tr class="border-b-2 border-black">
-                                    <th class="text-left p-2 font-bold" data-i18n="truck_number">Truck No</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="name">Name</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
-                                </tr>
-                            </thead>
-                            <tbody id="unassignedEntriesTableBody">
-                                <tr>
-                                    <td colspan="3" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Quantity Calculator (Below Recent Main Entries, Same Column) -->
-                <div class="mt-4 md:mt-6 neu-border bg-white p-4 md:p-6">
-                    <h2 class="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center gap-2">
-                        <i class="bi bi-calculator text-purple-600"></i>
-                        <span data-i18n="quantity_calculator">Quantity Calculator</span>
-                    </h2>
-
-                    <!-- Preset Value Buttons -->
-                    <div class="grid grid-cols-7 gap-2 md:gap-2 mb-4">
-                        <button type="button" onclick="addQuantity(1)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">1</button>
-                        <button type="button" onclick="addQuantity(2)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">2</button>
-                        <button type="button" onclick="addQuantity(3)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">3</button>
-                        <button type="button" onclick="addQuantity(4)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">4</button>
-                        <button type="button" onclick="addQuantity(5)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">5</button>
-                        <button type="button" onclick="addQuantity(6)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">6</button>
-                        <button type="button" onclick="addQuantity(7)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold w-full">7</button>
-                        <button type="button" onclick="addQuantity(8)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">8</button>
-                        <button type="button" onclick="addQuantity(9)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">9</button>
-                        <button type="button" onclick="addQuantity(10)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">10</button>
-                        <button type="button" onclick="addQuantity(12)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">12</button>
-                        <button type="button" onclick="addQuantity(14)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">14</button>
-                        <button type="button" onclick="addQuantity(15)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">15</button>
-                        <button type="button" onclick="addQuantity(16)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">16</button>
-                        <button type="button" onclick="addQuantity(17)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold w-full">17</button>
-                        <button type="button" onclick="addQuantity(18)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">18</button>
-                        <button type="button" onclick="addQuantity(20)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">20</button>
-                        <button type="button" onclick="addQuantity(21)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">21</button>
-                        <button type="button" onclick="addQuantity(24)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">24</button>
-                        <button type="button" onclick="addQuantity(25)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">25</button>
-                        <button type="button" onclick="addQuantity(26)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">26</button>
-                        <button type="button" onclick="addQuantity(27)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold w-full">27</button>
-                        <button type="button" onclick="addQuantity(30)" class="neu-button bg-yellow-100 hover:bg-yellow-200 py-2 text-sm font-bold w-full">30</button>
-                        <button type="button" onclick="showCustomInput()" class="neu-button bg-purple-100 hover:bg-purple-200 py-2 text-sm font-bold w-full col-span-6">
-                            <span data-i18n="custom">Custom</span>
-                        </button>
-                    </div>
-
-                    <!-- Custom Input (Hidden by default) -->
-                    <div id="customInputDiv" class="hidden mb-4">
-                        <div class="flex gap-2">
-                            <input
-                                type="number"
-                                id="customQuantityInput"
-                                min="1"
-                                class="flex-1 border-3 border-black p-2 text-base"
-                                placeholder="Enter custom value"
-                            >
-                            <button type="button" onclick="addCustomQuantity()" class="neu-button bg-green-500 text-white px-4 text-sm">
-                                <i class="bi bi-plus-circle"></i> <span data-i18n="add">Add</span>
-                            </button>
-                            <button type="button" onclick="hideCustomInput()" class="neu-button bg-gray-300 px-4 text-sm">
-                                <i class="bi bi-x-circle"></i> <span data-i18n="cancel">Cancel</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Selected Values (Chips) -->
-                    <div class="mb-4">
-                        <label class="block text-sm font-semibold text-gray-700 mb-2" data-i18n="selected_values">Selected Values:</label>
-                        <div id="quantityChips" class="flex flex-wrap gap-2 min-h-[50px] p-3 bg-gray-50 border-3 border-gray-300 rounded">
-                            <span class="text-sm text-gray-400 self-center" data-i18n="click_values_add">Click values above to add...</span>
-                        </div>
-                    </div>
-
-                    <!-- Total Display -->
-                    <div class="flex justify-between items-center bg-green-50 p-4 border-3 border-green-600 rounded mb-4">
-                        <span class="text-base font-bold" data-i18n="total_quantity_label">Total Quantity:</span>
-                        <span class="text-3xl font-bold text-green-700" id="totalQuantity">0</span>
-                    </div>
-
-                    <!-- Quality Buttons (N/U/D/G) -->
-                    <div class="mb-4 p-3 bg-purple-50 border-2 border-purple-300 rounded-lg">
-                        <div class="flex items-center justify-between mb-2">
-                            <span class="text-sm font-bold text-purple-800">
-                                <i class="bi bi-bookmark-check mr-1"></i>
-                                <span data-i18n="quality_mark">Quality Mark</span>
-                            </span>
-                            <span id="pendingQtyDisplay" class="text-sm text-purple-600 font-bold hidden">
-                                Qty: <span id="pendingQtyValue">0</span>
-                            </span>
-                        </div>
-                        <div class="grid grid-cols-4 gap-2">
-                            <button type="button" onclick="addWithQuality('N')" class="neu-button bg-green-400 hover:bg-green-500 text-white py-3 text-xl font-bold">N</button>
-                            <button type="button" onclick="addWithQuality('U')" class="neu-button bg-yellow-400 hover:bg-yellow-500 text-white py-3 text-xl font-bold">U</button>
-                            <button type="button" onclick="addWithQuality('D')" class="neu-button bg-red-400 hover:bg-red-500 text-white py-3 text-xl font-bold">D</button>
-                            <button type="button" onclick="addWithQuality('G')" class="neu-button bg-blue-400 hover:bg-blue-500 text-white py-3 text-xl font-bold">G</button>
-                        </div>
-                        <!-- Quality Remarks Display -->
-                        <div id="qualityRemarksList" class="flex flex-wrap gap-2 mt-3 min-h-[30px]">
-                        </div>
-                    </div>
-
-                    <!-- Clear All Button -->
-                    <button type="button" onclick="clearAllQuantities()" class="neu-button bg-red-500 text-white w-full py-2 text-base font-bold">
-                        <i class="bi bi-trash"></i> <span data-i18n="clear_all_values">Clear All Values</span>
-                    </button>
-                </div>
-            </div>
         </div>
     </div>
 
