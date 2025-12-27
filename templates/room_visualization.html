@@ -541,12 +541,12 @@
                         <div onclick="event.stopPropagation(); selectRoom('${room.room_no}'); selectFloor('${floorNum}');"
                              class="flex items-center gap-2 cursor-pointer transition-all hover:bg-gray-100 p-1 border-b border-gray-200
                                     ${isFloorActive ? 'bg-yellow-200 border-yellow-400' : ''}"
-                             title="${floorQty.toLocaleString('en-IN')} bags | ${occupiedGatars}/${totalGatars} gatars">
+                             title="${occupiedGatars}/${totalGatars} gatars">
                             <span class="text-xs font-bold w-6">F${floorNum}</span>
                             <div class="flex-1 h-2.5 bg-gray-200 border border-black">
                                 <div class="h-full ${barColor}" style="width: ${pct}%"></div>
                             </div>
-                            <span class="text-xs text-gray-600 w-8 text-right">${pct}%</span>
+                            <span class="text-xs text-gray-600 w-20 text-right">${floorQty.toLocaleString('en-IN')} (${pct}%)</span>
                         </div>
                     `;
                 });
