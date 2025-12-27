@@ -123,6 +123,18 @@
             border: 2px solid #000;
             transition: all 0.15s ease;
         }
+
+        /* Tablet portrait optimizations */
+        @media (min-width: 640px) and (max-width: 1023px) and (orientation: portrait) {
+            .gatar-cell {
+                width: 48px;
+                height: 42px;
+                font-size: 12px;
+            }
+            .gatar-grid {
+                gap: 4px;
+            }
+        }
         .gatar-cell:hover {
             transform: scale(1.1);
             z-index: 10;
@@ -157,127 +169,126 @@
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
+<body class="bg-[#FFF9E6] min-h-screen p-2 sm:p-4 md:p-8">
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
-        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 neu-border bg-white p-4 md:p-6 gap-4">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-6 neu-border bg-white p-3 md:p-6 gap-3 md:gap-4">
             <div>
-                <div class="flex items-center gap-3">
-                    <i class="bi bi-box-seam text-3xl md:text-4xl text-orange-600"></i>
+                <div class="flex items-center gap-2 md:gap-3">
+                    <i class="bi bi-box-seam text-2xl md:text-4xl text-orange-600"></i>
                     <div>
-                        <h1 class="text-2xl md:text-3xl font-bold" data-i18n="in_stock_title">In Stock Overview</h1>
-                        <p class="text-gray-600 text-sm md:text-base" data-i18n="visual_floor_plan">Visual floor plan of storage occupancy</p>
+                        <h1 class="text-xl md:text-3xl font-bold" data-i18n="in_stock_title">In Stock Overview</h1>
+                        <p class="text-gray-600 text-xs md:text-base hidden sm:block" data-i18n="visual_floor_plan">Visual floor plan of storage occupancy</p>
                     </div>
                 </div>
             </div>
-            <div class="flex gap-3 items-center w-full md:w-auto justify-end">
+            <div class="flex gap-2 md:gap-3 items-center w-full md:w-auto justify-end flex-wrap">
                 <select id="langSelector" onchange="i18n.setLanguage(this.value)"
-                        class="lang-selector bg-white px-3 py-2 text-sm font-medium cursor-pointer">
+                        class="lang-selector bg-white px-2 md:px-3 py-2 text-sm font-medium cursor-pointer">
                     <option value="en">EN</option>
                     <option value="hi">हिं</option>
                 </select>
-                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-2 md:px-3 py-2" title="Toggle Dark Mode">
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
                 </button>
-                <!-- Fullscreen Toggle (Tablets) -->
-                <button onclick="loadData(true)" class="neu-button bg-blue-100">
-                    <i class="bi bi-arrow-clockwise"></i> <span data-i18n="refresh">Refresh</span>
+                <button onclick="loadData(true)" class="neu-button bg-blue-100 px-3 md:px-4 py-2">
+                    <i class="bi bi-arrow-clockwise"></i> <span class="hidden sm:inline" data-i18n="refresh">Refresh</span>
                 </button>
-                <button onclick="goBack()" class="neu-button bg-gray-200">
-                    <i class="bi bi-arrow-left"></i> <span data-i18n="back">Back</span>
+                <button onclick="goBack()" class="neu-button bg-gray-200 px-3 md:px-4 py-2">
+                    <i class="bi bi-arrow-left"></i> <span class="hidden sm:inline" data-i18n="back">Back</span>
                 </button>
             </div>
         </header>
 
         <!-- Summary Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-            <div class="neu-border bg-blue-50 p-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-blue-200 flex items-center justify-center border-2 border-black">
-                        <i class="bi bi-box-seam text-2xl text-blue-700"></i>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4 mb-3 md:mb-4">
+            <div class="neu-border bg-blue-50 p-2 md:p-4">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <div class="w-10 h-10 md:w-12 md:h-12 bg-blue-200 flex items-center justify-center border-2 border-black flex-shrink-0">
+                        <i class="bi bi-box-seam text-xl md:text-2xl text-blue-700"></i>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                         <p class="text-xs text-gray-600 font-bold" data-i18n="total_bags">Total Bags</p>
-                        <p class="text-2xl font-bold" id="totalQty">-</p>
+                        <p class="text-lg md:text-2xl font-bold truncate" id="totalQty">-</p>
                     </div>
                 </div>
             </div>
-            <div class="neu-border bg-yellow-50 p-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-yellow-300 flex items-center justify-center border-2 border-black">
-                        <i class="bi bi-grid-fill text-2xl text-yellow-800"></i>
+            <div class="neu-border bg-yellow-50 p-2 md:p-4">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <div class="w-10 h-10 md:w-12 md:h-12 bg-yellow-300 flex items-center justify-center border-2 border-black flex-shrink-0">
+                        <i class="bi bi-grid-fill text-xl md:text-2xl text-yellow-800"></i>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                         <p class="text-xs text-gray-600 font-bold" data-i18n="occupied">Occupied</p>
-                        <p class="text-2xl font-bold" id="occupiedGatars">-</p>
+                        <p class="text-lg md:text-2xl font-bold truncate" id="occupiedGatars">-</p>
                     </div>
                 </div>
             </div>
-            <div class="neu-border bg-gray-50 p-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-gray-200 flex items-center justify-center border-2 border-black">
-                        <i class="bi bi-grid text-2xl text-gray-600"></i>
+            <div class="neu-border bg-gray-50 p-2 md:p-4">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <div class="w-10 h-10 md:w-12 md:h-12 bg-gray-200 flex items-center justify-center border-2 border-black flex-shrink-0">
+                        <i class="bi bi-grid text-xl md:text-2xl text-gray-600"></i>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                         <p class="text-xs text-gray-600 font-bold" data-i18n="empty">Empty</p>
-                        <p class="text-2xl font-bold" id="emptyGatars">-</p>
+                        <p class="text-lg md:text-2xl font-bold truncate" id="emptyGatars">-</p>
                     </div>
                 </div>
             </div>
-            <div class="neu-border bg-green-50 p-4">
-                <div class="flex items-center gap-3">
-                    <div class="w-12 h-12 bg-green-200 flex items-center justify-center border-2 border-black">
-                        <i class="bi bi-percent text-2xl text-green-700"></i>
+            <div class="neu-border bg-green-50 p-2 md:p-4">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <div class="w-10 h-10 md:w-12 md:h-12 bg-green-200 flex items-center justify-center border-2 border-black flex-shrink-0">
+                        <i class="bi bi-percent text-xl md:text-2xl text-green-700"></i>
                     </div>
-                    <div>
+                    <div class="min-w-0">
                         <p class="text-xs text-gray-600 font-bold" data-i18n="occupancy">Occupancy</p>
-                        <p class="text-2xl font-bold" id="occupancyRate">-</p>
+                        <p class="text-lg md:text-2xl font-bold truncate" id="occupancyRate">-</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Total Capacity Progress Bar -->
-        <div class="neu-border bg-white p-4 mb-4">
-            <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
-                <div class="flex items-center gap-3">
-                    <i class="bi bi-building text-2xl text-orange-600"></i>
+        <div class="neu-border bg-white p-3 md:p-4 mb-3 md:mb-4">
+            <div class="flex flex-row items-center justify-between gap-2 md:gap-3 mb-2 md:mb-3">
+                <div class="flex items-center gap-2 md:gap-3">
+                    <i class="bi bi-building text-xl md:text-2xl text-orange-600"></i>
                     <div>
-                        <h3 class="font-bold text-lg">Storage Capacity</h3>
-                        <p class="text-sm text-gray-600">Total Facility: <strong>1,40,000 bags</strong></p>
+                        <h3 class="font-bold text-sm md:text-lg">Storage Capacity</h3>
+                        <p class="text-xs md:text-sm text-gray-600">Total: <strong>1,40,000</strong></p>
                     </div>
                 </div>
                 <div class="text-right">
-                    <p class="text-3xl font-bold text-orange-600" id="capacityUsedPct">-</p>
-                    <p class="text-xs text-gray-500">capacity used</p>
+                    <p class="text-xl md:text-3xl font-bold text-orange-600" id="capacityUsedPct">-</p>
+                    <p class="text-xs text-gray-500">used</p>
                 </div>
             </div>
-            <div class="h-6 bg-gray-200 border-2 border-black overflow-hidden">
+            <div class="h-5 md:h-6 bg-gray-200 border-2 border-black overflow-hidden">
                 <div id="capacityBar" class="h-full bg-gradient-to-r from-green-400 via-yellow-400 to-orange-500 transition-all" style="width: 0%"></div>
             </div>
-            <div class="flex justify-between text-xs font-bold mt-2 text-gray-600">
+            <div class="flex justify-between text-xs font-bold mt-1 md:mt-2 text-gray-600">
                 <span>0</span>
-                <span>35,000</span>
-                <span>70,000</span>
-                <span>1,05,000</span>
-                <span>1,40,000</span>
+                <span class="hidden sm:inline">35K</span>
+                <span>70K</span>
+                <span class="hidden sm:inline">105K</span>
+                <span>140K</span>
             </div>
         </div>
 
-        <!-- Room Summary Cards -->
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6" id="roomSummaryCards">
+        <!-- Room Summary Cards - optimized for tablet portrait -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 md:gap-3 mb-4 md:mb-6" id="roomSummaryCards">
             <!-- Room cards will be populated by JavaScript -->
         </div>
 
-        <!-- Main Content -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-            <!-- Left: Floor Plan (3 columns) -->
-            <div class="lg:col-span-3">
+        <!-- Main Content - stack on tablet portrait, side-by-side on landscape/desktop -->
+        <div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+            <!-- Left: Floor Plan -->
+            <div class="md:col-span-2 lg:col-span-3">
                 <!-- Floor Plan Card -->
-                <div class="neu-border bg-white p-6">
+                <div class="neu-border bg-white p-3 md:p-6">
                     <!-- Legend -->
-                    <div class="flex flex-wrap items-center gap-3 text-sm mb-4">
+                    <div class="flex flex-wrap items-center gap-2 md:gap-3 text-xs md:text-sm mb-3 md:mb-4">
                         <div class="flex items-center gap-1">
                             <div class="w-5 h-5 bg-yellow-400 border-2 border-black"></div>
                             <span class="font-bold">Full (200+)</span>
@@ -293,23 +304,22 @@
                     </div>
 
                     <!-- Floor Info Banner -->
-                    <div class="mb-4 p-3 neu-border bg-gradient-to-r from-yellow-100 to-orange-100">
-                        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
-                            <div>
-                                <span class="font-bold text-lg" id="floorTitle">Room 1 - Floor 0</span>
-                                <span class="text-gray-600 ml-2 text-sm" id="floorRange">(Gatar 1-140)</span>
+                    <div class="mb-3 md:mb-4 p-2 md:p-3 neu-border bg-gradient-to-r from-yellow-100 to-orange-100">
+                        <div class="flex flex-row items-center justify-between gap-2">
+                            <div class="flex flex-wrap items-center gap-1">
+                                <span class="font-bold text-base md:text-lg" id="floorTitle">Room 1 - Floor 0</span>
+                                <span class="text-gray-600 text-xs md:text-sm" id="floorRange">(Gatar 1-140)</span>
                             </div>
-                            <div class="text-sm font-bold">
+                            <div class="text-xs md:text-sm font-bold whitespace-nowrap">
                                 <span class="text-orange-600" id="floorOccupied">0</span>
                                 <span class="text-gray-400">/</span>
                                 <span class="text-gray-600" id="floorTotal">140</span>
-                                <span class="text-gray-500 ml-1" data-i18n="gatars">gatars</span>
                             </div>
                         </div>
                     </div>
 
                     <!-- Gatar Grid -->
-                    <div class="overflow-auto bg-gray-100 p-4 border-2 border-black" style="max-height: 500px;">
+                    <div class="overflow-auto bg-gray-100 p-2 md:p-4 border-2 border-black" style="max-height: 60vh; min-height: 300px;">
                         <div id="blockGrid" class="flex justify-center">
                             <div class="text-center text-gray-500 loading-pulse py-8">
                                 <i class="bi bi-hourglass-split text-3xl"></i>
@@ -320,10 +330,10 @@
                 </div>
             </div>
 
-            <!-- Right: Detail Panel (1 column) -->
-            <div class="lg:col-span-1">
+            <!-- Right: Detail Panel -->
+            <div class="md:col-span-1">
                 <!-- Selected Gatar Details -->
-                <div class="neu-border bg-white p-6 mb-4">
+                <div class="neu-border bg-white p-4 md:p-6 mb-4">
                     <h3 class="font-bold text-lg mb-4 flex items-center gap-2">
                         <i class="bi bi-info-circle text-blue-600"></i>
                         <span data-i18n="gatar_details">Gatar Details</span>
@@ -455,6 +465,14 @@
             loadData();
         });
 
+        // Re-render grid on orientation change (tablet)
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => {
+                const floorData = gatarRanges[currentRoom]?.[currentFloor];
+                if (floorData) renderGatarGrid(floorData);
+            }, 100);
+        });
+
         function goBack() {
             window.history.back();
         }
@@ -539,14 +557,14 @@
 
                     floorRows += `
                         <div onclick="event.stopPropagation(); selectRoom('${room.room_no}'); selectFloor('${floorNum}');"
-                             class="flex items-center gap-2 cursor-pointer transition-all hover:bg-gray-100 p-1 border-b border-gray-200
+                             class="flex items-center gap-2 cursor-pointer transition-all hover:bg-gray-100 py-2 px-1 border-b border-gray-200
                                     ${isFloorActive ? 'bg-yellow-200 border-yellow-400' : ''}"
                              title="${occupiedGatars}/${totalGatars} gatars">
                             <span class="text-xs font-bold w-6">F${floorNum}</span>
-                            <div class="flex-1 h-2.5 bg-gray-200 border border-black">
+                            <div class="flex-1 h-3 bg-gray-200 border border-black">
                                 <div class="h-full ${barColor}" style="width: ${pct}%"></div>
                             </div>
-                            <span class="text-xs text-gray-600 w-20 text-right">${floorQty.toLocaleString('en-IN')} (${pct}%)</span>
+                            <span class="text-xs text-gray-600 w-16 sm:w-20 text-right">${floorQty.toLocaleString('en-IN')} (${pct}%)</span>
                         </div>
                     `;
                 });
@@ -714,6 +732,10 @@
             const cols = floorData.cols || 14;
             const rows = floorData.rows || 10;
 
+            // Responsive cell size based on viewport
+            const isTabletPortrait = window.innerWidth >= 640 && window.innerWidth < 1024 && window.innerHeight > window.innerWidth;
+            const cellSize = isTabletPortrait ? 48 : 44;
+
             function isValidGatar(num) {
                 if (num === null) return false;
                 if (floorData.ranges) {
@@ -722,7 +744,7 @@
                 return num >= floorData.start && num <= floorData.end;
             }
 
-            let html = `<div class="gatar-grid" style="grid-template-columns: repeat(${cols}, 44px);">`;
+            let html = `<div class="gatar-grid" style="grid-template-columns: repeat(${cols}, ${cellSize}px);">`;
 
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
