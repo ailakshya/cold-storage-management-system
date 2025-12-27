@@ -176,6 +176,12 @@ func sanitizePath(path string) string {
 
 // getClientIP extracts the client IP from the request
 func getClientIP(r *http.Request) string {
+	// Check CF-Connecting-IP header (Cloudflare)
+	cfip := r.Header.Get("CF-Connecting-IP")
+	if cfip != "" {
+		return strings.TrimSpace(cfip)
+	}
+
 	// Check X-Forwarded-For header (for proxies/load balancers)
 	xff := r.Header.Get("X-Forwarded-For")
 	if xff != "" {
