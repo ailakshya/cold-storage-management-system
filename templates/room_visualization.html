@@ -538,13 +538,14 @@
 
                     floorButtons += `
                         <div onclick="event.stopPropagation(); selectRoom('${room.room_no}'); selectFloor('${floorNum}');"
-                             class="flex flex-col items-center cursor-pointer transition-all hover:scale-105 p-1 border-2 border-black
+                             class="flex flex-col items-center cursor-pointer transition-all hover:scale-105 p-1.5 border-2 border-black
                                     ${isFloorActive ? 'bg-yellow-400 ring-2 ring-yellow-600' : 'bg-white'}"
                              title="${floorQty.toLocaleString('en-IN')} bags | ${occupiedGatars}/${totalGatars} gatars">
-                            <span class="text-xs font-bold">F${floorNum}</span>
-                            <div class="w-8 h-1.5 bg-gray-200 border border-black mt-0.5">
+                            <span class="text-sm font-bold">F${floorNum}</span>
+                            <div class="w-10 h-3 bg-gray-200 border border-black mt-1">
                                 <div class="h-full ${barColor}" style="width: ${pct}%"></div>
                             </div>
+                            <span class="text-xs text-gray-600 mt-0.5">${pct}%</span>
                         </div>
                     `;
                 });
