@@ -304,3 +304,8 @@ document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
         document.addEventListener('touchend', handler, { once: true });
     }
 })();
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js').catch(function() {});
+}
