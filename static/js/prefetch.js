@@ -212,3 +212,71 @@
     window._prefetchConfig = CONFIG;
 
 })();
+
+/**
+ * Auto-Fullscreen for Tablets
+ * Automatically enters fullscreen mode on first user interaction (touch/click)
+ * Only activates on touch devices (tablets/phones)
+ */
+(function() {
+    'use strict';
+
+    // Only run on touch devices (tablets/phones)
+    if (!('ontouchstart' in window) && navigator.maxTouchPoints === 0) {
+        return;
+    }
+
+    // Check if already in fullscreen
+    function isFullscreen() {
+        return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+    }
+
+    // Request fullscreen
+    function requestFullscreen() {
+        if (isFullscreen()) return;
+
+        const elem = document.documentElement;
+
+        if (elem.requestFullscreen) {
+            elem.requestFullscreen().catch(() => {});
+        } else if (elem.webkitRequestFullscreen) {
+            elem.webkitRequestFullscreen();
+        } else if (elem.mozRequestFullScreen) {
+            elem.mozRequestFullScreen();
+        }
+    }
+
+    // Auto-fullscreen on first interaction
+    function setupAutoFullscreen() {
+        const handler = function() {
+            requestFullscreen();
+            // Remove listener after first trigger
+            document.removeEventListener('click', handler);
+            document.removeEventListener('touchstart', handler);
+        };
+
+        document.addEventListener('click', handler, { once: true });
+        document.addEventListener('touchstart', handler, { once: true });
+    }
+
+    // Initialize
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', setupAutoFullscreen);
+    } else {
+        setupAutoFullscreen();
+    }
+
+    // Also expose manual fullscreen toggle
+    window.toggleFullscreen = function() {
+        if (isFullscreen()) {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            }
+        } else {
+            requestFullscreen();
+        }
+    };
+
+})();
