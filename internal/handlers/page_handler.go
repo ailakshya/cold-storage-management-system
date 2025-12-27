@@ -78,6 +78,9 @@ func (h *PageHandler) LoadingInvoicePage(w http.ResponseWriter, r *http.Request)
 
 // RoomConfig1Page serves room configuration 1
 func (h *PageHandler) RoomConfig1Page(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	h.templates.ExecuteTemplate(w, "room-config-1.html", nil)
 }
 
