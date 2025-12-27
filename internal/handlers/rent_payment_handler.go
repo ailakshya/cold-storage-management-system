@@ -15,11 +15,15 @@ import (
 )
 
 type RentPaymentHandler struct {
-	Service *services.RentPaymentService
+	Service       *services.RentPaymentService
+	LedgerService *services.LedgerService
 }
 
-func NewRentPaymentHandler(service *services.RentPaymentService) *RentPaymentHandler {
-	return &RentPaymentHandler{Service: service}
+func NewRentPaymentHandler(service *services.RentPaymentService, ledgerService *services.LedgerService) *RentPaymentHandler {
+	return &RentPaymentHandler{
+		Service:       service,
+		LedgerService: ledgerService,
+	}
 }
 
 func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Request) {
@@ -63,6 +67,24 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 	if err := h.Service.CreatePayment(context.Background(), payment); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Create ledger entry for payment
+	if h.LedgerService != nil && payment.AmountPaid > 0 {
+		ledgerEntry := &models.CreateLedgerEntryRequest{
+			CustomerPhone:   req.CustomerPhone,
+			CustomerName:    req.CustomerName,
+			CustomerSO:      "", // SO is retrieved from customer record if needed
+			EntryType:       models.LedgerEntryTypePayment,
+			Description:     "Rent payment received",
+			Credit:          payment.AmountPaid,
+			ReferenceID:     &payment.ID,
+			ReferenceType:   "payment",
+			CreatedByUserID: userID,
+			Notes:           req.Notes,
+		}
+		// Create ledger entry (don't fail the payment if this fails)
+		_, _ = h.LedgerService.CreateEntry(r.Context(), ledgerEntry)
 	}
 
 	// Invalidate payment caches

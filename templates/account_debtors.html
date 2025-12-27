@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debtors List - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
+
+    <style>
+        * {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-input {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        .neu-button {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .debtor-card {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            margin-bottom: 1rem;
+            background: white;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-pending { background: #fef08a; color: #854d0e; }
+        .badge-approved { background: #bbf7d0; color: #166534; }
+        .badge-rejected { background: #fecaca; color: #991b1b; }
+        #mainContent {
+            display: none;
+        }
+        #loadingScreen {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+    </style>
+    <script src="/static/js/prefetch.js?v=5"></script>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="max-w-7xl mx-auto">
+        <div class="neu-border bg-white p-6 md:p-8 text-center">
+            <i class="bi bi-hourglass-split text-4xl animate-pulse"></i>
+            <p class="mt-4">Verifying permissions...</p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div id="mainContent" class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 neu-border bg-white p-4 md:p-6 gap-4">
+            <div>
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-exclamation-triangle text-3xl md:text-4xl text-red-600"></i>
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold">Debtors List</h1>
+                        <p class="text-gray-600 text-sm md:text-base">Customers with outstanding balances</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="theme.toggle()" class="neu-button bg-gray-200" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
+                <a href="/rent-management" class="neu-button bg-gray-200">
+                    <i class="bi bi-arrow-left"></i> Back
+                </a>
+            </div>
+        </header>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-8">
+            <div class="neu-border bg-gradient-to-br from-red-400 to-red-600 text-white p-3 md:p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs md:text-sm opacity-90">Total Outstanding</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="totalOutstanding">₹0</p>
+                    </div>
+                    <i class="bi bi-cash-stack text-3xl md:text-5xl opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="neu-border bg-gradient-to-br from-yellow-400 to-yellow-600 text-white p-3 md:p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs md:text-sm opacity-90">Total Debtors</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="totalDebtors">0</p>
+                    </div>
+                    <i class="bi bi-people text-3xl md:text-5xl opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="neu-border bg-gradient-to-br from-orange-400 to-orange-600 text-white p-3 md:p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs md:text-sm opacity-90">Pending Requests</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="pendingRequests">0</p>
+                    </div>
+                    <i class="bi bi-hourglass-split text-3xl md:text-5xl opacity-50"></i>
+                </div>
+            </div>
+
+            <div class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-3 md:p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs md:text-sm opacity-90">Avg Balance</p>
+                        <p class="text-xl md:text-3xl font-bold mt-1 md:mt-2" id="avgBalance">₹0</p>
+                    </div>
+                    <i class="bi bi-calculator text-3xl md:text-5xl opacity-50"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6">
+            <button onclick="showTab('debtors')" class="neu-button bg-blue-500 text-white" id="tabDebtors">
+                <i class="bi bi-people"></i> Debtors List
+            </button>
+            <button onclick="showTab('requests')" class="neu-button bg-gray-200" id="tabRequests">
+                <i class="bi bi-hourglass-split"></i> Pending Debt Requests
+            </button>
+        </div>
+
+        <!-- Search -->
+        <div class="neu-border bg-white p-4 mb-6">
+            <div class="flex gap-4">
+                <input type="text" id="searchInput" class="flex-1 neu-input" placeholder="Search by name or phone..." oninput="filterResults()">
+                <button onclick="loadData()" class="neu-button bg-blue-500 text-white">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Debtors List -->
+        <div id="debtorsContainer">
+            <div class="text-center py-12">
+                <i class="bi bi-hourglass-split text-6xl text-gray-400"></i>
+                <p class="text-gray-600 mt-4">Loading debtors...</p>
+            </div>
+        </div>
+
+        <!-- Pending Requests -->
+        <div id="requestsContainer" class="hidden">
+            <div class="text-center py-12">
+                <i class="bi bi-hourglass-split text-6xl text-gray-400"></i>
+                <p class="text-gray-600 mt-4">Loading pending requests...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Approve/Reject Modal -->
+    <div id="actionModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white neu-border p-6 max-w-md w-full">
+            <h3 class="text-xl font-bold mb-4" id="modalTitle">Debt Request</h3>
+            <div class="space-y-3 mb-6" id="modalContent"></div>
+            <div id="rejectReasonContainer" class="hidden mb-4">
+                <label class="block text-sm font-semibold mb-2">Rejection Reason *</label>
+                <textarea id="rejectReason" class="w-full neu-input" rows="3" placeholder="Enter reason for rejection"></textarea>
+            </div>
+            <div class="flex gap-4">
+                <button onclick="approveRequest()" id="approveBtn" class="flex-1 neu-button bg-green-500 text-white">
+                    <i class="bi bi-check-circle"></i> Approve
+                </button>
+                <button onclick="showRejectForm()" id="rejectBtn" class="flex-1 neu-button bg-red-500 text-white">
+                    <i class="bi bi-x-circle"></i> Reject
+                </button>
+                <button onclick="closeModal()" class="flex-1 neu-button bg-gray-300">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let allDebtors = [];
+        let allRequests = [];
+        let currentRequestId = null;
+        let currentTab = 'debtors';
+
+        // Decode JWT
+        function decodeToken() {
+            if (!token) {
+                window.location.href = '/login';
+                return null;
+            }
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                return JSON.parse(jsonPayload);
+            } catch (error) {
+                console.error('Error decoding token:', error);
+                window.location.href = '/login';
+                return null;
+            }
+        }
+
+        // Check admin permission
+        async function checkAdminPermission() {
+            const user = decodeToken();
+            if (!user) return false;
+
+            if (user.role === 'admin') {
+                document.getElementById('loadingScreen').style.display = 'none';
+                document.getElementById('mainContent').style.display = 'block';
+                return true;
+            }
+
+            alert('Access denied. Admin access required.');
+            window.location.href = '/dashboard';
+            return false;
+        }
+
+        // Load all data
+        async function loadData() {
+            await Promise.all([loadDebtors(), loadPendingRequests()]);
+        }
+
+        // Load debtors
+        async function loadDebtors() {
+            try {
+                const response = await fetch('/api/ledger/debtors', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) window.location.href = '/login';
+                    throw new Error('Failed to load debtors');
+                }
+
+                allDebtors = await response.json() || [];
+                renderDebtors(allDebtors);
+                updateSummary();
+
+            } catch (error) {
+                console.error('Error loading debtors:', error);
+                document.getElementById('debtorsContainer').innerHTML = `
+                    <div class="neu-border bg-white p-8 text-center text-red-500">
+                        <i class="bi bi-exclamation-triangle text-4xl"></i>
+                        <p class="mt-2">Error loading debtors</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load pending debt requests
+        async function loadPendingRequests() {
+            try {
+                const response = await fetch('/api/debt-requests/pending', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) window.location.href = '/login';
+                    throw new Error('Failed to load requests');
+                }
+
+                const data = await response.json();
+                allRequests = data.requests || [];
+                renderRequests(allRequests);
+                document.getElementById('pendingRequests').textContent = allRequests.length;
+
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                document.getElementById('requestsContainer').innerHTML = `
+                    <div class="neu-border bg-white p-8 text-center text-red-500">
+                        <i class="bi bi-exclamation-triangle text-4xl"></i>
+                        <p class="mt-2">Error loading requests</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Render debtors
+        function renderDebtors(debtors) {
+            const container = document.getElementById('debtorsContainer');
+
+            if (!debtors || debtors.length === 0) {
+                container.innerHTML = `
+                    <div class="neu-border bg-white p-8 text-center">
+                        <i class="bi bi-check-circle text-6xl text-green-500"></i>
+                        <p class="text-gray-600 mt-4">No outstanding balances!</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = debtors.map(debtor => `
+                <div class="debtor-card p-4">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold">${escapeHtml(debtor.customer_name)}</h3>
+                            <p class="text-sm text-gray-600">${debtor.customer_so ? 'S/O ' + escapeHtml(debtor.customer_so) : ''}</p>
+                            <p class="text-sm text-gray-500"><i class="bi bi-telephone"></i> ${escapeHtml(debtor.customer_phone)}</p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-2xl font-bold text-red-600">₹${formatNumber(debtor.current_balance)}</p>
+                            <p class="text-sm text-gray-500">${debtor.entry_count} transactions</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <a href="/rent-management?phone=${encodeURIComponent(debtor.customer_phone)}" class="neu-button bg-blue-500 text-white text-sm">
+                                <i class="bi bi-eye"></i> View
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Render pending requests
+        function renderRequests(requests) {
+            const container = document.getElementById('requestsContainer');
+
+            if (!requests || requests.length === 0) {
+                container.innerHTML = `
+                    <div class="neu-border bg-white p-8 text-center">
+                        <i class="bi bi-inbox text-6xl text-gray-400"></i>
+                        <p class="text-gray-600 mt-4">No pending debt requests</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = requests.map(req => `
+                <div class="debtor-card p-4">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div class="flex-1">
+                            <h3 class="text-lg font-bold">${escapeHtml(req.customer_name)}</h3>
+                            <p class="text-sm text-gray-600">${req.customer_so ? 'S/O ' + escapeHtml(req.customer_so) : ''}</p>
+                            <p class="text-sm text-gray-500">
+                                <i class="bi bi-telephone"></i> ${escapeHtml(req.customer_phone)}
+                                | <i class="bi bi-truck"></i> ${escapeHtml(req.thock_number)}
+                            </p>
+                            <p class="text-sm text-gray-500">
+                                Requested by: ${escapeHtml(req.requested_by_name)} | ${formatDate(req.created_at)}
+                            </p>
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg font-bold">Qty: ${req.requested_quantity}</p>
+                            <p class="text-lg font-bold text-red-600">Balance: ₹${formatNumber(req.current_balance)}</p>
+                            <span class="badge badge-pending">Pending</span>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="openActionModal(${req.id})" class="neu-button bg-green-500 text-white text-sm">
+                                <i class="bi bi-check-circle"></i> Review
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Update summary
+        function updateSummary() {
+            const totalOutstanding = allDebtors.reduce((sum, d) => sum + d.current_balance, 0);
+            const avgBalance = allDebtors.length > 0 ? totalOutstanding / allDebtors.length : 0;
+
+            document.getElementById('totalOutstanding').textContent = '₹' + formatNumber(totalOutstanding);
+            document.getElementById('totalDebtors').textContent = allDebtors.length;
+            document.getElementById('avgBalance').textContent = '₹' + formatNumber(avgBalance);
+        }
+
+        // Tab switching
+        function showTab(tab) {
+            currentTab = tab;
+            document.getElementById('debtorsContainer').classList.toggle('hidden', tab !== 'debtors');
+            document.getElementById('requestsContainer').classList.toggle('hidden', tab !== 'requests');
+            document.getElementById('tabDebtors').classList.toggle('bg-blue-500', tab === 'debtors');
+            document.getElementById('tabDebtors').classList.toggle('text-white', tab === 'debtors');
+            document.getElementById('tabDebtors').classList.toggle('bg-gray-200', tab !== 'debtors');
+            document.getElementById('tabRequests').classList.toggle('bg-blue-500', tab === 'requests');
+            document.getElementById('tabRequests').classList.toggle('text-white', tab === 'requests');
+            document.getElementById('tabRequests').classList.toggle('bg-gray-200', tab !== 'requests');
+        }
+
+        // Filter results
+        function filterResults() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+
+            if (currentTab === 'debtors') {
+                const filtered = allDebtors.filter(d =>
+                    d.customer_name.toLowerCase().includes(search) ||
+                    d.customer_phone.includes(search)
+                );
+                renderDebtors(filtered);
+            } else {
+                const filtered = allRequests.filter(r =>
+                    r.customer_name.toLowerCase().includes(search) ||
+                    r.customer_phone.includes(search) ||
+                    r.thock_number.toLowerCase().includes(search)
+                );
+                renderRequests(filtered);
+            }
+        }
+
+        // Action modal
+        function openActionModal(requestId) {
+            currentRequestId = requestId;
+            const request = allRequests.find(r => r.id === requestId);
+            if (!request) return;
+
+            document.getElementById('modalTitle').textContent = 'Debt Request #' + requestId;
+            document.getElementById('modalContent').innerHTML = `
+                <p><strong>Customer:</strong> ${escapeHtml(request.customer_name)}</p>
+                <p><strong>S/O:</strong> ${escapeHtml(request.customer_so || '-')}</p>
+                <p><strong>Phone:</strong> ${escapeHtml(request.customer_phone)}</p>
+                <p><strong>Thock:</strong> ${escapeHtml(request.thock_number)}</p>
+                <p><strong>Requested Qty:</strong> ${request.requested_quantity}</p>
+                <p><strong>Current Balance:</strong> <span class="text-red-600 font-bold">₹${formatNumber(request.current_balance)}</span></p>
+                <p><strong>Requested By:</strong> ${escapeHtml(request.requested_by_name)}</p>
+                <p><strong>Requested At:</strong> ${formatDate(request.created_at)}</p>
+            `;
+            document.getElementById('rejectReasonContainer').classList.add('hidden');
+            document.getElementById('approveBtn').classList.remove('hidden');
+            document.getElementById('rejectBtn').classList.remove('hidden');
+            document.getElementById('actionModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('actionModal').classList.add('hidden');
+            currentRequestId = null;
+        }
+
+        function showRejectForm() {
+            document.getElementById('rejectReasonContainer').classList.remove('hidden');
+            document.getElementById('approveBtn').classList.add('hidden');
+            document.getElementById('rejectBtn').innerHTML = '<i class="bi bi-x-circle"></i> Confirm Reject';
+            document.getElementById('rejectBtn').onclick = rejectRequest;
+        }
+
+        async function approveRequest() {
+            if (!currentRequestId) return;
+
+            try {
+                const response = await fetch(`/api/debt-requests/${currentRequestId}/approve`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert('Debt request approved!');
+                closeModal();
+                loadData();
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function rejectRequest() {
+            if (!currentRequestId) return;
+
+            const reason = document.getElementById('rejectReason').value.trim();
+            if (!reason) {
+                alert('Please enter a rejection reason');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/debt-requests/${currentRequestId}/reject`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ rejection_reason: reason })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert('Debt request rejected');
+                closeModal();
+                loadData();
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Helper functions
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        function formatNumber(num) {
+            return num.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async function() {
+            if (await checkAdminPermission()) {
+                loadData();
+            }
+        });
+    </script>
+</body>
+</html>

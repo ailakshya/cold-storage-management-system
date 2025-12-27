@@ -412,6 +412,8 @@ func main() {
 	gatePassPickupRepo := repositories.NewGatePassPickupRepository(pool)
 	guardEntryRepo := repositories.NewGuardEntryRepository(pool)
 	tokenColorRepo := repositories.NewTokenColorRepository(pool)
+	ledgerRepo := repositories.NewLedgerRepository(pool)
+	debtRequestRepo := repositories.NewDebtRequestRepository(pool)
 
 	// Initialize middleware (needed for both modes)
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager, userRepo)
@@ -472,6 +474,8 @@ func main() {
 		rentPaymentService := services.NewRentPaymentService(rentPaymentRepo)
 		invoiceService := services.NewInvoiceService(invoiceRepo)
 		gatePassService := services.NewGatePassService(gatePassRepo, entryRepo, entryEventRepo, gatePassPickupRepo, roomEntryRepo)
+		ledgerService := services.NewLedgerService(ledgerRepo)
+		debtService := services.NewDebtService(debtRequestRepo, ledgerService)
 
 		// Initialize handlers (employee mode)
 		userHandler := handlers.NewUserHandler(userService, adminActionLogRepo)
@@ -482,7 +486,7 @@ func main() {
 		entryEventHandler := handlers.NewEntryEventHandler(entryEventRepo)
 		systemSettingHandler := handlers.NewSystemSettingHandler(systemSettingService)
 		entryHandler.SetSettingService(systemSettingService) // Wire SettingService for skip thock ranges
-		rentPaymentHandler := handlers.NewRentPaymentHandler(rentPaymentService)
+		rentPaymentHandler := handlers.NewRentPaymentHandler(rentPaymentService, ledgerService)
 		invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
 		loginLogHandler := handlers.NewLoginLogHandler(loginLogRepo)
 		roomEntryEditLogHandler := handlers.NewRoomEntryEditLogHandler(roomEntryEditLogRepo)
@@ -564,8 +568,12 @@ func main() {
 		// Initialize setup handler (disaster recovery - R2 restore)
 		setupHandler := handlers.NewSetupHandler()
 
+		// Initialize ledger and debt handlers
+		ledgerHandler := handlers.NewLedgerHandler(ledgerService)
+		debtHandler := handlers.NewDebtHandler(debtService)
+
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

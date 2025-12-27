@@ -193,3 +193,13 @@ func (h *PageHandler) GuardDashboardPage(w http.ResponseWriter, r *http.Request)
 func (h *PageHandler) GuardRegisterPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "guard_register.html", nil)
 }
+
+// AccountAuditPage serves the ledger audit trail page
+func (h *PageHandler) AccountAuditPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "account_audit.html", nil)
+}
+
+// AccountDebtorsPage serves the debtors list page
+func (h *PageHandler) AccountDebtorsPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "account_debtors.html", nil)
+}

@@ -43,6 +43,8 @@ func NewRouter(
 	entryRoomHandler *handlers.EntryRoomHandler,
 	roomVisualizationHandler *handlers.RoomVisualizationHandler,
 	setupHandler *handlers.SetupHandler,
+	ledgerHandler *handlers.LedgerHandler,
+	debtHandler *handlers.DebtHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -101,6 +103,8 @@ func NewRouter(
 	// Accountant pages
 	r.HandleFunc("/rent", pageHandler.RentPage).Methods("GET")
 	r.HandleFunc("/rent-management", pageHandler.RentManagementPage).Methods("GET")
+	r.HandleFunc("/account/audit", pageHandler.AccountAuditPage).Methods("GET")
+	r.HandleFunc("/account/debtors", pageHandler.AccountDebtorsPage).Methods("GET")
 	r.HandleFunc("/accountant/dashboard", pageHandler.AccountantDashboardPage).Methods("GET")
 
 	// Admin-only pages
@@ -481,6 +485,45 @@ func NewRouter(
 		accountAPI := r.PathPrefix("/api/accounts").Subrouter()
 		accountAPI.Use(authMiddleware.Authenticate)
 		accountAPI.HandleFunc("/summary", authMiddleware.RequireAccountantAccess(http.HandlerFunc(accountHandler.GetAccountSummary)).ServeHTTP).Methods("GET")
+	}
+
+	// Protected API routes - Ledger (accounting ledger)
+	if ledgerHandler != nil {
+		ledgerAPI := r.PathPrefix("/api/ledger").Subrouter()
+		ledgerAPI.Use(authMiddleware.Authenticate)
+		// Customer ledger - any authenticated user can view their ledger
+		ledgerAPI.HandleFunc("/customer/{phone}", ledgerHandler.GetCustomerLedger).Methods("GET")
+		ledgerAPI.HandleFunc("/balance/{phone}", ledgerHandler.GetCustomerBalance).Methods("GET")
+		ledgerAPI.HandleFunc("/summary/{phone}", ledgerHandler.GetCustomerSummary).Methods("GET")
+		// Admin/accountant only endpoints
+		ledgerAPI.HandleFunc("/audit", authMiddleware.RequireAccountantAccess(http.HandlerFunc(ledgerHandler.GetAuditTrail)).ServeHTTP).Methods("GET")
+		ledgerAPI.HandleFunc("/debtors", authMiddleware.RequireAccountantAccess(http.HandlerFunc(ledgerHandler.GetDebtors)).ServeHTTP).Methods("GET")
+		ledgerAPI.HandleFunc("/balances", authMiddleware.RequireAccountantAccess(http.HandlerFunc(ledgerHandler.GetAllBalances)).ServeHTTP).Methods("GET")
+		ledgerAPI.HandleFunc("/totals", authMiddleware.RequireAccountantAccess(http.HandlerFunc(ledgerHandler.GetTotalsByType)).ServeHTTP).Methods("GET")
+		// Admin only - create manual entries
+		ledgerAPI.HandleFunc("/entry", authMiddleware.RequireAdmin(http.HandlerFunc(ledgerHandler.CreateEntry)).ServeHTTP).Methods("POST")
+	}
+
+	// Protected API routes - Debt Requests (debt approval workflow)
+	if debtHandler != nil {
+		debtAPI := r.PathPrefix("/api/debt-requests").Subrouter()
+		debtAPI.Use(authMiddleware.Authenticate)
+		// Employee/admin can create debt requests
+		debtAPI.HandleFunc("", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(debtHandler.CreateDebtRequest)).ServeHTTP).Methods("POST")
+		// Admin only - pending requests and management
+		debtAPI.HandleFunc("/pending", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.GetPendingRequests)).ServeHTTP).Methods("GET")
+		debtAPI.HandleFunc("/summary", debtHandler.GetPendingSummary).Methods("GET")
+		// Check for approved debt (used by gate pass)
+		debtAPI.HandleFunc("/check", debtHandler.CheckDebtApproval).Methods("GET")
+		// Get requests by customer
+		debtAPI.HandleFunc("/customer/{phone}", debtHandler.GetCustomerRequests).Methods("GET")
+		// Get single request
+		debtAPI.HandleFunc("/{id}", debtHandler.GetDebtRequest).Methods("GET")
+		// Admin approval/rejection
+		debtAPI.HandleFunc("/{id}/approve", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.ApproveDebtRequest)).ServeHTTP).Methods("PUT")
+		debtAPI.HandleFunc("/{id}/reject", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.RejectDebtRequest)).ServeHTTP).Methods("PUT")
+		// Admin only - all requests with filters
+		debtAPI.HandleFunc("", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.GetAllRequests)).ServeHTTP).Methods("GET")
 	}
 
 	// Protected API routes - Entry Room (optimized single-call endpoint)

@@ -400,6 +400,51 @@
                 <i class="bi bi-plus-circle"></i> <span data-i18n="issue_another_gate_pass">Issue Another Gate Pass</span>
             </button>
         </div>
+
+        <!-- Debt Approval Request Modal -->
+        <div id="debtApprovalModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white neu-border p-6 max-w-md w-full">
+                <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-red-600">
+                    <i class="bi bi-exclamation-triangle-fill"></i>
+                    Outstanding Balance
+                </h3>
+                <div class="mb-4 p-4 bg-red-50 rounded-lg">
+                    <p class="text-lg">Customer owes:</p>
+                    <p class="text-3xl font-bold text-red-600" id="debtAmountDisplay">₹0</p>
+                </div>
+                <div class="space-y-2 mb-6">
+                    <p><strong>Customer:</strong> <span id="debtCustomerName">-</span></p>
+                    <p><strong>Phone:</strong> <span id="debtCustomerPhone">-</span></p>
+                    <p><strong>Thock:</strong> <span id="debtThockNumber">-</span></p>
+                    <p><strong>Requested Qty:</strong> <span id="debtRequestedQty">0</span></p>
+                </div>
+                <div id="debtApprovalStatus" class="mb-4 hidden">
+                    <div class="p-3 bg-green-100 rounded-lg text-green-800">
+                        <i class="bi bi-check-circle-fill"></i> Debt approval found! You can proceed.
+                    </div>
+                </div>
+                <div id="debtRequestActions" class="flex flex-col gap-3">
+                    <button onclick="requestDebtApproval()" id="requestDebtBtn" class="neu-button bg-orange-500 text-white w-full">
+                        <i class="bi bi-send"></i> Request Admin Approval
+                    </button>
+                    <p class="text-sm text-gray-500 text-center">Or collect payment first:</p>
+                    <a href="/rent-management" class="neu-button bg-blue-500 text-white w-full text-center">
+                        <i class="bi bi-cash-stack"></i> Go to Payment Collection
+                    </a>
+                    <button onclick="closeDebtModal()" class="neu-button bg-gray-300 w-full">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                </div>
+                <div id="debtProceedActions" class="hidden flex flex-col gap-3">
+                    <button onclick="proceedWithDebtApproval()" class="neu-button bg-green-500 text-white w-full">
+                        <i class="bi bi-check-circle"></i> Proceed with Gate Pass
+                    </button>
+                    <button onclick="closeDebtModal()" class="neu-button bg-gray-300 w-full">
+                        <i class="bi bi-x-circle"></i> Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- i18n Script -->
@@ -991,10 +1036,30 @@
                 return;
             }
 
-            // If customer has outstanding balance, they can't withdraw
+            // If customer has outstanding balance, check for debt approval
             if (balanceDue > 0) {
-                alert(i18n.t('error', 'Error') + ': ' + i18n.t('outstanding_balance', 'Outstanding balance!') + ' ' + i18n.t('customer_must_pay', 'Customer must pay ₹{amount} before withdrawing items.').replace('{amount}', balanceDue.toFixed(0)));
-                return;
+                const phone = document.getElementById('customerPhone').value;
+                const thockNumber = document.getElementById('thockNumber').value.trim();
+                const customerName = document.getElementById('customerName').textContent;
+
+                // Check if there's an approved debt request
+                const debtCheck = await checkDebtApproval(phone, thockNumber);
+
+                if (debtCheck && debtCheck.can_create_gate_pass && debtCheck.debt_request) {
+                    // Approved debt request found - store data and show proceed option
+                    pendingDebtData = { debtRequestId: debtCheck.debt_request.id };
+
+                    // Show modal with approval status
+                    showDebtModal(customerName, phone, thockNumber, requestedQty, balanceDue);
+                    document.getElementById('debtApprovalStatus').classList.remove('hidden');
+                    document.getElementById('debtRequestActions').classList.add('hidden');
+                    document.getElementById('debtProceedActions').classList.remove('hidden');
+                    return;
+                } else {
+                    // No approval - show modal to request approval
+                    showDebtModal(customerName, phone, thockNumber, requestedQty, balanceDue);
+                    return;
+                }
             }
 
             const recipientName = document.getElementById('recipientName').value.trim();
@@ -1622,6 +1687,168 @@
                 console.error('Auto-refresh failed:', e);
             }
         }, 30000);
+
+        // ========== DEBT APPROVAL FUNCTIONS ==========
+
+        let pendingDebtData = null; // Store data for when debt approval is found
+
+        // Check if there's an approved debt request for this customer+thock
+        async function checkDebtApproval(phone, thock) {
+            try {
+                const response = await fetch(`/api/debt-requests/check?phone=${encodeURIComponent(phone)}&thock=${encodeURIComponent(thock)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) return null;
+
+                const data = await response.json();
+                return data;
+            } catch (error) {
+                console.error('Error checking debt approval:', error);
+                return null;
+            }
+        }
+
+        // Show debt approval modal
+        function showDebtModal(customerName, customerPhone, thockNumber, requestedQty, balanceAmount) {
+            document.getElementById('debtAmountDisplay').textContent = '₹' + balanceAmount.toLocaleString('en-IN', { maximumFractionDigits: 0 });
+            document.getElementById('debtCustomerName').textContent = customerName;
+            document.getElementById('debtCustomerPhone').textContent = customerPhone;
+            document.getElementById('debtThockNumber').textContent = thockNumber;
+            document.getElementById('debtRequestedQty').textContent = requestedQty;
+
+            // Reset UI
+            document.getElementById('debtApprovalStatus').classList.add('hidden');
+            document.getElementById('debtRequestActions').classList.remove('hidden');
+            document.getElementById('debtProceedActions').classList.add('hidden');
+
+            document.getElementById('debtApprovalModal').classList.remove('hidden');
+        }
+
+        function closeDebtModal() {
+            document.getElementById('debtApprovalModal').classList.add('hidden');
+            pendingDebtData = null;
+        }
+
+        // Request debt approval from admin
+        async function requestDebtApproval() {
+            const phone = document.getElementById('customerPhone').value;
+            const customerName = document.getElementById('customerName').textContent;
+            const thockNumber = document.getElementById('thockNumber').value.trim();
+            const requestedQty = parseInt(document.getElementById('requestedQty').value) || 0;
+
+            const btn = document.getElementById('requestDebtBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Requesting...';
+
+            try {
+                const response = await fetch('/api/debt-requests', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        customer_phone: phone,
+                        customer_name: customerName,
+                        customer_so: '', // Can be added later
+                        thock_number: thockNumber,
+                        requested_quantity: requestedQty,
+                        current_balance: balanceDue
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert('Debt approval request sent to admin! Please wait for approval before issuing gate pass.');
+                closeDebtModal();
+
+            } catch (error) {
+                alert('Error requesting approval: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="bi bi-send"></i> Request Admin Approval';
+            }
+        }
+
+        // Proceed with gate pass after debt approval is confirmed
+        async function proceedWithDebtApproval() {
+            if (!pendingDebtData) {
+                closeDebtModal();
+                return;
+            }
+
+            // Close modal and submit the gate pass
+            closeDebtModal();
+
+            // Re-run submitGatePass with debt approval flag
+            await submitGatePassWithDebt(pendingDebtData.debtRequestId);
+        }
+
+        // Submit gate pass with debt approval
+        async function submitGatePassWithDebt(debtRequestId) {
+            const submitBtn = document.getElementById('submitGatePassBtn');
+            const originalBtnText = submitBtn.innerHTML;
+
+            const customerId = parseInt(document.getElementById('customerId').value);
+            const requestedQty = parseInt(document.getElementById('requestedQty').value) || 0;
+            const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+            const recipientName = document.getElementById('recipientName').value.trim();
+            const remarks = document.getElementById('remarks').value.trim();
+
+            let finalRemarks = '';
+            if (recipientName) {
+                finalRemarks = `Recipient: ${recipientName}`;
+            }
+            finalRemarks += (finalRemarks ? ' | ' : '') + 'DEBT APPROVED';
+            if (remarks) {
+                finalRemarks += ' | ' + remarks;
+            }
+
+            const gatePassData = {
+                customer_id: customerId,
+                thock_number: document.getElementById('thockNumber').value.trim(),
+                entry_id: null,
+                requested_quantity: requestedQty,
+                payment_verified: true,
+                payment_amount: paymentAmount,
+                remarks: finalRemarks,
+                debt_request_id: debtRequestId
+            };
+
+            isSubmittingGatePass = true;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Issuing...';
+
+            try {
+                const response = await fetch('/api/gate-passes', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(gatePassData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const result = await response.json();
+                showSuccess(result.id);
+                loadRecentGatePasses();
+
+            } catch (error) {
+                alert(i18n.t('error_issuing_gate_pass', 'Error issuing gate pass') + ': ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalBtnText;
+                isSubmittingGatePass = false;
+            }
+        }
     </script>
 
 </body>
