@@ -1325,10 +1325,10 @@
                     }
 
                     resultsDiv.innerHTML = filtered.map(c => `
-                        <div onclick="selectCustomerForReassign('${c.phone}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}')"
+                        <div onclick="selectCustomerForReassign('${c.phone}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}', '${(c.so || '').replace(/'/g, "\\'")}', '${(c.village || '').replace(/'/g, "\\'")}')"
                              class="p-2 border-b border-gray-200 hover:bg-blue-50 cursor-pointer">
                             <p class="font-bold">${capitalizeText(c.name)}</p>
-                            <p class="text-sm text-gray-600">${c.phone} • ${capitalizeText(c.village)}</p>
+                            <p class="text-sm text-gray-600">${c.phone}${c.so ? ' • S/O: ' + capitalizeText(c.so) : ''} • ${capitalizeText(c.village || 'N/A')}</p>
                         </div>
                     `).join('');
                 } catch (error) {
@@ -1338,7 +1338,7 @@
             }, 300);
         }
 
-        async function selectCustomerForReassign(customerPhone, customerName, phone) {
+        async function selectCustomerForReassign(customerPhone, customerName, phone, so, village) {
             // Find the customer to get their ID
             const customer = allCustomerAccounts.find(c => c.phone === customerPhone);
             if (!customer) {
@@ -1366,7 +1366,7 @@
                 const customerId = customers[0].id;
                 document.getElementById('reassignNewCustomerId').value = customerId;
                 document.getElementById('reassignNewCustomerName').textContent = capitalizeText(customerName);
-                document.getElementById('reassignNewCustomerPhone').textContent = phone;
+                document.getElementById('reassignNewCustomerPhone').textContent = phone + (so ? ' • S/O: ' + capitalizeText(so) : '') + ' • ' + capitalizeText(village || 'N/A');
                 document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
                 document.getElementById('reassignCustomerResults').innerHTML = '';
                 document.getElementById('reassignSubmitBtn').disabled = false;
@@ -1467,10 +1467,10 @@
                     }
 
                     resultsDiv.innerHTML = filtered.map(c => `
-                        <div onclick="selectCustomerForMerge('${type}', '${c.phone}', '${c.name.replace(/'/g, "\\'")}')"
+                        <div onclick="selectCustomerForMerge('${type}', '${c.phone}', '${c.name.replace(/'/g, "\\'")}', '${(c.so || '').replace(/'/g, "\\'")}', '${(c.village || '').replace(/'/g, "\\'")}')"
                              class="p-2 border-b border-gray-200 hover:bg-${type === 'source' ? 'red' : 'green'}-50 cursor-pointer">
                             <p class="font-bold">${capitalizeText(c.name)}</p>
-                            <p class="text-sm text-gray-600">${c.phone} • ${c.thocks.length} thocks</p>
+                            <p class="text-sm text-gray-600">${c.phone}${c.so ? ' • S/O: ' + capitalizeText(c.so) : ''} • ${capitalizeText(c.village || 'N/A')} • ${c.thocks.length} thocks</p>
                         </div>
                     `).join('');
                 } catch (error) {
@@ -1486,7 +1486,7 @@
             }
         }
 
-        async function selectCustomerForMerge(type, phone, name) {
+        async function selectCustomerForMerge(type, phone, name, so, village) {
             try {
                 const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(phone)}`, {
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -1508,7 +1508,7 @@
 
                 document.getElementById(`merge${prefix}Id`).value = customer.id;
                 document.getElementById(`merge${prefix}Name`).textContent = capitalizeText(name);
-                document.getElementById(`merge${prefix}Phone`).textContent = phone;
+                document.getElementById(`merge${prefix}Phone`).textContent = phone + (so ? ' • S/O: ' + capitalizeText(so) : '') + ' • ' + capitalizeText(village || 'N/A');
                 document.getElementById(`merge${prefix}Results`).innerHTML = '';
                 document.getElementById(`merge${prefix}Selected`).classList.remove('hidden');
 

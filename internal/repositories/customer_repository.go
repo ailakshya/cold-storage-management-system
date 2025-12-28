@@ -88,9 +88,9 @@ func (r *CustomerRepository) GetEntryCount(ctx context.Context, customerID int) 
 	return count, err
 }
 
-// MergeCustomers moves all entries from source customer to target customer and deletes the source
+// MergeCustomers moves all entries and payments from source customer to target customer and deletes the source
 // Returns the number of entries moved
-func (r *CustomerRepository) MergeCustomers(ctx context.Context, sourceID, targetID int, targetName, targetPhone, targetVillage, targetSO string) (int, error) {
+func (r *CustomerRepository) MergeCustomers(ctx context.Context, sourceID, targetID int, targetName, targetPhone, targetVillage, targetSO string, sourcePhone string) (int, error) {
 	// Start transaction
 	tx, err := r.DB.Begin(ctx)
 	if err != nil {
@@ -111,6 +111,16 @@ func (r *CustomerRepository) MergeCustomers(ctx context.Context, sourceID, targe
 		SET customer_id=$1, name=$2, phone=$3, village=$4, so=$5, updated_at=NOW()
 		WHERE customer_id=$6`,
 		targetID, targetName, targetPhone, targetVillage, targetSO, sourceID)
+	if err != nil {
+		return 0, err
+	}
+
+	// Transfer all rent payments from source customer to target customer
+	_, err = tx.Exec(ctx, `
+		UPDATE rent_payments
+		SET customer_name=$1, customer_phone=$2
+		WHERE customer_phone=$3`,
+		targetName, targetPhone, sourcePhone)
 	if err != nil {
 		return 0, err
 	}
