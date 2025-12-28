@@ -152,12 +152,12 @@
                 <div class="relative flex-1 w-full md:max-w-md">
                     <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
                     <input type="text" id="searchInput" placeholder="Search by thock, name, phone, village..."
-                           class="w-full pl-10 pr-4 py-2 border-2 border-black shadow-[3px_3px_0_#000] focus:outline-none"
+                           class="w-full pl-10 pr-10 py-2 border-2 border-black shadow-[3px_3px_0_#000] focus:outline-none"
                            oninput="debouncedSearch()">
+                    <button class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black p-1" onclick="clearSearch()" title="Clear">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
                 </div>
-                <button class="neu-border bg-gray-200 px-4 py-2" onclick="clearSearch()">
-                    <i class="bi bi-x-lg"></i> <span data-i18n="clear">Clear</span>
-                </button>
             </div>
             <div class="mt-4 inline-block bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 border-2 border-black shadow-[3px_3px_0_#000]">
                 <i class="bi bi-person-circle"></i> <span id="userName" data-i18n="loading">Loading...</span>
@@ -247,7 +247,7 @@
             const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
 
             if (!searchTerm) {
-                displayActivities(allActivities);
+                displayActivities(allActivities, false);
                 return;
             }
 
@@ -267,12 +267,12 @@
                        type.includes(searchTerm);
             });
 
-            displayActivities(filtered);
+            displayActivities(filtered, true);
         }
 
-        function displayActivities(activities) {
-            // Apply view mode filter (recent vs all)
-            const displayList = showAllEvents ? activities : activities.slice(0, 20);
+        function displayActivities(activities, isFiltered = false) {
+            // Show all when searching/filtered, otherwise apply view mode filter
+            const displayList = (isFiltered || showAllEvents) ? activities : activities.slice(0, 20);
 
             const tbody = document.getElementById('activityLogBody');
             if (displayList.length === 0) {

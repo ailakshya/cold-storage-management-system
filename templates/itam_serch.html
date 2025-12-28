@@ -266,8 +266,18 @@
             const tbody = document.getElementById('entriesTableBody');
             tbody.innerHTML = '';
 
-            // Apply pagination
-            const dataToShow = perPage === 0 ? filteredData : filteredData.slice(0, perPage);
+            // Check if any filters are active
+            const hasFilters = document.getElementById('filterThock').value ||
+                              document.getElementById('filterName').value ||
+                              document.getElementById('filterVillage').value ||
+                              document.getElementById('filterPhone').value ||
+                              document.getElementById('filterRoom').value ||
+                              document.getElementById('filterFloor').value ||
+                              document.getElementById('filterDateFrom').value ||
+                              document.getElementById('filterDateTo').value;
+
+            // Show all when filters are applied, otherwise apply pagination
+            const dataToShow = (hasFilters || perPage === 0) ? filteredData : filteredData.slice(0, perPage);
 
             if (dataToShow.length === 0) {
                 tbody.innerHTML = `
