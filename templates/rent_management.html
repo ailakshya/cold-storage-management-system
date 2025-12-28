@@ -296,21 +296,16 @@
                     Payment Method *
                 </label>
                 <div class="flex gap-4">
-                    <label class="flex-1 cursor-pointer">
-                        <input type="radio" name="paymentMethod" value="cash" class="hidden peer" checked>
-                        <div class="neu-input p-4 text-center transition-all duration-200 peer-checked:bg-green-500 peer-checked:text-white peer-checked:border-green-600 peer-checked:border-2 peer-checked:shadow-lg peer-checked:scale-105">
-                            <i class="bi bi-cash-stack text-2xl"></i>
-                            <p class="font-bold mt-1">Cash</p>
-                        </div>
-                    </label>
-                    <label class="flex-1 cursor-pointer">
-                        <input type="radio" name="paymentMethod" value="online" class="hidden peer">
-                        <div class="neu-input p-4 text-center transition-all duration-200 peer-checked:bg-blue-500 peer-checked:text-white peer-checked:border-blue-600 peer-checked:border-2 peer-checked:shadow-lg peer-checked:scale-105">
-                            <i class="bi bi-phone text-2xl"></i>
-                            <p class="font-bold mt-1">Online</p>
-                        </div>
-                    </label>
+                    <div id="cashOption" onclick="selectPaymentMethod('cash')" class="flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200 bg-green-500 text-white border-green-600 border-2 shadow-lg scale-105">
+                        <i class="bi bi-cash-stack text-2xl"></i>
+                        <p class="font-bold mt-1">Cash</p>
+                    </div>
+                    <div id="onlineOption" onclick="selectPaymentMethod('online')" class="flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200">
+                        <i class="bi bi-phone text-2xl"></i>
+                        <p class="font-bold mt-1">Online</p>
+                    </div>
                 </div>
+                <input type="hidden" id="paymentMethod" value="cash">
             </div>
 
             <div class="mb-6">
@@ -932,9 +927,23 @@
             document.getElementById('paymentAmount').value = '';
             document.getElementById('paymentRemark').value = '';
             // Reset payment method to Cash
-            document.querySelector('input[name="paymentMethod"][value="cash"]').checked = true;
+            selectPaymentMethod('cash');
 
             document.getElementById('paymentModal').classList.remove('hidden');
+        }
+
+        function selectPaymentMethod(method) {
+            document.getElementById('paymentMethod').value = method;
+            const cashOption = document.getElementById('cashOption');
+            const onlineOption = document.getElementById('onlineOption');
+
+            if (method === 'cash') {
+                cashOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200 bg-green-500 text-white border-green-600 border-2 shadow-lg scale-105';
+                onlineOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200';
+            } else {
+                onlineOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200 bg-blue-500 text-white border-blue-600 border-2 shadow-lg scale-105';
+                cashOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200';
+            }
         }
 
         function closePaymentModal() {
@@ -960,7 +969,7 @@
 
             const submitBtn = document.getElementById('collectPaymentBtn');
             const amount = parseFloat(document.getElementById('paymentAmount').value);
-            const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
             const remark = document.getElementById('paymentRemark').value.trim();
 
             if (!amount || amount <= 0) {
