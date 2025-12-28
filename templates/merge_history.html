@@ -444,7 +444,14 @@
         }
 
         async function undoMerge(customerId) {
-            if (!confirm('Are you sure you want to undo this merge? The customer will be restored to active status.')) {
+            console.log('Undo merge called with customerId:', customerId);
+
+            if (!customerId) {
+                alert('Error: Customer ID is missing. Please use the "Merged Customers" tab to undo.');
+                return;
+            }
+
+            if (!confirm('Are you sure you want to undo this merge? The customer will be restored to active status.\n\nCustomer ID: ' + customerId)) {
                 return;
             }
 
@@ -455,11 +462,14 @@
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ customer_id: customerId })
+                    body: JSON.stringify({ customer_id: parseInt(customerId) })
                 });
 
+                const text = await response.text();
+                console.log('Undo response:', response.status, text);
+
                 if (!response.ok) {
-                    throw new Error(await response.text());
+                    throw new Error(text);
                 }
 
                 alert('Merge undone successfully!');
