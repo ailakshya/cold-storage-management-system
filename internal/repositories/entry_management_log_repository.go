@@ -204,3 +204,12 @@ func (r *EntryManagementLogRepository) DeleteBySourceCustomer(ctx context.Contex
 		sourceCustomerID)
 	return err
 }
+
+// DeleteByEntryID deletes reassign/transfer log for an entry (used when undoing transfer)
+func (r *EntryManagementLogRepository) DeleteByEntryID(ctx context.Context, entryID int) error {
+	_, err := r.DB.Exec(ctx, `
+		DELETE FROM entry_management_logs
+		WHERE action_type = 'reassign' AND entry_id = $1`,
+		entryID)
+	return err
+}

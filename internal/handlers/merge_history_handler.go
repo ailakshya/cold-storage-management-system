@@ -253,9 +253,14 @@ func (h *MergeHistoryHandler) UndoTransfer(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Delete the transfer log entry
+	if h.ManagementLogRepo != nil {
+		_ = h.ManagementLogRepo.DeleteByEntryID(ctx, req.EntryID)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"message": "Transfer undone successfully",
+		"message": "Transfer undone successfully - entry restored",
 	})
 }
