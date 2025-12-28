@@ -86,14 +86,14 @@
                 <i class="bi bi-funnel"></i> Search Filters
             </h2>
             <div class="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4">
-                <input type="text" id="filterThock" placeholder="Thok Number" class="neu-brutal-input">
-                <input type="text" id="filterName" placeholder="Customer Name" class="neu-brutal-input">
-                <input type="text" id="filterVillage" placeholder="Village" class="neu-brutal-input">
-                <input type="text" id="filterPhone" placeholder="Phone Number" class="neu-brutal-input">
-                <input type="text" id="filterRoom" placeholder="Room Number" class="neu-brutal-input">
-                <input type="text" id="filterFloor" placeholder="Floor Number" class="neu-brutal-input">
-                <input type="date" id="filterDateFrom" placeholder="Date From" class="neu-brutal-input">
-                <input type="date" id="filterDateTo" placeholder="Date To" class="neu-brutal-input">
+                <input type="text" id="filterThock" placeholder="Thok Number" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="text" id="filterName" placeholder="Customer Name" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="text" id="filterVillage" placeholder="Village" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="text" id="filterPhone" placeholder="Phone Number" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="text" id="filterRoom" placeholder="Room Number" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="text" id="filterFloor" placeholder="Floor Number" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="date" id="filterDateFrom" placeholder="Date From" class="neu-brutal-input" onchange="applyFilter()">
+                <input type="date" id="filterDateTo" placeholder="Date To" class="neu-brutal-input" onchange="applyFilter()">
             </div>
             <div class="flex flex-col md:flex-row gap-2 md:gap-4">
                 <button class="neu-brutal-button px-4 md:px-6 py-2 w-full md:w-auto" onclick="applyFilter()">
@@ -118,6 +118,9 @@
                     <i class="bi bi-list-ul"></i> All Entries (<span id="totalCount">0</span>)
                 </h2>
                 <div class="flex flex-wrap gap-2 md:gap-4 w-full md:w-auto">
+                    <button class="neu-brutal-button px-4 py-2" onclick="refreshData()" title="Refresh Data">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
                     <div class="neu-brutal-button px-4 py-2">
                         <select id="perPage" class="bg-transparent border-none" onchange="updatePerPage()">
                             <option value="10">10 per page</option>
@@ -465,11 +468,33 @@
             window.history.back();
         }
 
-        // Auto-refresh data every 30 seconds
-        setInterval(() => {
-            console.log('Auto-refreshing data...');
-            loadAllData();
-        }, 30000);
+        // Manual refresh function (called by refresh button)
+        function refreshData() {
+            // Only refresh if no filters are applied
+            const hasFilters = document.getElementById('filterThock').value ||
+                document.getElementById('filterName').value ||
+                document.getElementById('filterVillage').value ||
+                document.getElementById('filterPhone').value ||
+                document.getElementById('filterRoom').value ||
+                document.getElementById('filterFloor').value ||
+                document.getElementById('filterDateFrom').value ||
+                document.getElementById('filterDateTo').value;
+
+            if (hasFilters) {
+                // Just re-apply filters on current data
+                applyFilter();
+            } else {
+                // Reload data from server
+                loadAllData();
+            }
+        }
+
+        // Debounced search - waits 300ms after user stops typing
+        let searchTimeout;
+        function debouncedFilter() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(applyFilter, 300);
+        }
     </script>
 </body>
 </html>
