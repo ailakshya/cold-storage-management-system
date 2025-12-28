@@ -257,7 +257,7 @@
                         type="text"
                         id="searchInput"
                         class="w-full neu-input"
-                        placeholder="Search by name, phone, S/O, or village..."
+                        placeholder="Search by name, phone, S/O, village, or thock number..."
                         oninput="debouncedSearch()"
                         onkeydown="if(event.key === 'Enter') filterCustomers()"
                     >
@@ -1081,12 +1081,24 @@
                 return;
             }
 
-            const filtered = allCustomerAccounts.filter(customer =>
-                customer.name.toLowerCase().includes(searchTerm) ||
-                customer.phone.includes(searchTerm) ||
-                (customer.so && customer.so.toLowerCase().includes(searchTerm)) ||
-                customer.village.toLowerCase().includes(searchTerm)
-            );
+            const filtered = allCustomerAccounts.filter(customer => {
+                // Search by name, phone, S/O, village
+                if (customer.name.toLowerCase().includes(searchTerm) ||
+                    customer.phone.includes(searchTerm) ||
+                    (customer.so && customer.so.toLowerCase().includes(searchTerm)) ||
+                    customer.village.toLowerCase().includes(searchTerm)) {
+                    return true;
+                }
+
+                // Search by thock number
+                if (customer.thocks && customer.thocks.some(thock =>
+                    thock.thock_number && thock.thock_number.toLowerCase().includes(searchTerm)
+                )) {
+                    return true;
+                }
+
+                return false;
+            });
 
             displayCustomerAccounts(filtered);
         }
