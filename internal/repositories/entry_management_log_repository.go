@@ -69,7 +69,7 @@ func (r *EntryManagementLogRepository) CreateMergeLog(ctx context.Context, log *
 	).Scan(&log.ID, &log.CreatedAt)
 }
 
-// List returns all entry management logs
+// List returns all entry management logs with full details
 func (r *EntryManagementLogRepository) List(ctx context.Context) ([]*models.EntryManagementLog, error) {
 	query := `
 		SELECT
@@ -78,8 +78,11 @@ func (r *EntryManagementLogRepository) List(ctx context.Context) ([]*models.Entr
 			eml.old_customer_id, eml.old_customer_name, eml.old_customer_phone,
 			eml.new_customer_id, eml.new_customer_name, eml.new_customer_phone,
 			eml.source_customer_id, eml.source_customer_name, eml.source_customer_phone,
+			COALESCE(eml.source_customer_village, ''), COALESCE(eml.source_customer_so, ''),
 			eml.target_customer_id, eml.target_customer_name, eml.target_customer_phone,
-			eml.entries_moved, eml.created_at
+			COALESCE(eml.target_customer_village, ''), COALESCE(eml.target_customer_so, ''),
+			eml.entries_moved, COALESCE(eml.payments_moved, 0), eml.merge_details,
+			eml.created_at
 		FROM entry_management_logs eml
 		JOIN users u ON eml.performed_by_id = u.id
 		ORDER BY eml.created_at DESC
@@ -94,18 +97,31 @@ func (r *EntryManagementLogRepository) List(ctx context.Context) ([]*models.Entr
 	var logs []*models.EntryManagementLog
 	for rows.Next() {
 		var log models.EntryManagementLog
+		var mergeDetailsJSON []byte
 		err := rows.Scan(
 			&log.ID, &log.ActionType, &log.PerformedByID, &log.PerformedByName,
 			&log.EntryID, &log.ThockNumber,
 			&log.OldCustomerID, &log.OldCustomerName, &log.OldCustomerPhone,
 			&log.NewCustomerID, &log.NewCustomerName, &log.NewCustomerPhone,
 			&log.SourceCustomerID, &log.SourceCustomerName, &log.SourceCustomerPhone,
+			&log.SourceCustomerVillage, &log.SourceCustomerSO,
 			&log.TargetCustomerID, &log.TargetCustomerName, &log.TargetCustomerPhone,
-			&log.EntriesMoved, &log.CreatedAt,
+			&log.TargetCustomerVillage, &log.TargetCustomerSO,
+			&log.EntriesMoved, &log.PaymentsMoved, &mergeDetailsJSON,
+			&log.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		// Parse merge_details JSON if present
+		if len(mergeDetailsJSON) > 0 {
+			var details models.MergeDetails
+			if err := json.Unmarshal(mergeDetailsJSON, &details); err == nil {
+				log.MergeDetails = &details
+			}
+		}
+
 		logs = append(logs, &log)
 	}
 
