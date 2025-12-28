@@ -165,13 +165,13 @@
 
             <form id="registerForm" onsubmit="submitEntry(event)">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <!-- Mobile (Customer) with Fuzzy Search -->
+                    <!-- Customer Search with Fuzzy Search -->
                     <div class="relative">
-                        <label class="form-label" data-i18n="mobile">Mobile (मोबाइल)</label>
-                        <input type="tel" id="mobile" class="form-input" required
-                               pattern="[0-9]{10}" maxlength="10"
-                               placeholder="10 digit mobile number" data-i18n-placeholder="enter_mobile"
-                               oninput="searchCustomers(this.value)"
+                        <label class="form-label" data-i18n="search_customer">Search Customer (Name / Phone / Village)</label>
+                        <input type="text" id="mobile" class="form-input" required
+                               maxlength="50"
+                               placeholder="Search by name, phone or village..." data-i18n-placeholder="search_customer_placeholder"
+                               oninput="debouncedSearchCustomers()"
                                onfocus="showCustomerDropdown()"
                                autocomplete="off">
                         <div id="customerDropdown" class="village-dropdown hidden"></div>
@@ -332,6 +332,59 @@
         const isAdmin = userRole === 'admin';
         let lookupTimeout = null;
         let villageHighlightIndex = -1;
+        let allCustomers = []; // Pre-fetched customer data for fast search
+        let customerSearchTimeout = null;
+
+        // Load all customers on page load for fast search
+        async function loadAllCustomers() {
+            try {
+                const res = await fetch('/api/customers', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    allCustomers = await res.json() || [];
+                    console.log(`Loaded ${allCustomers.length} customers for search`);
+                }
+            } catch (error) {
+                console.error('Error loading customers:', error);
+                allCustomers = [];
+            }
+        }
+
+        // Load customers on page load
+        loadAllCustomers();
+
+        // Debounced search - waits 150ms after user stops typing
+        function debouncedSearchCustomers() {
+            clearTimeout(customerSearchTimeout);
+            customerSearchTimeout = setTimeout(searchCustomers, 150);
+        }
+
+        // Fuzzy match function for customer search
+        function fuzzyMatchCustomer(searchTerm, customer) {
+            if (!searchTerm) return true;
+            searchTerm = searchTerm.toLowerCase();
+
+            const phone = (customer.phone || '').toLowerCase();
+            const name = (customer.name || '').toLowerCase();
+            const village = (customer.village || '').toLowerCase();
+            const so = (customer.so || '').toLowerCase();
+
+            // Check if search term matches phone, name, village, or S/O
+            if (phone.includes(searchTerm)) return true;
+            if (name.includes(searchTerm)) return true;
+            if (village.includes(searchTerm)) return true;
+            if (so.includes(searchTerm)) return true;
+
+            // Fuzzy matching on name
+            let searchIndex = 0;
+            for (let i = 0; i < name.length && searchIndex < searchTerm.length; i++) {
+                if (name[i] === searchTerm[searchIndex]) {
+                    searchIndex++;
+                }
+            }
+            return searchIndex === searchTerm.length;
+        }
 
         // Village list for dropdown
         const villages = ["Jahangirabad","Anupshahr","Achalpur","Ahamad Nagar Urf Touli","Ahar Bangar","Ahar Khadar","Akbarpur Urf Bachchikhera Bang","Alampur Urf Torai Bangar","Amarpur","Amba","Ametha","Aniwas","Anjni","Badarkha","Badshahpur Pauta","Bagsara","Bamanpur","Banawaripur","Barhpura","Begampur Urf Jairampur","Bhailai","Bhaipur","Bhiroli","Bhopur","Bibiyana","Bichaula","Bidhipur","Birauli","Borha","Chacharai","Charaura","Chhaturiya","Dabka","Daraura","Daravar","Davkora","Devakaranpur Urf Bajhera","Dugrau","Dungara Jogi","Enchora","Faridpur Bariyan","Fatahpur","Gahana Govardhanpur","Gangabas Pahara","Garhara","Godhana","Harchandpur","Hasanpur Bangar","Hisavati","Hoshiyarpur Urf Adhiyar","Jafrabad Urf Gangabas Bangar","Jahangirabad Rural","Jairampur Kudena","Jalilpur","Jamrau","Jasar","Jatpura","Jatvai","Jugasana Kalan","Jugasana Khurd","Karanpur Kalan","Karanpur Urf Nurpur","Karonji","Katiyavali","Khadana","Khalaur","Khalikabad/Dungrajat","Khalikpur","Khanpura","Khaunada","Khijarabad","Khushalgarh","Kishanpur Urf Kishan Khera","Kubari","Lachchhampur","Lachhoi","Madagavan","Madhogarh","Malakpur","Man Karora","Mau","Mauharsa","Maujpur","Mohammadpur Bangar","Mohammadpur Khadar","Mubarikpur","Mubarikpur Bangar","Muradnagar","Nagala Nalu","Navabpur Urf Dharampur","Navi Nagar","Pachdevra","Pagauna","Paharpur","Parali","Patrampur","Pipehara","Pootha","Rajapur","Rajaur","Rajner Urf Sorla","Rajpur","Raura","Rohallapur/Kharva","Ronda","Roopvas","Rooth Bangar","Rootha","Sahibad Urf Kakarai","Salamatpur","Salgavan","Sankhani","Shahjahanpur","Shekupur Raura","Sherpur Bangar","Shikoi","Shyampuri","Shyaurampur Jinai","Sihlinagar","Siraura Bangar","Soharkhan","Sunai","Sunana","Suratgarh Urf Lodhai","Telia Nagla","Titota Urf Birgaon","Ugevan","Abhaypur","Akapur Riyana","Alampur Nagla","Alavas Baturi","Amargarh","Amarthal Urf Unchagaon","Aurangabad Tahapur Bager","Aurangabad Tahapur Khader","B B Nagar","Badshahpur Gadia","Badshahpur Talab","Bahainpur","Baharmpur Urf Pali","Bahedi Khera","Bainipur","Balipur","Bamanpur Talluka","Bansuri","Barauli Basdevpur","Barhana","Barkatpur","Basi Bangar","Basi Khadar","Bathada Vajidpur","Bhadaura","Bhadoi Asarfpur","Bhagawantpur","Bhainsaura","Bhamrauli","Bhansa Khur","Bharkau","Bharra","Bhatpura","Bhaupur","Bhirawti","Bhurawala","Bigraon","Biharipur","Bihata","Chandpur Poothi","Chandyana","Chasi","Chatehra","Chhanaura","Chhatamwala","Chigrawati","Chitsona Alipur","Darauli","Darveshpur","Daulatpur Kalan","Dehra","Dhakauli","Dhakka","Dhakrauli","Dhalna","Dhaniyawali","Dulkhara","Eklaidi","Emamabad","Farida Bager","Farida Khadar","Fatehpur","Fatehpur Gujar","Fulaira","Gasupur","Ghansoorpur","Ghunghraoli","Ginaura Nagli","Giraura","Gulab Nagar","Guraoli","Hajipur","Harwanpur Urf Bhagawanpur","Hasanpur Ujarra","Hingbara","Ilna","Imalia","Ishanpur","Jadaul","Jadauli","Jalalpur","Jaria Alampur","Jawasa","Kachraut","Kalyanpur","Kamalpur","Kanauna","Kapsaipur","Karaitha","Karauthi","Karethha","Kariyari","Kaura Shamshadbad","Kesorpur Sathla","Khad Mohan Nagar","Khandoi","Khanpur Guntu","Khanpur Majra","Kharkali","Kharpur","Khijarpur","Kisola","Kriyawali","Kuchesar","Kurena","Ladana","Lalgarhi","Launga","Madangarh","Madona Jafrabad","Maduhasan Garhi Bager","Maduhasan Garhi Khadar","Mahav","Mahiuddinpur Bukalana","Mahuddinpur","Makri","Mangalpur","Mania Tikri","Manpur","Mathura Nagal","Maua Khera","Mavai","Mirzapur Nagli","Modh Allipur Urf Nima Patty Al","Mohamadpurbarwala","Mullani","Nagaur","Nagla Madaripur","Narendrapur","Narsena","Nehchauli","Nikhob","Nirsukha","Nittyanandpur Nagli","Nizampur Bager","Nizampur Khadar","Pali","Pali Anandgarhi","Palipartapur","Parawana Mahmudpur","Pempur","Pilkhani","Pirpur","Pota Kabulpur","Pyana Kalan","Pyana Khurd","Raghunathpur","Rahmatpur Augna","Rampur Pitampur","Ranapur","Rasulpur","Ratanpur","Rausla","Ravani Katiri Bangar","Ravani Katiri Khadar","Sabdalpur","Sahanpur","Sahera","Saidpur","Salabad Dhamaira","Saujna Rani","Sega Jagatpur","Seorampur","Shadipur Banboi","Shafi Nagar","Shakarpur","Shekhupura","Sikri","Sinhali Jhaya","Siyana","Sojna Jhaya","Sulaila","Surajpur Tikri","Takrarpur Ladpor","Tehgora","Thalinayatpur","Thana Gajraula","Thauna","Tibra","Timarpur","Umarpur","Verafirojpur","Yunispur","Abdullapur Hulasan","Ahmad Baj","Ahmadgarh","Ajijabad","Akbarpur Bas Kaneni","Allipur","Allipura Mubarikpur","Amarpur","Anaouna","Anchar Kalan","Ancharu Khurd","Asawari","Ashrefpur Abdullapur","Asrauli","Aurangabad Chandok","Azampur Dariapur","Bad","Badarkha Sirbas","Badrampur","Bailonth","Bamanpur","Ban","Banaul","Barasau","Barauda","Barauli","Barkatpur","Barkhara Hasangarhi","Beram Nagar","Bhaipur","Bhalolpur","Bhansroli Nasirpur","Bhataula","Bhonpur","Bohich","Chakla","Chitsaun","Dargahpur Basauti","Derveshpur","Dhalna","Dhaurau","Dhooturi","Domla Hasangarh","Faizallapur Ajnara","Faridpur Haveli","Fatahabad","Fatehgarh","Fazilpur","Ganga Garh","Gangabaj","Ghungravali Banvaripur","Golabas","Halpura","Hatampur","Hauganpur","Hazaratpur","Hinnaut","Hurthala","Jagdishpur Aurangabad","Jainawai","Jakhauta","Jalalpur","Jalalpur Karira","Jalalpur Katora","Jalaluddinpur Ginauri","Jalphi","Jamalpur","Janipur Kalan","Janipur Khurd","Jatpura","Jeerajpur","Kadon","Kadrabad","Kailawali","Kaisawan","Kamauna","Kaneni Badrampur","Karaina","Karauda","Karira","Kastaba Dhadd","Kasumi","Keratpur","Khailia Kalyanpur","Khairpur","Khakuda","Khandar","Khandwama","Khassia","Kiryawali","Kondupur","Kutubpur","Kuwarpur","Lalgarhi","Lalner","Lohra","Ludhpura","Madanpur Mubarakpur","Mahmudpur","Mahuwa Khara","Mamau","Mandawali","Maudi","Meerapur","Mohammadpur Ginauri","Morauni","Mukeempur","Mukhara","Mustfabad Daduwa","Nagalia Lachhamanpur","Nagla Dalpatpur","Nagla Lutf Alipur","Nagla Naw","Nagla Sarangpur","Nagla Urf Fattapur","Narau","Nawada","Noorpur Nagalia","Padha","Paharpur Haveli","Paharpur Surjawali","Pahasu Dehat","Pandrawal","Pitampur","Poothri Khurd","Poroli","Ragsonth","Rahmapur","Rajpura","Rajupura","Rampur Manpur","Ranau Raham Alipur","Ranayach Narendrapur","Rangpur","Raniwala","Rasulgarhi","Rasulpur","Rasulpur Nagla Bichat","Risalu","Riwara","Runsi","Sahar","Sahatpur Khairi","Saidh Garhi","Salabad","Salbahanpur","Salempur","Samanpur","Samaspur","Sarawa","Sarbhanna","Sargaon","Shikarpur","Shikarpur Rural","Siddhpur","Sidgarhi","Soi","Sujapur Pootha","Sultanpur Khader","Sultanpur Mirgarhi","Surajpur Nisfi","Surjawali","Surkharu","Syarli","Tayabpur","Teyor Bujurag","Teyori","Tunda Khera","Turkipura Khas","Urdmi","Urf Dusari","Utrawali","Yakubpur"];
@@ -439,61 +492,49 @@
         let customerSearchResults = [];
         let customerHighlightIndex = -1;
 
-        // Fuzzy search customers by phone
-        async function searchCustomers(phone) {
-            if (lookupTimeout) clearTimeout(lookupTimeout);
-
+        // Local fuzzy search customers (uses pre-fetched data)
+        function searchCustomers() {
+            const searchTerm = document.getElementById('mobile').value.trim();
             const dropdown = document.getElementById('customerDropdown');
             const statusEl = document.getElementById('customerStatus');
 
-            // Need at least 3 digits to search
-            if (phone.length < 3) {
+            // Need at least 2 chars to search
+            if (searchTerm.length < 2) {
                 dropdown.classList.add('hidden');
                 statusEl.classList.add('hidden');
                 return;
             }
 
-            lookupTimeout = setTimeout(async () => {
-                try {
-                    const res = await fetch(`/api/customers/search?phone=${phone}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
+            // Filter customers locally
+            const filtered = allCustomers.filter(c => fuzzyMatchCustomer(searchTerm, c));
+            customerSearchResults = filtered.slice(0, 50); // Limit to 50 results
+            customerHighlightIndex = -1;
 
-                    if (res.ok) {
-                        const customers = await res.json();
-                        customerSearchResults = customers || [];
-                        customerHighlightIndex = -1;
-
-                        if (customerSearchResults.length > 0) {
-                            dropdown.innerHTML = customerSearchResults.map((c, idx) =>
-                                `<div class="village-item" onclick="selectCustomer(${idx})">
-                                    <span class="font-bold">${c.phone}</span> - ${c.name}
-                                    ${c.village ? `<span class="text-gray-500 text-sm">(${c.village})</span>` : ''}
-                                </div>`
-                            ).join('');
-                            dropdown.classList.remove('hidden');
-                            statusEl.classList.add('hidden');
-                        } else {
-                            dropdown.classList.add('hidden');
-                            if (phone.length === 10) {
-                                statusEl.textContent = i18n.t('new_customer', 'New customer - enter details');
-                                statusEl.className = 'text-xs mt-1 text-blue-600';
-                                statusEl.classList.remove('hidden');
-                            }
-                        }
-                    }
-                } catch (error) {
-                    console.error('Customer search error:', error);
-                    dropdown.classList.add('hidden');
+            if (customerSearchResults.length > 0) {
+                dropdown.innerHTML = customerSearchResults.map((c, idx) => {
+                    let displayText = `<span class="font-semibold">${c.name}</span>`;
+                    if (c.so) displayText += ` <span class="text-gray-500">S/O ${c.so}</span>`;
+                    displayText += ` - <span class="text-blue-600">${c.phone}</span>`;
+                    if (c.village) displayText += ` <span class="text-green-600">(${c.village})</span>`;
+                    return `<div class="village-item" onclick="selectCustomer(${idx})">${displayText}</div>`;
+                }).join('');
+                dropdown.classList.remove('hidden');
+                statusEl.classList.add('hidden');
+            } else {
+                dropdown.classList.add('hidden');
+                if (searchTerm.length >= 3) {
+                    statusEl.textContent = i18n.t('new_customer', 'New customer - enter details');
+                    statusEl.className = 'text-xs mt-1 text-blue-600';
+                    statusEl.classList.remove('hidden');
                 }
-            }, 200);
+            }
         }
 
         // Show customer dropdown
         function showCustomerDropdown() {
-            const phone = document.getElementById('mobile').value;
-            if (phone.length >= 3 && customerSearchResults.length > 0) {
-                document.getElementById('customerDropdown').classList.remove('hidden');
+            const searchTerm = document.getElementById('mobile').value.trim();
+            if (searchTerm.length >= 2) {
+                searchCustomers(); // Re-filter and show
             }
         }
 
