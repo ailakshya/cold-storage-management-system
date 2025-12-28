@@ -358,7 +358,7 @@
 
             tbody.innerHTML = entries.map(entry => `
                 <tr>
-                    <td class="whitespace-nowrap">${formatDate(entry.created_at)}</td>
+                    <td class="whitespace-nowrap">${formatDate(entry.date)}</td>
                     <td>${escapeHtml(entry.customer_name)}</td>
                     <td>${escapeHtml(entry.customer_so || '-')}</td>
                     <td>${escapeHtml(entry.customer_phone)}</td>
