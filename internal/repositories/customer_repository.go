@@ -133,7 +133,7 @@ func (r *CustomerRepository) MergeCustomers(ctx context.Context, sourceID, targe
 
 	// Collect payment details BEFORE moving (for audit trail)
 	paymentRows, err := tx.Query(ctx, `
-		SELECT id, amount, COALESCE(receipt_number, ''), TO_CHAR(payment_date, 'DD/MM/YYYY')
+		SELECT id, amount_paid, COALESCE(receipt_number, ''), TO_CHAR(payment_date, 'DD/MM/YYYY')
 		FROM rent_payments WHERE customer_phone=$1`,
 		sourcePhone)
 	if err != nil {
