@@ -147,6 +147,18 @@
                     </button>
                 </nav>
             </div>
+            <!-- Search Bar -->
+            <div class="mt-4 flex flex-col md:flex-row gap-3 items-center">
+                <div class="relative flex-1 w-full md:max-w-md">
+                    <i class="bi bi-search absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"></i>
+                    <input type="text" id="searchInput" placeholder="Search by thock, name, phone, village..."
+                           class="w-full pl-10 pr-4 py-2 border-2 border-black shadow-[3px_3px_0_#000] focus:outline-none"
+                           oninput="debouncedSearch()">
+                </div>
+                <button class="neu-border bg-gray-200 px-4 py-2" onclick="clearSearch()">
+                    <i class="bi bi-x-lg"></i> <span data-i18n="clear">Clear</span>
+                </button>
+            </div>
             <div class="mt-4 inline-block bg-gradient-to-r from-purple-500 to-blue-500 text-white px-4 py-2 border-2 border-black shadow-[3px_3px_0_#000]">
                 <i class="bi bi-person-circle"></i> <span id="userName" data-i18n="loading">Loading...</span>
             </div>
@@ -217,6 +229,149 @@
     <script>
         const token = localStorage.getItem('token');
         let showAllEvents = false; // Track view mode: false = recent (10), true = all
+        let allActivities = []; // Store all activities for filtering
+        let searchTimeout; // For debounced search
+
+        // Debounced search - waits 300ms after user stops typing
+        function debouncedSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(filterActivities, 300);
+        }
+
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            filterActivities();
+        }
+
+        function filterActivities() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+
+            if (!searchTerm) {
+                displayActivities(allActivities);
+                return;
+            }
+
+            const filtered = allActivities.filter(activity => {
+                const thock = (activity.thock_number || '').toString().toLowerCase();
+                const name = (activity.customer_name || '').toLowerCase();
+                const phone = (activity.phone || '').toString().toLowerCase();
+                const village = (activity.village || '').toLowerCase();
+                const room = (activity.room || '').toString().toLowerCase();
+                const type = (activity.type || '').toLowerCase();
+
+                return thock.includes(searchTerm) ||
+                       name.includes(searchTerm) ||
+                       phone.includes(searchTerm) ||
+                       village.includes(searchTerm) ||
+                       room.includes(searchTerm) ||
+                       type.includes(searchTerm);
+            });
+
+            displayActivities(filtered);
+        }
+
+        function displayActivities(activities) {
+            // Apply view mode filter (recent vs all)
+            const displayList = showAllEvents ? activities : activities.slice(0, 20);
+
+            const tbody = document.getElementById('activityLogBody');
+            if (displayList.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">' + i18n.t('no_activity_found', 'No activity found') + '</td></tr>';
+                return;
+            }
+
+            const bagsLabel = i18n.t('bags', 'bags');
+            const byLabel = i18n.t('by', 'by');
+            const roomLabel = i18n.t('room', 'Room');
+            const floorLabel = i18n.t('floor', 'Floor');
+            const gateLabel = i18n.t('gatar', 'Gate');
+            const awaitingStorageText = i18n.t('awaiting_storage', 'Awaiting Storage');
+            const storedText = i18n.t('status_stored', 'STORED');
+            const pendingStorageText = i18n.t('status_pending_storage', 'PENDING');
+            const pickedText = i18n.t('status_picked', 'PICKED');
+
+            tbody.innerHTML = displayList.map(activity => {
+                const category = getCategory(activity.thock_number);
+                const categoryClass = getCategoryClass(category);
+                const isOut = activity.type === 'out';
+                const hasRoom = activity.room !== null;
+
+                // Type badge
+                const typeClass = isOut ? 'type-out' : 'type-in';
+                const typeText = isOut ? 'OUT' : 'IN';
+
+                // Row class
+                const rowClass = isOut ? 'row-out' : (hasRoom ? 'row-room' : 'row-main');
+
+                // Status
+                let statusClass, statusText;
+                if (isOut) {
+                    statusClass = 'type-out';
+                    statusText = pickedText;
+                } else if (hasRoom) {
+                    statusClass = 'status-room';
+                    statusText = storedText;
+                } else {
+                    statusClass = 'status-main';
+                    statusText = pendingStorageText;
+                }
+
+                // Room/Floor/Gate info
+                let roomInfo;
+                if (hasRoom) {
+                    roomInfo = `${roomLabel} ${activity.room} / ${floorLabel} ${activity.floor}${activity.gate ? ` / ${gateLabel} ${activity.gate}` : ''}`;
+                } else {
+                    roomInfo = isOut ? '-' : `<span class="text-orange-600 font-semibold">${awaitingStorageText}</span>`;
+                }
+
+                // Time and user info
+                let timeCell;
+                if (isOut) {
+                    // OUT: Show pickup time and user
+                    timeCell = `
+                        <div class="font-semibold">${formatDateTime(activity.pickup_time)}</div>
+                        <div class="text-xs text-red-600">${byLabel} ${activity.pickup_user}</div>
+                    `;
+                } else if (hasRoom) {
+                    // IN with room: Show both entry and room allocation
+                    timeCell = `
+                        <div class="text-xs text-blue-600">Entry: ${formatDateTime(activity.main_entry_time)}</div>
+                        <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
+                        <div class="text-xs text-purple-600 mt-1">Room: ${formatDateTime(activity.room_entry_time)}</div>
+                        <div class="text-xs text-purple-600">${byLabel} ${activity.room_entry_user}</div>
+                    `;
+                } else {
+                    // IN without room: Show entry only
+                    timeCell = `
+                        <div class="font-semibold">${formatDateTime(activity.main_entry_time)}</div>
+                        <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
+                    `;
+                }
+
+                return `
+                <tr class="${rowClass} hover:opacity-80 transition-opacity">
+                    <td class="p-3 border-2 border-black">
+                        <span class="${typeClass}">${typeText}</span>
+                    </td>
+                    <td class="p-3 border-2 border-black font-bold text-lg">${activity.thock_number || '-'}</td>
+                    <td class="p-3 border-2 border-black">
+                        <span class="${categoryClass}">${category}</span>
+                    </td>
+                    <td class="p-3 border-2 border-black font-semibold">${capitalizeText(activity.customer_name) || '-'}</td>
+                    <td class="p-3 border-2 border-black">${activity.phone || '-'}</td>
+                    <td class="p-3 border-2 border-black">${capitalizeText(activity.village) || '-'}</td>
+                    <td class="p-3 border-2 border-black text-purple-700 font-semibold">${roomInfo}</td>
+                    <td class="p-3 border-2 border-black font-bold">${activity.quantity} ${bagsLabel}</td>
+                    <td class="p-3 border-2 border-black text-sm">
+                        ${timeCell}
+                    </td>
+                    <td class="p-3 border-2 border-black">
+                        <span class="${statusClass}">${statusText}</span>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
 
         // Capitalize first letter of text
         function capitalizeText(text) {
@@ -384,106 +539,11 @@
                 // Sort by latest activity
                 activities.sort((a, b) => b.latest_time - a.latest_time);
 
-                // Apply view mode filter
-                const displayActivities = showAllEvents ? activities : activities.slice(0, 20);
+                // Store globally for filtering
+                allActivities = activities;
 
-                const tbody = document.getElementById('activityLogBody');
-                if (displayActivities.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="11" class="text-center p-4">' + i18n.t('no_activity_found', 'No activity found') + '</td></tr>';
-                    return;
-                }
-
-                const bagsLabel = i18n.t('bags', 'bags');
-                const byLabel = i18n.t('by', 'by');
-                const roomLabel = i18n.t('room', 'Room');
-                const floorLabel = i18n.t('floor', 'Floor');
-                const gateLabel = i18n.t('gatar', 'Gate');
-                const awaitingStorageText = i18n.t('awaiting_storage', 'Awaiting Storage');
-                const storedText = i18n.t('status_stored', 'STORED');
-                const pendingStorageText = i18n.t('status_pending_storage', 'PENDING');
-                const pickedText = i18n.t('status_picked', 'PICKED');
-
-                tbody.innerHTML = displayActivities.map(activity => {
-                    const category = getCategory(activity.thock_number);
-                    const categoryClass = getCategoryClass(category);
-                    const isOut = activity.type === 'out';
-                    const hasRoom = activity.room !== null;
-
-                    // Type badge
-                    const typeClass = isOut ? 'type-out' : 'type-in';
-                    const typeText = isOut ? 'OUT' : 'IN';
-
-                    // Row class
-                    const rowClass = isOut ? 'row-out' : (hasRoom ? 'row-room' : 'row-main');
-
-                    // Status
-                    let statusClass, statusText;
-                    if (isOut) {
-                        statusClass = 'type-out';
-                        statusText = pickedText;
-                    } else if (hasRoom) {
-                        statusClass = 'status-room';
-                        statusText = storedText;
-                    } else {
-                        statusClass = 'status-main';
-                        statusText = pendingStorageText;
-                    }
-
-                    // Room/Floor/Gate info
-                    let roomInfo;
-                    if (hasRoom) {
-                        roomInfo = `${roomLabel} ${activity.room} / ${floorLabel} ${activity.floor}${activity.gate ? ` / ${gateLabel} ${activity.gate}` : ''}`;
-                    } else {
-                        roomInfo = isOut ? '-' : `<span class="text-orange-600 font-semibold">${awaitingStorageText}</span>`;
-                    }
-
-                    // Time and user info
-                    let timeCell;
-                    if (isOut) {
-                        // OUT: Show pickup time and user
-                        timeCell = `
-                            <div class="font-semibold">${formatDateTime(activity.pickup_time)}</div>
-                            <div class="text-xs text-red-600">${byLabel} ${activity.pickup_user}</div>
-                        `;
-                    } else if (hasRoom) {
-                        // IN with room: Show both entry and room allocation
-                        timeCell = `
-                            <div class="text-xs text-blue-600">Entry: ${formatDateTime(activity.main_entry_time)}</div>
-                            <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
-                            <div class="text-xs text-purple-600 mt-1">Room: ${formatDateTime(activity.room_entry_time)}</div>
-                            <div class="text-xs text-purple-600">${byLabel} ${activity.room_entry_user}</div>
-                        `;
-                    } else {
-                        // IN without room: Show entry only
-                        timeCell = `
-                            <div class="font-semibold">${formatDateTime(activity.main_entry_time)}</div>
-                            <div class="text-xs text-blue-600">${byLabel} ${activity.main_entry_user}</div>
-                        `;
-                    }
-
-                    return `
-                    <tr class="${rowClass} hover:opacity-80 transition-opacity">
-                        <td class="p-3 border-2 border-black">
-                            <span class="${typeClass}">${typeText}</span>
-                        </td>
-                        <td class="p-3 border-2 border-black font-bold text-lg">${activity.thock_number || '-'}</td>
-                        <td class="p-3 border-2 border-black">
-                            <span class="${categoryClass}">${category}</span>
-                        </td>
-                        <td class="p-3 border-2 border-black font-semibold">${capitalizeText(activity.customer_name) || '-'}</td>
-                        <td class="p-3 border-2 border-black">${activity.phone || '-'}</td>
-                        <td class="p-3 border-2 border-black">${capitalizeText(activity.village) || '-'}</td>
-                        <td class="p-3 border-2 border-black text-purple-700 font-semibold">${roomInfo}</td>
-                        <td class="p-3 border-2 border-black font-bold">${activity.quantity} ${bagsLabel}</td>
-                        <td class="p-3 border-2 border-black text-sm">
-                            ${timeCell}
-                        </td>
-                        <td class="p-3 border-2 border-black">
-                            <span class="${statusClass}">${statusText}</span>
-                        </td>
-                    </tr>
-                    `;
-                }).join('');
+                // Apply search filter if active
+                filterActivities();
             } catch (error) {
                 console.error('Error loading activity log:', error);
                 document.getElementById('activityLogBody').innerHTML =
@@ -564,8 +624,8 @@
                 toggleBtn.classList.add('bg-[#FFD93D]');
             }
 
-            // Reload data with new view mode
-            refreshData();
+            // Re-apply filter with new view mode (no need to reload data)
+            filterActivities();
         }
 
         // Auto-refresh data every 30 seconds
