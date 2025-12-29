@@ -431,6 +431,9 @@ func main() {
 		// Initialize OTP repository and SMS service
 		otpRepo := repositories.NewOTPRepository(pool)
 
+		// Initialize customer activity log repository
+		customerActivityLogRepo := repositories.NewCustomerActivityLogRepository(pool)
+
 		// Use Fast2SMS for production, fallback to MockSMS if API key not set
 		fast2smsAPIKey := os.Getenv("FAST2SMS_API_KEY")
 		var smsService sms.SMSProvider
@@ -442,8 +445,10 @@ func main() {
 			smsService = sms.NewMockSMSService()
 		}
 
-		// Initialize OTP service
+		// Initialize OTP service with configurable settings and activity logging
 		otpService := services.NewOTPService(otpRepo, customerRepo, smsService)
+		otpService.SetSettingRepo(systemSettingRepo)
+		otpService.SetActivityLogRepo(customerActivityLogRepo)
 
 		// Initialize customer portal service
 		customerPortalService := services.NewCustomerPortalService(
@@ -574,6 +579,10 @@ func main() {
 		// Initialize room visualization handler (visual storage occupancy map)
 		roomVisualizationHandler := handlers.NewRoomVisualizationHandler(pool)
 
+		// Initialize customer activity log handler (for admin to view customer portal logs)
+		customerActivityLogRepo := repositories.NewCustomerActivityLogRepository(pool)
+		customerActivityLogHandler := handlers.NewCustomerActivityLogHandler(customerActivityLogRepo)
+
 		// Initialize setup handler (disaster recovery - R2 restore)
 		setupHandler := handlers.NewSetupHandler()
 
@@ -585,7 +594,7 @@ func main() {
 		mergeHistoryHandler := handlers.NewMergeHistoryHandler(customerRepo, entryRepo, entryManagementLogRepo)
 
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

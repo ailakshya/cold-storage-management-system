@@ -47,6 +47,7 @@ func NewRouter(
 	ledgerHandler *handlers.LedgerHandler,
 	debtHandler *handlers.DebtHandler,
 	mergeHistoryHandler *handlers.MergeHistoryHandler,
+	customerActivityLogHandler *handlers.CustomerActivityLogHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -241,6 +242,15 @@ func NewRouter(
 	adminActionLogsAPI := r.PathPrefix("/api/admin-action-logs").Subrouter()
 	adminActionLogsAPI.Use(authMiddleware.Authenticate)
 	adminActionLogsAPI.HandleFunc("", authMiddleware.RequireRole("admin")(http.HandlerFunc(adminActionLogHandler.ListActionLogs)).ServeHTTP).Methods("GET")
+
+	// Protected API routes - Customer Activity Logs (admin only)
+	if customerActivityLogHandler != nil {
+		customerActivityLogsAPI := r.PathPrefix("/api/customer-activity-logs").Subrouter()
+		customerActivityLogsAPI.Use(authMiddleware.Authenticate)
+		customerActivityLogsAPI.HandleFunc("", authMiddleware.RequireRole("admin")(http.HandlerFunc(customerActivityLogHandler.List)).ServeHTTP).Methods("GET")
+		customerActivityLogsAPI.HandleFunc("/stats", authMiddleware.RequireRole("admin")(http.HandlerFunc(customerActivityLogHandler.GetStats)).ServeHTTP).Methods("GET")
+		customerActivityLogsAPI.HandleFunc("/customer", authMiddleware.RequireRole("admin")(http.HandlerFunc(customerActivityLogHandler.ListByCustomer)).ServeHTTP).Methods("GET")
+	}
 
 	// Protected API routes - Merge History (admin only)
 	if mergeHistoryHandler != nil {

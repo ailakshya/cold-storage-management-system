@@ -130,11 +130,19 @@ func (h *CustomerPortalHandler) SendOTP(w http.ResponseWriter, r *http.Request) 
 		ipAddress = forwarded
 	}
 
+	// Get user agent for logging
+	userAgent := r.Header.Get("User-Agent")
+
 	// Send OTP
 	ctx := context.Background()
-	err := h.OTPService.SendOTP(ctx, req.Phone, ipAddress)
+	err := h.OTPService.SendOTP(ctx, req.Phone, ipAddress, userAgent)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusTooManyRequests)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusTooManyRequests)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": err.Error(),
+		})
 		return
 	}
 
@@ -153,11 +161,23 @@ func (h *CustomerPortalHandler) VerifyOTP(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// Get IP address and user agent for logging
+	ipAddress := r.RemoteAddr
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		ipAddress = forwarded
+	}
+	userAgent := r.Header.Get("User-Agent")
+
 	// Verify OTP
 	ctx := context.Background()
-	customer, err := h.OTPService.VerifyOTP(ctx, req.Phone, req.OTP)
+	customer, err := h.OTPService.VerifyOTP(ctx, req.Phone, req.OTP, ipAddress, userAgent)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": err.Error(),
+		})
 		return
 	}
 
