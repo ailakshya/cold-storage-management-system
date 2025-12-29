@@ -764,10 +764,17 @@
                 totalInInventory = customerRoomEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
             }
 
-            // CORRECT: Use balance to determine if customer can take items
-            // If balance is 0 or negative (has advance), customer can take all inventory
-            // If balance > 0 (owes money), customer can't take items until paid
-            const allowedItems = (balanceDue <= 0) ? totalInInventory : 0;
+            // PROPORTIONAL: Customer can take items based on what they've paid
+            // Calculate items paid for
+            const totalExpectedItems = customerEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
+            let itemsPaidFor = totalExpectedItems; // Default to all if no rent
+            if (totalRentOwed > 0 && totalExpectedItems > 0) {
+                const rentPerItem = totalRentOwed / totalExpectedItems;
+                itemsPaidFor = Math.floor(totalPaid / rentPerItem);
+            }
+
+            // Allowed = min(items paid for, available inventory)
+            const allowedItems = Math.min(itemsPaidFor, totalInInventory);
 
             // Validation checks
             if (requestedQty > totalInInventory) {
@@ -780,18 +787,24 @@
                 } else {
                     showValidationMessage('⚠️ Requested quantity exceeds available inventory!', 'bg-red-100', 'text-red-700');
                 }
-            } else if (balanceDue > 0) {
-                // Customer owes money - must pay balance first
+            } else if (requestedQty > itemsPaidFor) {
+                // Customer requesting more than they've paid for
                 showValidationMessage(
-                    `⚠️ Outstanding balance! Customer must pay ₹${balanceDue.toFixed(0)} before withdrawing items.`,
-                    'bg-red-100',
-                    'text-red-700'
+                    `⚠️ Customer has paid for ${itemsPaidFor} items only. Pay ₹${balanceDue.toFixed(0)} more to take all.`,
+                    'bg-yellow-100',
+                    'text-yellow-700'
                 );
             } else {
-                // Approved - customer is paid up or has advance
+                // Approved - customer requesting within what they've paid for
                 if (balanceDue < 0) {
                     showValidationMessage(
                         `✓ Approved! Customer has ₹${Math.abs(balanceDue).toFixed(0)} advance credit.`,
+                        'bg-green-100',
+                        'text-green-700'
+                    );
+                } else if (balanceDue > 0) {
+                    showValidationMessage(
+                        `✓ Approved! Paid for ${itemsPaidFor} items. (₹${balanceDue.toFixed(0)} balance remaining)`,
                         'bg-green-100',
                         'text-green-700'
                     );
