@@ -281,6 +281,11 @@ func (h *SMSHandler) GetNotificationSettings(w http.ResponseWriter, r *http.Requ
 		"sms_sender_id",
 		"sms_dlt_entity_id",
 		"sms_cost_per_sms",
+		// WhatsApp settings
+		models.SettingWhatsAppEnabled,
+		models.SettingWhatsAppProvider,
+		models.SettingWhatsAppAPIKey,
+		models.SettingWhatsAppCostPerMsg,
 	}
 
 	for _, key := range keys {

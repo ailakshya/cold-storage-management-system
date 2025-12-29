@@ -479,6 +479,60 @@
                 </div>
             </div>
 
+            <!-- WhatsApp Configuration -->
+            <div class="mb-6">
+                <h3 class="font-bold mb-4 flex items-center gap-2">
+                    <i class="bi bi-whatsapp text-green-500"></i>
+                    WhatsApp Integration (Cheaper than SMS)
+                </h3>
+                <div class="p-4 bg-green-50 neu-border mb-4">
+                    <p class="text-sm text-green-800">
+                        <i class="bi bi-info-circle"></i>
+                        <strong>WhatsApp-First:</strong> Messages are sent via WhatsApp first. If the number is not on WhatsApp, it automatically falls back to SMS.
+                        <br>WhatsApp cost: ~₹0.08/msg vs SMS: ~₹0.17/msg (50% savings!)
+                    </p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- WhatsApp Enable Toggle -->
+                    <div class="p-4 neu-border bg-green-50 col-span-2">
+                        <label class="flex items-center justify-between cursor-pointer">
+                            <div>
+                                <span class="font-semibold">Enable WhatsApp</span>
+                                <p class="text-xs text-gray-600">Use WhatsApp as primary channel with SMS fallback</p>
+                            </div>
+                            <input type="checkbox" id="whatsapp_enabled" class="w-5 h-5 accent-green-600">
+                        </label>
+                    </div>
+
+                    <!-- WhatsApp Provider -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            WhatsApp Provider
+                        </label>
+                        <select id="whatsapp_provider" class="w-full neu-input">
+                            <option value="aisensy">AiSensy (₹0.06-0.08/msg)</option>
+                            <option value="interakt">Interakt (₹0.08-0.10/msg)</option>
+                        </select>
+                    </div>
+
+                    <!-- WhatsApp API Key -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            WhatsApp API Key
+                        </label>
+                        <input type="password" id="whatsapp_api_key" class="w-full neu-input" placeholder="Enter API key from provider">
+                    </div>
+
+                    <!-- WhatsApp Cost -->
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            Cost per WhatsApp (₹)
+                        </label>
+                        <input type="number" id="whatsapp_cost_per_msg" step="0.01" min="0" class="w-full neu-input" placeholder="0.08">
+                    </div>
+                </div>
+            </div>
+
             <div class="flex gap-4">
                 <button onclick="updateSMSNotificationSettings()" class="neu-button bg-blue-500 text-white">
                     <i class="bi bi-check-circle"></i> Save SMS Settings
@@ -2081,6 +2135,12 @@
                     if (settings['sms_sender_id']) document.getElementById('sms_sender_id').value = settings['sms_sender_id'];
                     if (settings['sms_dlt_entity_id']) document.getElementById('sms_dlt_entity_id').value = settings['sms_dlt_entity_id'];
                     if (settings['sms_cost_per_sms']) document.getElementById('sms_cost_per_sms').value = settings['sms_cost_per_sms'];
+
+                    // WhatsApp settings
+                    document.getElementById('whatsapp_enabled').checked = settings['whatsapp_enabled'] === 'true';
+                    if (settings['whatsapp_provider']) document.getElementById('whatsapp_provider').value = settings['whatsapp_provider'];
+                    if (settings['whatsapp_api_key']) document.getElementById('whatsapp_api_key').value = settings['whatsapp_api_key'];
+                    if (settings['whatsapp_cost_per_msg']) document.getElementById('whatsapp_cost_per_msg').value = settings['whatsapp_cost_per_msg'];
                 }
             } catch (error) {
                 console.error('Error loading SMS notification settings:', error);
@@ -2101,7 +2161,12 @@
                     'sms_route': document.getElementById('sms_route').value,
                     'sms_sender_id': document.getElementById('sms_sender_id').value,
                     'sms_dlt_entity_id': document.getElementById('sms_dlt_entity_id').value,
-                    'sms_cost_per_sms': document.getElementById('sms_cost_per_sms').value
+                    'sms_cost_per_sms': document.getElementById('sms_cost_per_sms').value,
+                    // WhatsApp settings
+                    'whatsapp_enabled': document.getElementById('whatsapp_enabled').checked ? 'true' : 'false',
+                    'whatsapp_provider': document.getElementById('whatsapp_provider').value,
+                    'whatsapp_api_key': document.getElementById('whatsapp_api_key').value,
+                    'whatsapp_cost_per_msg': document.getElementById('whatsapp_cost_per_msg').value
                 };
 
                 const response = await fetch('/api/sms/settings', {

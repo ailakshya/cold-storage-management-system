@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-// SMSLog represents a sent SMS message
+// SMSLog represents a sent SMS/WhatsApp message
 type SMSLog struct {
 	ID           int        `json:"id"`
 	CustomerID   int        `json:"customer_id"`
@@ -10,6 +10,7 @@ type SMSLog struct {
 	Phone        string     `json:"phone"`
 	MessageType  string     `json:"message_type"`
 	Message      string     `json:"message"`
+	Channel      string     `json:"channel"` // "sms" or "whatsapp"
 	Status       string     `json:"status"`
 	ErrorMessage string     `json:"error_message,omitempty"`
 	ReferenceID  string     `json:"reference_id,omitempty"`
@@ -37,6 +38,12 @@ const (
 	SMSStatusFailed    = "failed"
 )
 
+// Message channels
+const (
+	ChannelSMS      = "sms"
+	ChannelWhatsApp = "whatsapp"
+)
+
 // SMS setting keys for toggles
 const (
 	SettingSMSItemIn          = "sms_notify_item_in"
@@ -44,6 +51,14 @@ const (
 	SettingSMSPaymentReceived = "sms_notify_payment_received"
 	SettingSMSPaymentReminder = "sms_notify_payment_reminder"
 	SettingSMSPromotional     = "sms_allow_promotional"
+)
+
+// WhatsApp setting keys
+const (
+	SettingWhatsAppEnabled   = "whatsapp_enabled"
+	SettingWhatsAppProvider  = "whatsapp_provider"  // "aisensy", "interakt"
+	SettingWhatsAppAPIKey    = "whatsapp_api_key"
+	SettingWhatsAppCostPerMsg = "whatsapp_cost_per_msg"
 )
 
 // BulkSMSRequest represents a bulk SMS send request
