@@ -543,8 +543,8 @@ func NewRouter(
 		debtAPI.HandleFunc("/{id}/approve", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.ApproveDebtRequest)).ServeHTTP).Methods("PUT")
 		debtAPI.HandleFunc("/{id}/reject", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.RejectDebtRequest)).ServeHTTP).Methods("PUT")
 		debtAPI.HandleFunc("/{id}/use", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.UseDebtApproval)).ServeHTTP).Methods("PUT")
-		// Admin only - all requests with filters
-		debtAPI.HandleFunc("", authMiddleware.RequireAdmin(http.HandlerFunc(debtHandler.GetAllRequests)).ServeHTTP).Methods("GET")
+		// Admin/accountant - all requests with filters (permission checked in handler)
+		debtAPI.HandleFunc("", debtHandler.GetAllRequests).Methods("GET")
 	}
 
 	// Protected API routes - Entry Room (optimized single-call endpoint)
