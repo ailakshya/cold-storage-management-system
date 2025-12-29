@@ -243,6 +243,53 @@ func (h *DebtHandler) RejectDebtRequest(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(request)
 }
 
+// UseDebtApproval marks a debt request as used (admin only)
+// PUT /api/debt-requests/{id}/use
+func (h *DebtHandler) UseDebtApproval(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Verify admin access
+	role, ok := middleware.GetRoleFromContext(ctx)
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if role != "admin" {
+		http.Error(w, "Forbidden - admin access required", http.StatusForbidden)
+		return
+	}
+
+	userID, _ := middleware.GetUserIDFromContext(ctx)
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid request ID", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		GatePassID int `json:"gate_pass_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	err = h.DebtService.UseApproval(ctx, id, req.GatePassID, userID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Return updated request
+	request, _ := h.DebtService.GetByID(ctx, id)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(request)
+}
+
 // CheckDebtApproval checks if there's an approved debt request for customer+thock
 // GET /api/debt-requests/check?phone={phone}&thock={thock}
 func (h *DebtHandler) CheckDebtApproval(w http.ResponseWriter, r *http.Request) {

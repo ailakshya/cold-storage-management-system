@@ -771,6 +771,23 @@
                     alert('Debt request approved! Note: Gate pass creation failed - ' + error);
                 } else {
                     const gatePass = await gatePassResponse.json();
+
+                    // Mark the debt request as 'used' now that gate pass is created
+                    try {
+                        await fetch(`/api/debt-requests/${currentRequestId}/use`, {
+                            method: 'PUT',
+                            headers: {
+                                'Authorization': `Bearer ${token}`,
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                gate_pass_id: gatePass.id
+                            })
+                        });
+                    } catch (err) {
+                        console.error('Failed to mark debt as used:', err);
+                    }
+
                     alert(`Debt request approved and Gate Pass #${gatePass.id} created successfully!`);
                 }
 
