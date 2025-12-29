@@ -689,8 +689,8 @@
                         // Sum all individual payments to get total paid
                         totalPaid = customerPayments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
 
-                        // Use latest payment's balance (most current)
-                        balanceDue = customerPayments[0].balance || 0;
+                        // Calculate current balance (rent owed minus total paid)
+                        balanceDue = totalRentOwed - totalPaid;
                     } else {
                         totalRentOwed = 0;
                         totalPaid = 0;
@@ -945,14 +945,28 @@
                 // Update inventory display
                 document.getElementById('availableQuantity').textContent = availableInventory;
 
-                // CORRECT: Use balance to determine if customer can take items
-                let canTakeOut;
-                if (balanceDue <= 0) {
-                    // Customer is paid up or has advance - can take all available inventory
+                // PROPORTIONAL: Customer can take out items based on how much they paid
+                // Calculate total expected items for this customer (customerEntries already defined above)
+                const totalExpectedItems = customerEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
+
+                // Calculate total current inventory across all customer's thoks (reuse already fetched data)
+                const allThockNumbers = customerEntries.map(e => e.thock_number);
+                const allCustomerRoomEntries = allRoomEntries.filter(re => allThockNumbers.includes(re.thock_number));
+                const totalCurrentInventory = allCustomerRoomEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
+                const itemsAlreadyTakenOut = totalExpectedItems - totalCurrentInventory;
+
+                // Calculate rent per item and items paid for
+                let canTakeOut = 0;
+                if (totalExpectedItems > 0 && totalRentOwed > 0) {
+                    const rentPerItem = totalRentOwed / totalExpectedItems;
+                    const itemsPaidFor = Math.floor(totalPaid / rentPerItem);
+                    // Can take out = items paid for - items already taken out
+                    const remainingAllowed = Math.max(0, itemsPaidFor - itemsAlreadyTakenOut);
+                    // But limited by available inventory
+                    canTakeOut = Math.min(availableInventory, remainingAllowed);
+                } else if (balanceDue <= 0) {
+                    // No rent or fully paid - can take all
                     canTakeOut = availableInventory;
-                } else {
-                    // Customer owes money - can't take items until paid
-                    canTakeOut = 0;
                 }
 
                 // Update display
