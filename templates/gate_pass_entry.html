@@ -671,26 +671,31 @@
             }
         }
 
-        // Load customer payments to calculate balance
+        // Load customer balance from accounts summary (same source as rent management page)
         async function loadCustomerPayments(phone) {
             try {
-                const response = await fetch(`/api/rent-payments/phone?phone=${phone}`, {
+                const response = await fetch(`/api/accounts/summary`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
                 if (response.ok) {
-                    customerPayments = await response.json();
+                    const summary = await response.json();
 
-                    if (customerPayments.length > 0) {
-                        // Payments are sorted by date DESC - use LATEST record's values
-                        // DO NOT SUM total_rent - each record has the CURRENT total rent at that time
-                        totalRentOwed = customerPayments[0].total_rent || 0;
+                    // Find the customer by phone number
+                    const customerAccount = summary.customers.find(c => c.phone === phone);
 
-                        // Sum all individual payments to get total paid
-                        totalPaid = customerPayments.reduce((sum, p) => sum + (p.amount_paid || 0), 0);
+                    if (customerAccount) {
+                        // Use the balance directly from the accounts summary (same as rent management page)
+                        totalRentOwed = customerAccount.total_rent || 0;
+                        totalPaid = customerAccount.total_paid || 0;
+                        balanceDue = customerAccount.balance || 0;
 
-                        // Calculate current balance (rent owed minus total paid)
-                        balanceDue = totalRentOwed - totalPaid;
+                        console.log('Customer account from summary:', {
+                            phone: phone,
+                            totalRentOwed: totalRentOwed,
+                            totalPaid: totalPaid,
+                            balanceDue: balanceDue
+                        });
                     } else {
                         totalRentOwed = 0;
                         totalPaid = 0;
@@ -707,7 +712,7 @@
                 updateAvailabilityDisplay();
 
             } catch (error) {
-                console.error('Error loading customer payments:', error);
+                console.error('Error loading customer account:', error);
                 customerPayments = [];
                 totalRentOwed = 0;
                 totalPaid = 0;
@@ -965,11 +970,12 @@
                 if (totalExpectedItems > 0 && totalRentOwed > 0) {
                     const rentPerItem = totalRentOwed / totalExpectedItems;
                     itemsPaidFor = Math.floor(totalPaid / rentPerItem);
-                    // Can take out = items paid for - items already taken out
-                    canTakeOut = Math.max(0, itemsPaidFor - itemsAlreadyTakenOut);
+                    // Can take out = MIN(available inventory, items paid for - items already taken out)
+                    const paidAllowance = Math.max(0, itemsPaidFor - itemsAlreadyTakenOut);
+                    canTakeOut = Math.min(availableInventory, paidAllowance);
                 } else if (balanceDue <= 0) {
-                    // No rent or fully paid - can take all
-                    canTakeOut = totalCurrentInventory;
+                    // No rent or fully paid - can take all available
+                    canTakeOut = availableInventory;
                     itemsPaidFor = totalExpectedItems;
                 }
 
