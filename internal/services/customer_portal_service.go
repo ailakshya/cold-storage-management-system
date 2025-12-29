@@ -92,10 +92,28 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 
 	// For each entry, calculate truck info
 	for _, entry := range entries {
-		// Get current inventory from room entries
-		currentInventory, err := s.RoomEntryRepo.GetTotalQuantityByThockNumber(ctx, entry.ThockNumber)
+		// Get ORIGINAL entered quantity from room entries
+		// room_entries.quantity stores what was originally entered (never reduced on pickup)
+		originalEntered, err := s.RoomEntryRepo.GetTotalQuantityByThockNumber(ctx, entry.ThockNumber)
 		if err != nil {
-			// If no room entries, inventory is 0
+			// If no room entries, quantity is 0
+			originalEntered = 0
+		}
+
+		// Get total picked up quantity
+		var totalPickedUp int
+		if s.GatePassPickupRepo != nil {
+			pickups, pickupErr := s.GatePassPickupRepo.GetPickupsByThockNumber(ctx, entry.ThockNumber)
+			if pickupErr == nil {
+				for _, p := range pickups {
+					totalPickedUp += p.PickupQuantity
+				}
+			}
+		}
+
+		// Calculate CURRENT inventory = original entered - picked up
+		currentInventory := originalEntered - totalPickedUp
+		if currentInventory < 0 {
 			currentInventory = 0
 		}
 
@@ -118,26 +136,12 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 			entryTotalPaid += payment.AmountPaid
 		}
 
-		// Calculate rent based on ORIGINAL STORED quantity
+		// Calculate rent based on ORIGINAL ENTERED quantity (never changes)
 		// Use system rent_per_item setting
 		rentPerItem := systemRentPerItem
 
-		// Calculate original stored quantity for rent
-		// Original = current inventory + all items already picked up
-		// This ensures rent is based on what was originally stored, not current inventory
-		storedQuantityForRent := currentInventory
-		if s.GatePassPickupRepo != nil {
-			// Get total pickups by thock number to calculate original stored quantity
-			pickups, pickupErr := s.GatePassPickupRepo.GetPickupsByThockNumber(ctx, entry.ThockNumber)
-			if pickupErr == nil {
-				for _, p := range pickups {
-					storedQuantityForRent += p.PickupQuantity
-				}
-			}
-		}
-
-		// Calculate total rent based on ORIGINAL stored quantity
-		entryTotalRent := float64(storedQuantityForRent) * rentPerItem
+		// Rent = original entered × rent per item (constant, doesn't change with pickups)
+		entryTotalRent := float64(originalEntered) * rentPerItem
 
 		// Calculate balance (rent - paid)
 		entryBalance := entryTotalRent - entryTotalPaid
@@ -210,9 +214,26 @@ func (s *CustomerPortalService) CreateGatePassRequest(ctx context.Context, custo
 		return nil, fmt.Errorf("unauthorized: truck does not belong to customer")
 	}
 
-	// Check current inventory
-	currentInventory, err := s.RoomEntryRepo.GetTotalQuantityByThockNumber(ctx, request.ThockNumber)
+	// Get ORIGINAL entered quantity from room entries
+	originalEntered, err := s.RoomEntryRepo.GetTotalQuantityByThockNumber(ctx, request.ThockNumber)
 	if err != nil {
+		originalEntered = 0
+	}
+
+	// Get total picked up quantity
+	var totalPickedUp int
+	if s.GatePassPickupRepo != nil {
+		pickups, pickupErr := s.GatePassPickupRepo.GetPickupsByThockNumber(ctx, request.ThockNumber)
+		if pickupErr == nil {
+			for _, p := range pickups {
+				totalPickedUp += p.PickupQuantity
+			}
+		}
+	}
+
+	// Calculate CURRENT inventory = original - picked up
+	currentInventory := originalEntered - totalPickedUp
+	if currentInventory < 0 {
 		currentInventory = 0
 	}
 

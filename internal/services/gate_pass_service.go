@@ -330,13 +330,10 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 			"manual intervention required for gate pass ID " + strconv.Itoa(req.GatePassID) + ": " + err.Error())
 	}
 
-	// Step 3: ALWAYS reduce room inventory - this is mandatory now
-	err = s.RoomEntryRepo.ReduceQuantity(ctx, gatePass.ThockNumber, roomNo, floor, req.PickupQuantity)
-	if err != nil {
-		return errors.New("CRITICAL ERROR: gate pass updated but inventory reduction failed - " +
-			"manual inventory adjustment required for room " + roomNo + ", floor " + floor +
-			", truck " + gatePass.ThockNumber + ": " + err.Error())
-	}
+	// NOTE: We intentionally do NOT reduce room_entries.quantity here
+	// room_entries.quantity represents the ORIGINAL entered quantity (used for rent calculation)
+	// Current inventory is calculated as: room_entries.quantity - total_picked_up
+	// This prevents double-counting in account reports where outgoing is shown separately
 
 	return nil
 }
