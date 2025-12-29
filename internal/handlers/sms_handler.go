@@ -286,6 +286,8 @@ func (h *SMSHandler) GetNotificationSettings(w http.ResponseWriter, r *http.Requ
 		models.SettingWhatsAppProvider,
 		models.SettingWhatsAppAPIKey,
 		models.SettingWhatsAppCostPerMsg,
+		// Customer portal settings
+		models.SettingCustomerLoginMethod,
 	}
 
 	for _, key := range keys {

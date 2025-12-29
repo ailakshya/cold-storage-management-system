@@ -555,6 +555,58 @@
             </div>
         </div>
 
+        <!-- Customer Portal Settings -->
+        <div class="neu-border bg-white p-8 mt-8">
+            <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+                <i class="bi bi-person-badge-fill text-purple-600"></i>
+                Customer Portal Settings
+            </h2>
+
+            <div class="mb-6 p-4 bg-purple-50 neu-border">
+                <p class="text-sm text-purple-800">
+                    <i class="bi bi-info-circle"></i>
+                    Configure how customers login to the customer portal.
+                </p>
+            </div>
+
+            <!-- Login Method Toggle -->
+            <div class="mb-6">
+                <h3 class="font-bold mb-4">Customer Login Method</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <label class="flex items-center gap-4 p-4 neu-border cursor-pointer hover:bg-purple-50 transition-colors" id="loginMethodOTP">
+                        <input type="radio" name="customer_login_method" value="otp" class="w-5 h-5 accent-purple-600" checked>
+                        <div>
+                            <span class="font-semibold flex items-center gap-2">
+                                <i class="bi bi-phone text-purple-600"></i> OTP Login
+                            </span>
+                            <p class="text-xs text-gray-600">Customer enters phone number and receives OTP via SMS</p>
+                        </div>
+                    </label>
+                    <label class="flex items-center gap-4 p-4 neu-border cursor-pointer hover:bg-purple-50 transition-colors" id="loginMethodThock">
+                        <input type="radio" name="customer_login_method" value="thock" class="w-5 h-5 accent-purple-600">
+                        <div>
+                            <span class="font-semibold flex items-center gap-2">
+                                <i class="bi bi-upc-scan text-purple-600"></i> Thock Number Login
+                            </span>
+                            <p class="text-xs text-gray-600">Customer enters their Thock number to login (no OTP required)</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex gap-4">
+                <button onclick="updateCustomerPortalSettings()" class="neu-button bg-purple-500 text-white">
+                    <i class="bi bi-check-circle"></i> Save Portal Settings
+                </button>
+            </div>
+
+            <div id="portalSuccessMessage" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+                <p class="text-green-800 font-bold">
+                    <i class="bi bi-check-circle-fill"></i> Customer portal settings updated!
+                </p>
+            </div>
+        </div>
+
         <!-- Token Color Section -->
         <div class="neu-border bg-white p-8 mt-8">
             <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
@@ -2141,9 +2193,44 @@
                     if (settings['whatsapp_provider']) document.getElementById('whatsapp_provider').value = settings['whatsapp_provider'];
                     if (settings['whatsapp_api_key']) document.getElementById('whatsapp_api_key').value = settings['whatsapp_api_key'];
                     if (settings['whatsapp_cost_per_msg']) document.getElementById('whatsapp_cost_per_msg').value = settings['whatsapp_cost_per_msg'];
+
+                    // Customer portal settings
+                    const loginMethod = settings['customer_login_method'] || 'otp';
+                    document.querySelector(`input[name="customer_login_method"][value="${loginMethod}"]`).checked = true;
                 }
             } catch (error) {
                 console.error('Error loading SMS notification settings:', error);
+            }
+        }
+
+        async function updateCustomerPortalSettings() {
+            try {
+                const loginMethod = document.querySelector('input[name="customer_login_method"]:checked').value;
+
+                const settings = {
+                    'customer_login_method': loginMethod
+                };
+
+                const response = await fetch('/api/sms/settings', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(settings)
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to update settings');
+                }
+
+                document.getElementById('portalSuccessMessage').classList.remove('hidden');
+                setTimeout(() => {
+                    document.getElementById('portalSuccessMessage').classList.add('hidden');
+                }, 3000);
+            } catch (error) {
+                console.error('Error updating customer portal settings:', error);
+                alert('Failed to update settings: ' + error.message);
             }
         }
 

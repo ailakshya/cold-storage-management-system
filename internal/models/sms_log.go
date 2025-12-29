@@ -58,10 +58,15 @@ const (
 
 // WhatsApp setting keys
 const (
-	SettingWhatsAppEnabled   = "whatsapp_enabled"
-	SettingWhatsAppProvider  = "whatsapp_provider"  // "aisensy", "interakt"
-	SettingWhatsAppAPIKey    = "whatsapp_api_key"
+	SettingWhatsAppEnabled    = "whatsapp_enabled"
+	SettingWhatsAppProvider   = "whatsapp_provider"  // "aisensy", "interakt"
+	SettingWhatsAppAPIKey     = "whatsapp_api_key"
 	SettingWhatsAppCostPerMsg = "whatsapp_cost_per_msg"
+)
+
+// Customer portal setting keys
+const (
+	SettingCustomerLoginMethod = "customer_login_method" // "otp" or "thock"
 )
 
 // BulkSMSRequest represents a bulk SMS send request
