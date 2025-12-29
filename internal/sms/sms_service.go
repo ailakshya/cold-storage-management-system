@@ -27,23 +27,20 @@ func NewFast2SMSService(apiKey string) *Fast2SMSService {
 
 // SendOTP sends an OTP code via Fast2SMS
 func (s *Fast2SMSService) SendOTP(phone, otp string) error {
-	apiURL := "https://www.fast2sms.com/dev/bulkV2"
-
 	message := fmt.Sprintf("Your Cold Storage OTP is %s. Valid for 5 minutes. Do not share this code with anyone.", otp)
 
-	data := url.Values{}
-	data.Set("authorization", s.APIKey)
-	data.Set("message", message)
-	data.Set("language", "english")
-	data.Set("route", "q") // Quick route for OTP/transactional SMS
-	data.Set("numbers", phone)
+	// Build URL with query parameters
+	apiURL := fmt.Sprintf(
+		"https://www.fast2sms.com/dev/bulkV2?authorization=%s&route=q&message=%s&language=english&flash=0&numbers=%s",
+		url.QueryEscape(s.APIKey),
+		url.QueryEscape(message),
+		url.QueryEscape(phone),
+	)
 
-	req, err := http.NewRequest("POST", apiURL, strings.NewReader(data.Encode()))
+	req, err := http.NewRequest("GET", apiURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to create SMS request: %w", err)
 	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -52,9 +49,15 @@ func (s *Fast2SMSService) SendOTP(phone, otp string) error {
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("SMS API error (status %d): %s", resp.StatusCode, string(body))
+	}
+
+	// Check for API-level errors in response body
+	if strings.Contains(string(body), "\"return\":false") {
+		return fmt.Errorf("SMS API error: %s", string(body))
 	}
 
 	return nil
