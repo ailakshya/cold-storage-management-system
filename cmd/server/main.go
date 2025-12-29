@@ -490,6 +490,23 @@ func main() {
 		ledgerService := services.NewLedgerService(ledgerRepo)
 		debtService := services.NewDebtService(debtRequestRepo, ledgerService)
 
+		// Initialize SMS logging and notification service
+		smsLogRepo := repositories.NewSMSLogRepository(pool)
+
+		// Initialize SMS service for employee mode (for bulk SMS, notifications)
+		fast2smsAPIKey := os.Getenv("FAST2SMS_API_KEY")
+		var employeeSMSService sms.SMSProvider
+		if fast2smsAPIKey != "" {
+			employeeSMSService = sms.NewFast2SMSService(fast2smsAPIKey)
+			employeeSMSService.SetLogRepository(smsLogRepo)
+		} else {
+			employeeSMSService = sms.NewMockSMSService()
+			employeeSMSService.SetLogRepository(smsLogRepo)
+		}
+
+		// Initialize notification service for transaction SMS
+		notificationService := services.NewNotificationService(employeeSMSService, systemSettingRepo)
+
 		// Initialize handlers (employee mode)
 		userHandler := handlers.NewUserHandler(userService, adminActionLogRepo)
 		authHandler := handlers.NewAuthHandler(userService, loginLogRepo)
@@ -500,6 +517,7 @@ func main() {
 		systemSettingHandler := handlers.NewSystemSettingHandler(systemSettingService)
 		entryHandler.SetSettingService(systemSettingService) // Wire SettingService for skip thock ranges
 		rentPaymentHandler := handlers.NewRentPaymentHandler(rentPaymentService, ledgerService)
+		rentPaymentHandler.SetNotificationService(notificationService)
 		invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
 		loginLogHandler := handlers.NewLoginLogHandler(loginLogRepo)
 		roomEntryEditLogHandler := handlers.NewRoomEntryEditLogHandler(roomEntryEditLogRepo)
@@ -583,6 +601,9 @@ func main() {
 		customerActivityLogRepo := repositories.NewCustomerActivityLogRepository(pool)
 		customerActivityLogHandler := handlers.NewCustomerActivityLogHandler(customerActivityLogRepo)
 
+		// Initialize SMS handler (for bulk SMS, logs, settings)
+		smsHandler := handlers.NewSMSHandler(smsLogRepo, systemSettingRepo, employeeSMSService)
+
 		// Initialize setup handler (disaster recovery - R2 restore)
 		setupHandler := handlers.NewSetupHandler()
 
@@ -594,7 +615,7 @@ func main() {
 		mergeHistoryHandler := handlers.NewMergeHistoryHandler(customerRepo, entryRepo, entryManagementLogRepo)
 
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

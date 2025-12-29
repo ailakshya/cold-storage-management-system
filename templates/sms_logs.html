@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMS Logs - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-input {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        .neu-button {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        .log-row:hover {
+            background-color: #f0f9ff;
+        }
+        .status-sent { background-color: #dbeafe; color: #1d4ed8; }
+        .status-delivered { background-color: #dcfce7; color: #166534; }
+        .status-failed { background-color: #fee2e2; color: #b91c1c; }
+        .status-pending { background-color: #fef3c7; color: #92400e; }
+        .type-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .type-otp { background-color: #e0e7ff; color: #3730a3; }
+        .type-item_in { background-color: #d1fae5; color: #065f46; }
+        .type-item_out { background-color: #ffedd5; color: #c2410c; }
+        .type-payment_received { background-color: #ddd6fe; color: #5b21b6; }
+        .type-payment_reminder { background-color: #fce7f3; color: #9d174d; }
+        .type-promotional { background-color: #fef08a; color: #854d0e; }
+        .type-bulk { background-color: #bfdbfe; color: #1e40af; }
+    </style>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 neu-border bg-white p-4">
+            <div class="flex items-center gap-4">
+                <a href="/system-settings" class="neu-button bg-gray-200 py-2 px-4">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-list-ul text-3xl text-purple-600"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold">SMS Logs</h1>
+                        <p class="text-gray-600 text-sm">View all sent SMS messages</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="theme.toggle()" class="neu-button bg-gray-200" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
+                <a href="/sms/bulk" class="neu-button bg-blue-500 text-white">
+                    <i class="bi bi-send-fill"></i> Send SMS
+                </a>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 mb-6">
+            <div class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-4">
+                <p class="text-xs opacity-90">Total Sent</p>
+                <p class="text-xl font-bold" id="totalSent">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-green-400 to-green-600 text-white p-4">
+                <p class="text-xs opacity-90">Delivered</p>
+                <p class="text-xl font-bold" id="totalDelivered">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-red-400 to-red-600 text-white p-4">
+                <p class="text-xs opacity-90">Failed</p>
+                <p class="text-xl font-bold" id="totalFailed">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-yellow-400 to-yellow-600 text-white p-4">
+                <p class="text-xs opacity-90">Today Sent</p>
+                <p class="text-xl font-bold" id="todaySent">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-purple-400 to-purple-600 text-white p-4">
+                <p class="text-xs opacity-90">Today Cost</p>
+                <p class="text-xl font-bold" id="todayCost">Rs.0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-indigo-400 to-indigo-600 text-white p-4">
+                <p class="text-xs opacity-90">Month Sent</p>
+                <p class="text-xl font-bold" id="monthSent">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-pink-400 to-pink-600 text-white p-4">
+                <p class="text-xs opacity-90">Month Cost</p>
+                <p class="text-xl font-bold" id="monthCost">Rs.0</p>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="neu-border bg-white p-4 mb-6">
+            <div class="flex flex-wrap gap-4 items-center">
+                <div>
+                    <label class="block text-xs font-semibold mb-1">Message Type</label>
+                    <select id="filterType" class="neu-input py-2 text-sm" onchange="loadLogs()">
+                        <option value="">All Types</option>
+                        <option value="otp">OTP</option>
+                        <option value="item_in">Item In</option>
+                        <option value="item_out">Item Out</option>
+                        <option value="payment_received">Payment Received</option>
+                        <option value="payment_reminder">Payment Reminder</option>
+                        <option value="promotional">Promotional</option>
+                        <option value="bulk">Bulk</option>
+                    </select>
+                </div>
+                <div class="flex-1"></div>
+                <button onclick="loadLogs()" class="neu-button bg-blue-500 text-white">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Logs Table -->
+        <div class="neu-border bg-white p-4">
+            <div id="loadingLogs" class="text-center py-8">
+                <i class="bi bi-arrow-repeat animate-spin text-4xl text-blue-600"></i>
+                <p class="mt-2 text-gray-600">Loading SMS logs...</p>
+            </div>
+
+            <div id="noLogs" class="hidden text-center py-8 text-gray-500">
+                <i class="bi bi-inbox text-4xl"></i>
+                <p class="mt-2">No SMS logs found.</p>
+            </div>
+
+            <div id="logsTable" class="hidden overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-3 text-left">Time</th>
+                            <th class="p-3 text-left">Type</th>
+                            <th class="p-3 text-left">Customer</th>
+                            <th class="p-3 text-left">Phone</th>
+                            <th class="p-3 text-left">Message</th>
+                            <th class="p-3 text-center">Status</th>
+                            <th class="p-3 text-right">Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logsTableBody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="pagination" class="hidden mt-4 flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                    Showing <span id="showingFrom">0</span> - <span id="showingTo">0</span> of <span id="totalLogs">0</span>
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="prevPage()" id="prevBtn" class="neu-button bg-gray-200 py-2 px-4" disabled>
+                        <i class="bi bi-chevron-left"></i> Previous
+                    </button>
+                    <button onclick="nextPage()" id="nextBtn" class="neu-button bg-gray-200 py-2 px-4">
+                        Next <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Detail Modal -->
+    <div id="messageModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+        <div class="neu-border bg-white p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold">SMS Details</h3>
+                <button onclick="closeModal()" class="neu-button bg-gray-200 py-1 px-3">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="modalContent">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let currentOffset = 0;
+        const limit = 50;
+        let totalCount = 0;
+
+        // Load data on page load
+        window.addEventListener('load', async () => {
+            await loadStats();
+            await loadLogs();
+        });
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/sms/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalSent').textContent = stats.total_sent || 0;
+                    document.getElementById('totalDelivered').textContent = stats.total_delivered || 0;
+                    document.getElementById('totalFailed').textContent = stats.total_failed || 0;
+                    document.getElementById('todaySent').textContent = stats.today_sent || 0;
+                    document.getElementById('todayCost').textContent = `Rs.${(stats.today_cost || 0).toFixed(0)}`;
+                    document.getElementById('monthSent').textContent = stats.month_sent || 0;
+                    document.getElementById('monthCost').textContent = `Rs.${(stats.month_cost || 0).toFixed(0)}`;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadLogs() {
+            const filterType = document.getElementById('filterType').value;
+            const loadingDiv = document.getElementById('loadingLogs');
+            const noLogsDiv = document.getElementById('noLogs');
+            const tableDiv = document.getElementById('logsTable');
+            const pagination = document.getElementById('pagination');
+
+            loadingDiv.classList.remove('hidden');
+            noLogsDiv.classList.add('hidden');
+            tableDiv.classList.add('hidden');
+            pagination.classList.add('hidden');
+
+            try {
+                const params = new URLSearchParams({
+                    limit: limit,
+                    offset: currentOffset
+                });
+                if (filterType) params.append('type', filterType);
+
+                const response = await fetch(`/api/sms/logs?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch logs');
+                }
+
+                const data = await response.json();
+                const logs = data.logs || [];
+                totalCount = data.total || 0;
+
+                loadingDiv.classList.add('hidden');
+
+                if (logs.length === 0) {
+                    noLogsDiv.classList.remove('hidden');
+                    return;
+                }
+
+                renderLogs(logs);
+                tableDiv.classList.remove('hidden');
+                pagination.classList.remove('hidden');
+                updatePagination();
+            } catch (error) {
+                console.error('Error loading logs:', error);
+                loadingDiv.classList.add('hidden');
+                noLogsDiv.classList.remove('hidden');
+            }
+        }
+
+        function renderLogs(logs) {
+            const tbody = document.getElementById('logsTableBody');
+
+            const typeLabels = {
+                'otp': 'OTP',
+                'item_in': 'Item In',
+                'item_out': 'Item Out',
+                'payment_received': 'Payment',
+                'payment_reminder': 'Reminder',
+                'promotional': 'Promo',
+                'bulk': 'Bulk',
+                'test': 'Test'
+            };
+
+            const statusClasses = {
+                'sent': 'status-sent',
+                'delivered': 'status-delivered',
+                'failed': 'status-failed',
+                'pending': 'status-pending'
+            };
+
+            tbody.innerHTML = logs.map(log => {
+                const time = new Date(log.created_at).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+                const typeLabel = typeLabels[log.message_type] || log.message_type;
+                const statusClass = statusClasses[log.status] || 'status-pending';
+                const truncatedMessage = log.message.length > 50 ? log.message.substring(0, 50) + '...' : log.message;
+
+                return `
+                    <tr class="log-row border-b cursor-pointer" onclick="showDetail(${JSON.stringify(log).replace(/"/g, '&quot;')})">
+                        <td class="p-3 text-gray-600">${time}</td>
+                        <td class="p-3">
+                            <span class="type-badge type-${log.message_type}">${typeLabel}</span>
+                        </td>
+                        <td class="p-3 font-semibold">${log.customer_name || '-'}</td>
+                        <td class="p-3">${log.phone}</td>
+                        <td class="p-3 text-gray-600">${truncatedMessage}</td>
+                        <td class="p-3 text-center">
+                            <span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${log.status.toUpperCase()}</span>
+                        </td>
+                        <td class="p-3 text-right">Rs. ${(log.cost || 0).toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updatePagination() {
+            const from = currentOffset + 1;
+            const to = Math.min(currentOffset + limit, totalCount);
+
+            document.getElementById('showingFrom').textContent = from;
+            document.getElementById('showingTo').textContent = to;
+            document.getElementById('totalLogs').textContent = totalCount;
+
+            document.getElementById('prevBtn').disabled = currentOffset === 0;
+            document.getElementById('nextBtn').disabled = currentOffset + limit >= totalCount;
+        }
+
+        function prevPage() {
+            if (currentOffset > 0) {
+                currentOffset -= limit;
+                loadLogs();
+            }
+        }
+
+        function nextPage() {
+            if (currentOffset + limit < totalCount) {
+                currentOffset += limit;
+                loadLogs();
+            }
+        }
+
+        function showDetail(log) {
+            const modal = document.getElementById('messageModal');
+            const content = document.getElementById('modalContent');
+
+            const typeLabels = {
+                'otp': 'OTP Verification',
+                'item_in': 'Item In Notification',
+                'item_out': 'Item Out Notification',
+                'payment_received': 'Payment Received',
+                'payment_reminder': 'Payment Reminder',
+                'promotional': 'Promotional',
+                'bulk': 'Bulk SMS',
+                'test': 'Test SMS'
+            };
+
+            const time = new Date(log.created_at).toLocaleString('en-IN');
+            const deliveredAt = log.delivered_at ? new Date(log.delivered_at).toLocaleString('en-IN') : '-';
+
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-xs text-gray-500">Type</p>
+                            <p class="font-semibold">${typeLabels[log.message_type] || log.message_type}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Status</p>
+                            <p class="font-semibold ${log.status === 'delivered' ? 'text-green-600' : log.status === 'failed' ? 'text-red-600' : 'text-blue-600'}">
+                                ${log.status.toUpperCase()}
+                            </p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Customer</p>
+                            <p class="font-semibold">${log.customer_name || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Phone</p>
+                            <p class="font-semibold">${log.phone}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Sent At</p>
+                            <p class="font-semibold">${time}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Delivered At</p>
+                            <p class="font-semibold">${deliveredAt}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Reference ID</p>
+                            <p class="font-semibold text-xs">${log.reference_id || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-gray-500">Cost</p>
+                            <p class="font-semibold">Rs. ${(log.cost || 0).toFixed(2)}</p>
+                        </div>
+                    </div>
+
+                    <div>
+                        <p class="text-xs text-gray-500 mb-1">Message</p>
+                        <div class="p-3 bg-gray-100 rounded border-2 border-gray-300">
+                            <p class="text-sm">${log.message}</p>
+                        </div>
+                    </div>
+
+                    ${log.error_message ? `
+                    <div>
+                        <p class="text-xs text-gray-500 mb-1">Error</p>
+                        <div class="p-3 bg-red-50 rounded border-2 border-red-300">
+                            <p class="text-sm text-red-700">${log.error_message}</p>
+                        </div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('messageModal').classList.add('hidden');
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('messageModal').addEventListener('click', (e) => {
+            if (e.target.id === 'messageModal') closeModal();
+        });
+    </script>
+</body>
+</html>

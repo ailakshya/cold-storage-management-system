@@ -48,6 +48,7 @@ func NewRouter(
 	debtHandler *handlers.DebtHandler,
 	mergeHistoryHandler *handlers.MergeHistoryHandler,
 	customerActivityLogHandler *handlers.CustomerActivityLogHandler,
+	smsHandler *handlers.SMSHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -123,6 +124,8 @@ func NewRouter(
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 	r.HandleFunc("/customer-edit", pageHandler.CustomerEditPage).Methods("GET")
 	r.HandleFunc("/merge-history", pageHandler.MergeHistoryPage).Methods("GET")
+	r.HandleFunc("/sms/bulk", pageHandler.SMSBulkPage).Methods("GET")
+	r.HandleFunc("/sms/logs", pageHandler.SMSLogsPage).Methods("GET")
 
 	// Guard pages (auth handled client-side via localStorage token)
 	r.HandleFunc("/guard/dashboard", pageHandler.GuardDashboardPage).Methods("GET")
@@ -250,6 +253,20 @@ func NewRouter(
 		customerActivityLogsAPI.HandleFunc("", authMiddleware.RequireRole("admin")(http.HandlerFunc(customerActivityLogHandler.List)).ServeHTTP).Methods("GET")
 		customerActivityLogsAPI.HandleFunc("/stats", authMiddleware.RequireRole("admin")(http.HandlerFunc(customerActivityLogHandler.GetStats)).ServeHTTP).Methods("GET")
 		customerActivityLogsAPI.HandleFunc("/customer", authMiddleware.RequireRole("admin")(http.HandlerFunc(customerActivityLogHandler.ListByCustomer)).ServeHTTP).Methods("GET")
+	}
+
+	// Protected API routes - SMS Management (admin only)
+	if smsHandler != nil {
+		smsAPI := r.PathPrefix("/api/sms").Subrouter()
+		smsAPI.Use(authMiddleware.Authenticate)
+		smsAPI.HandleFunc("/logs", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.ListLogs)).ServeHTTP).Methods("GET")
+		smsAPI.HandleFunc("/stats", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.GetStats)).ServeHTTP).Methods("GET")
+		smsAPI.HandleFunc("/customers", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.GetCustomersForBulkSMS)).ServeHTTP).Methods("GET")
+		smsAPI.HandleFunc("/bulk", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.SendBulkSMS)).ServeHTTP).Methods("POST")
+		smsAPI.HandleFunc("/payment-reminders", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.SendPaymentReminders)).ServeHTTP).Methods("POST")
+		smsAPI.HandleFunc("/settings", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.GetNotificationSettings)).ServeHTTP).Methods("GET")
+		smsAPI.HandleFunc("/settings", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.UpdateNotificationSettings)).ServeHTTP).Methods("PUT")
+		smsAPI.HandleFunc("/test", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.TestSMS)).ServeHTTP).Methods("POST")
 	}
 
 	// Protected API routes - Merge History (admin only)

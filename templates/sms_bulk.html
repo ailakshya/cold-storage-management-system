@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk SMS - Cold Storage</title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .neu-border {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-input {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem;
+            font-size: 1rem;
+        }
+        .neu-input:focus {
+            outline: none;
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-button {
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 6px 6px 0 #000;
+        }
+        .neu-button:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0 #000;
+        }
+        .neu-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+            animation: spin 1s linear infinite;
+        }
+        .customer-row:hover {
+            background-color: #f0f9ff;
+        }
+        .customer-row.selected {
+            background-color: #dbeafe;
+        }
+    </style>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 neu-border bg-white p-4">
+            <div class="flex items-center gap-4">
+                <a href="/system-settings" class="neu-button bg-gray-200 py-2 px-4">
+                    <i class="bi bi-arrow-left"></i>
+                </a>
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-send-fill text-3xl text-blue-600"></i>
+                    <div>
+                        <h1 class="text-2xl font-bold">Bulk SMS</h1>
+                        <p class="text-gray-600 text-sm">Send promotional & payment reminder SMS</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="theme.toggle()" class="neu-button bg-gray-200" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
+                <a href="/sms/logs" class="neu-button bg-purple-500 text-white">
+                    <i class="bi bi-list-ul"></i> SMS Logs
+                </a>
+            </div>
+        </header>
+
+        <!-- Stats -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-4">
+                <p class="text-sm opacity-90">Total Sent Today</p>
+                <p class="text-2xl font-bold" id="todaySent">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-green-400 to-green-600 text-white p-4">
+                <p class="text-sm opacity-90">Delivered</p>
+                <p class="text-2xl font-bold" id="totalDelivered">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-red-400 to-red-600 text-white p-4">
+                <p class="text-sm opacity-90">Failed</p>
+                <p class="text-2xl font-bold" id="totalFailed">0</p>
+            </div>
+            <div class="neu-border bg-gradient-to-br from-purple-400 to-purple-600 text-white p-4">
+                <p class="text-sm opacity-90">Today's Cost</p>
+                <p class="text-2xl font-bold" id="todayCost">Rs. 0</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Left: Filters & Customer Selection -->
+            <div class="lg:col-span-2">
+                <!-- Quick Actions -->
+                <div class="neu-border bg-white p-4 mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="bi bi-lightning-fill text-yellow-500"></i>
+                        Quick Actions
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button onclick="sendPaymentReminders()" class="neu-button bg-red-500 text-white w-full py-3">
+                            <i class="bi bi-cash-coin"></i> Send Payment Reminders
+                            <span class="text-xs block mt-1">To customers with balance > Rs.1000</span>
+                        </button>
+                        <button onclick="showCustomFilters()" class="neu-button bg-blue-500 text-white w-full py-3">
+                            <i class="bi bi-funnel"></i> Custom Filters
+                            <span class="text-xs block mt-1">Filter by balance, items, activity</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Custom Filters -->
+                <div id="filtersSection" class="hidden neu-border bg-white p-4 mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="bi bi-funnel-fill text-blue-500"></i>
+                        Customer Filters
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Min Balance (Rs.)</label>
+                            <input type="number" id="minBalance" class="w-full neu-input" placeholder="e.g., 1000">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Max Balance (Rs.)</label>
+                            <input type="number" id="maxBalance" class="w-full neu-input" placeholder="e.g., 50000">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Min Items Stored</label>
+                            <input type="number" id="minItems" class="w-full neu-input" placeholder="e.g., 10">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Inactive Days</label>
+                            <input type="number" id="inactiveDays" class="w-full neu-input" placeholder="e.g., 30">
+                        </div>
+                        <div>
+                            <label class="flex items-center gap-2 mt-6">
+                                <input type="checkbox" id="hasActiveEntry" class="w-5 h-5">
+                                <span class="font-semibold">Has Active Entry</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex gap-4">
+                        <button onclick="applyFilters()" class="neu-button bg-green-500 text-white">
+                            <i class="bi bi-search"></i> Find Customers
+                        </button>
+                        <button onclick="clearFilters()" class="neu-button bg-gray-500 text-white">
+                            <i class="bi bi-x-circle"></i> Clear Filters
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Customer List -->
+                <div class="neu-border bg-white p-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold flex items-center gap-2">
+                            <i class="bi bi-people-fill text-green-500"></i>
+                            Matching Customers
+                        </h2>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-gray-600">Selected: <span id="selectedCount" class="font-bold">0</span></span>
+                            <button onclick="selectAll()" class="neu-button bg-blue-500 text-white text-sm py-1 px-3">
+                                Select All
+                            </button>
+                            <button onclick="deselectAll()" class="neu-button bg-gray-500 text-white text-sm py-1 px-3">
+                                Deselect
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="loadingCustomers" class="hidden text-center py-8">
+                        <i class="bi bi-arrow-repeat animate-spin text-4xl text-blue-600"></i>
+                        <p class="mt-2 text-gray-600">Loading customers...</p>
+                    </div>
+
+                    <div id="noCustomers" class="hidden text-center py-8 text-gray-500">
+                        <i class="bi bi-inbox text-4xl"></i>
+                        <p class="mt-2">No customers found. Apply filters to search.</p>
+                    </div>
+
+                    <div id="customerList" class="overflow-x-auto max-h-96 overflow-y-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-100 sticky top-0">
+                                <tr>
+                                    <th class="p-2 text-left"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"></th>
+                                    <th class="p-2 text-left">Customer</th>
+                                    <th class="p-2 text-left">Phone</th>
+                                    <th class="p-2 text-right">Balance</th>
+                                    <th class="p-2 text-right">Items</th>
+                                </tr>
+                            </thead>
+                            <tbody id="customerTableBody">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="mt-4 text-right">
+                        <span class="text-sm text-gray-600">Total: <span id="totalCustomers" class="font-bold">0</span> customers</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right: Message Compose -->
+            <div class="lg:col-span-1">
+                <div class="neu-border bg-white p-4 sticky top-4">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="bi bi-chat-text-fill text-purple-500"></i>
+                        Compose Message
+                    </h2>
+
+                    <!-- Message Type -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-2">Message Type</label>
+                        <select id="messageType" class="w-full neu-input" onchange="updateMessageTemplate()">
+                            <option value="promotional">Promotional</option>
+                            <option value="payment_reminder">Payment Reminder</option>
+                            <option value="custom">Custom Message</option>
+                        </select>
+                    </div>
+
+                    <!-- Message Templates -->
+                    <div class="mb-4" id="templateSection">
+                        <label class="block text-sm font-semibold mb-2">Template</label>
+                        <select id="messageTemplate" class="w-full neu-input" onchange="applyTemplate()">
+                            <option value="">Select a template...</option>
+                            <option value="payment">Payment Reminder</option>
+                            <option value="season">Season Greetings</option>
+                            <option value="promo">Special Offer</option>
+                        </select>
+                    </div>
+
+                    <!-- Message Text -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-2">
+                            Message <span class="text-gray-500">(<span id="charCount">0</span>/160 chars)</span>
+                        </label>
+                        <textarea id="messageText" class="w-full neu-input h-32"
+                            placeholder="Type your message here...&#10;Use {name} for customer name&#10;Use {balance} for balance amount"
+                            oninput="updateCharCount()"></textarea>
+                    </div>
+
+                    <!-- Preview -->
+                    <div class="mb-4 p-3 bg-gray-100 rounded border-2 border-gray-300">
+                        <p class="text-xs text-gray-500 mb-1">Preview:</p>
+                        <p id="messagePreview" class="text-sm">Your message will appear here...</p>
+                    </div>
+
+                    <!-- Send Button -->
+                    <button onclick="sendBulkSMS()" id="sendButton" class="neu-button bg-green-500 text-white w-full py-3" disabled>
+                        <i class="bi bi-send-fill"></i> Send to <span id="sendCount">0</span> Customers
+                    </button>
+
+                    <!-- Estimated Cost -->
+                    <div class="mt-4 p-3 bg-yellow-50 border-2 border-yellow-400 rounded">
+                        <p class="text-sm">
+                            <i class="bi bi-info-circle"></i>
+                            Estimated Cost: <span id="estimatedCost" class="font-bold">Rs. 0</span>
+                        </p>
+                        <p class="text-xs text-gray-600 mt-1">Based on current SMS rate</p>
+                    </div>
+
+                    <!-- Result -->
+                    <div id="sendResult" class="hidden mt-4 p-4 rounded border-2">
+                        <p id="sendResultText"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        let customers = [];
+        let selectedCustomers = new Set();
+        let smsRate = 0.17; // Default, will be updated from settings
+
+        // Load data on page load
+        window.addEventListener('load', async () => {
+            await loadStats();
+            await loadSettings();
+        });
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/sms/stats', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('todaySent').textContent = stats.today_sent || 0;
+                    document.getElementById('totalDelivered').textContent = stats.total_delivered || 0;
+                    document.getElementById('totalFailed').textContent = stats.total_failed || 0;
+                    document.getElementById('todayCost').textContent = `Rs. ${(stats.today_cost || 0).toFixed(2)}`;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/sms/settings', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const settings = await response.json();
+                    if (settings.sms_cost_per_sms) {
+                        smsRate = parseFloat(settings.sms_cost_per_sms);
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        function showCustomFilters() {
+            document.getElementById('filtersSection').classList.toggle('hidden');
+        }
+
+        async function applyFilters() {
+            const params = new URLSearchParams();
+
+            const minBalance = document.getElementById('minBalance').value;
+            const maxBalance = document.getElementById('maxBalance').value;
+            const minItems = document.getElementById('minItems').value;
+            const inactiveDays = document.getElementById('inactiveDays').value;
+            const hasActiveEntry = document.getElementById('hasActiveEntry').checked;
+
+            if (minBalance) params.append('min_balance', minBalance);
+            if (maxBalance) params.append('max_balance', maxBalance);
+            if (minItems) params.append('min_items', minItems);
+            if (inactiveDays) params.append('inactive_days', inactiveDays);
+            if (hasActiveEntry) params.append('has_active_entry', 'true');
+
+            document.getElementById('loadingCustomers').classList.remove('hidden');
+            document.getElementById('noCustomers').classList.add('hidden');
+            document.getElementById('customerTableBody').innerHTML = '';
+
+            try {
+                const response = await fetch(`/api/sms/customers?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch customers');
+                }
+
+                const data = await response.json();
+                customers = data.customers || [];
+                renderCustomers();
+            } catch (error) {
+                console.error('Error fetching customers:', error);
+                alert('Failed to load customers: ' + error.message);
+            } finally {
+                document.getElementById('loadingCustomers').classList.add('hidden');
+            }
+        }
+
+        function clearFilters() {
+            document.getElementById('minBalance').value = '';
+            document.getElementById('maxBalance').value = '';
+            document.getElementById('minItems').value = '';
+            document.getElementById('inactiveDays').value = '';
+            document.getElementById('hasActiveEntry').checked = false;
+            customers = [];
+            selectedCustomers.clear();
+            renderCustomers();
+        }
+
+        function renderCustomers() {
+            const tbody = document.getElementById('customerTableBody');
+            const noCustomers = document.getElementById('noCustomers');
+
+            if (customers.length === 0) {
+                tbody.innerHTML = '';
+                noCustomers.classList.remove('hidden');
+                document.getElementById('totalCustomers').textContent = '0';
+                updateSendButton();
+                return;
+            }
+
+            noCustomers.classList.add('hidden');
+            document.getElementById('totalCustomers').textContent = customers.length;
+
+            tbody.innerHTML = customers.map(c => `
+                <tr class="customer-row border-b hover:bg-blue-50 ${selectedCustomers.has(c.customer_id) ? 'selected bg-blue-100' : ''}"
+                    onclick="toggleCustomer(${c.customer_id})">
+                    <td class="p-2">
+                        <input type="checkbox" ${selectedCustomers.has(c.customer_id) ? 'checked' : ''}
+                            onclick="event.stopPropagation(); toggleCustomer(${c.customer_id})">
+                    </td>
+                    <td class="p-2 font-semibold">${c.name}</td>
+                    <td class="p-2">${c.phone}</td>
+                    <td class="p-2 text-right ${c.balance > 0 ? 'text-red-600 font-bold' : 'text-green-600'}">
+                        Rs. ${(c.balance || 0).toLocaleString('en-IN')}
+                    </td>
+                    <td class="p-2 text-right">${c.items_stored || 0}</td>
+                </tr>
+            `).join('');
+
+            updateSendButton();
+        }
+
+        function toggleCustomer(customerId) {
+            if (selectedCustomers.has(customerId)) {
+                selectedCustomers.delete(customerId);
+            } else {
+                selectedCustomers.add(customerId);
+            }
+            renderCustomers();
+        }
+
+        function selectAll() {
+            customers.forEach(c => selectedCustomers.add(c.customer_id));
+            renderCustomers();
+        }
+
+        function deselectAll() {
+            selectedCustomers.clear();
+            renderCustomers();
+        }
+
+        function toggleSelectAll() {
+            const checkbox = document.getElementById('selectAllCheckbox');
+            if (checkbox.checked) {
+                selectAll();
+            } else {
+                deselectAll();
+            }
+        }
+
+        function updateSendButton() {
+            const count = selectedCustomers.size;
+            document.getElementById('selectedCount').textContent = count;
+            document.getElementById('sendCount').textContent = count;
+            document.getElementById('sendButton').disabled = count === 0 || !document.getElementById('messageText').value.trim();
+            document.getElementById('estimatedCost').textContent = `Rs. ${(count * smsRate).toFixed(2)}`;
+        }
+
+        function updateCharCount() {
+            const text = document.getElementById('messageText').value;
+            document.getElementById('charCount').textContent = text.length;
+
+            // Update preview
+            const preview = text
+                .replace('{name}', 'John Doe')
+                .replace('{balance}', 'Rs. 5,000');
+            document.getElementById('messagePreview').textContent = preview || 'Your message will appear here...';
+
+            updateSendButton();
+        }
+
+        function updateMessageTemplate() {
+            const type = document.getElementById('messageType').value;
+            const templateSection = document.getElementById('templateSection');
+
+            if (type === 'custom') {
+                templateSection.classList.add('hidden');
+            } else {
+                templateSection.classList.remove('hidden');
+            }
+        }
+
+        function applyTemplate() {
+            const template = document.getElementById('messageTemplate').value;
+            let message = '';
+
+            switch (template) {
+                case 'payment':
+                    message = 'Dear {name}, your pending balance at Cold Storage is Rs. {balance}. Please clear the dues at your earliest convenience. Thank you!';
+                    break;
+                case 'season':
+                    message = 'Dear {name}, wishing you a prosperous season from Cold Storage! Thank you for your continued trust. Visit us for exclusive storage offers!';
+                    break;
+                case 'promo':
+                    message = 'Dear {name}, special offer at Cold Storage! Get 10% off on storage for next 30 days. Limited time offer. Contact us now!';
+                    break;
+            }
+
+            document.getElementById('messageText').value = message;
+            updateCharCount();
+        }
+
+        async function sendPaymentReminders() {
+            if (!confirm('Send payment reminder SMS to all customers with balance > Rs.1000?')) {
+                return;
+            }
+
+            const sendButton = document.getElementById('sendButton');
+            const originalText = sendButton.innerHTML;
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i class="bi bi-arrow-repeat animate-spin"></i> Sending...';
+
+            try {
+                const response = await fetch('/api/sms/payment-reminders', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        min_balance: 1000
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showResult(true, `Sent ${result.sent} reminders, ${result.failed} failed`);
+                    await loadStats();
+                } else {
+                    showResult(false, result.message || 'Failed to send reminders');
+                }
+            } catch (error) {
+                console.error('Error sending reminders:', error);
+                showResult(false, error.message);
+            } finally {
+                sendButton.disabled = false;
+                sendButton.innerHTML = originalText;
+                updateSendButton();
+            }
+        }
+
+        async function sendBulkSMS() {
+            const message = document.getElementById('messageText').value.trim();
+            if (!message) {
+                alert('Please enter a message');
+                return;
+            }
+
+            if (selectedCustomers.size === 0) {
+                alert('Please select at least one customer');
+                return;
+            }
+
+            if (!confirm(`Send SMS to ${selectedCustomers.size} customers?`)) {
+                return;
+            }
+
+            const sendButton = document.getElementById('sendButton');
+            const originalText = sendButton.innerHTML;
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i class="bi bi-arrow-repeat animate-spin"></i> Sending...';
+
+            try {
+                // Get filters to send to API
+                const filters = {};
+                const minBalance = document.getElementById('minBalance').value;
+                const maxBalance = document.getElementById('maxBalance').value;
+                const minItems = document.getElementById('minItems').value;
+                const inactiveDays = document.getElementById('inactiveDays').value;
+                const hasActiveEntry = document.getElementById('hasActiveEntry').checked;
+
+                if (minBalance) filters.min_balance = parseFloat(minBalance);
+                if (maxBalance) filters.max_balance = parseFloat(maxBalance);
+                if (minItems) filters.min_items_stored = parseInt(minItems);
+                if (inactiveDays) filters.inactive_days = parseInt(inactiveDays);
+                if (hasActiveEntry) filters.has_active_entry = true;
+
+                const response = await fetch('/api/sms/bulk', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        filters: filters
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showResult(true, `Sent ${result.sent} SMS, ${result.failed} failed`);
+                    await loadStats();
+                    selectedCustomers.clear();
+                    renderCustomers();
+                } else {
+                    showResult(false, result.message || 'Failed to send SMS');
+                }
+            } catch (error) {
+                console.error('Error sending bulk SMS:', error);
+                showResult(false, error.message);
+            } finally {
+                sendButton.disabled = false;
+                sendButton.innerHTML = originalText;
+                updateSendButton();
+            }
+        }
+
+        function showResult(success, message) {
+            const resultDiv = document.getElementById('sendResult');
+            const resultText = document.getElementById('sendResultText');
+
+            resultDiv.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'border-green-500', 'border-red-500');
+
+            if (success) {
+                resultDiv.classList.add('bg-green-100', 'border-green-500');
+                resultText.innerHTML = `<i class="bi bi-check-circle-fill text-green-600"></i> ${message}`;
+            } else {
+                resultDiv.classList.add('bg-red-100', 'border-red-500');
+                resultText.innerHTML = `<i class="bi bi-x-circle-fill text-red-600"></i> ${message}`;
+            }
+
+            setTimeout(() => resultDiv.classList.add('hidden'), 5000);
+        }
+    </script>
+</body>
+</html>

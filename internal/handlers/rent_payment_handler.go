@@ -15,8 +15,9 @@ import (
 )
 
 type RentPaymentHandler struct {
-	Service       *services.RentPaymentService
-	LedgerService *services.LedgerService
+	Service             *services.RentPaymentService
+	LedgerService       *services.LedgerService
+	NotificationService *services.NotificationService
 }
 
 func NewRentPaymentHandler(service *services.RentPaymentService, ledgerService *services.LedgerService) *RentPaymentHandler {
@@ -24,6 +25,11 @@ func NewRentPaymentHandler(service *services.RentPaymentService, ledgerService *
 		Service:       service,
 		LedgerService: ledgerService,
 	}
+}
+
+// SetNotificationService sets the notification service for payment SMS
+func (h *RentPaymentHandler) SetNotificationService(notifService *services.NotificationService) {
+	h.NotificationService = notifService
 }
 
 func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +95,18 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 
 	// Invalidate payment caches
 	cache.InvalidatePaymentCaches(r.Context())
+
+	// Send payment SMS notification (non-blocking)
+	if h.NotificationService != nil && payment.AmountPaid > 0 && req.CustomerPhone != "" {
+		go func() {
+			customer := &models.Customer{
+				Name:  req.CustomerName,
+				Phone: req.CustomerPhone,
+			}
+			// Remaining balance after this payment
+			_ = h.NotificationService.NotifyPaymentReceived(context.Background(), customer, payment.AmountPaid, payment.Balance)
+		}()
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(payment)

@@ -208,3 +208,13 @@ func (h *PageHandler) AccountAuditPage(w http.ResponseWriter, r *http.Request) {
 func (h *PageHandler) AccountDebtorsPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "account_debtors.html", nil)
 }
+
+// SMSBulkPage serves the bulk SMS sending page
+func (h *PageHandler) SMSBulkPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "sms_bulk.html", nil)
+}
+
+// SMSLogsPage serves the SMS logs page
+func (h *PageHandler) SMSLogsPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "sms_logs.html", nil)
+}
