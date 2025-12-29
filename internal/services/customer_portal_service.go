@@ -123,11 +123,11 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 		rentPerItem := systemRentPerItem
 
 		// Calculate original stored quantity for rent
-		// Handle inconsistent pickup behavior where some reduce room_entries, some don't
-		// Heuristic: if room_entries == 0 and there are pickups, use pickup total as original
+		// Original = current inventory + all items already picked up
+		// This ensures rent is based on what was originally stored, not current inventory
 		storedQuantityForRent := currentInventory
-		if currentInventory == 0 && s.GatePassPickupRepo != nil {
-			// Room was fully depleted - get total pickups by thock number
+		if s.GatePassPickupRepo != nil {
+			// Get total pickups by thock number to calculate original stored quantity
 			pickups, pickupErr := s.GatePassPickupRepo.GetPickupsByThockNumber(ctx, entry.ThockNumber)
 			if pickupErr == nil {
 				for _, p := range pickups {
