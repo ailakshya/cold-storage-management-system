@@ -129,15 +129,93 @@
                         <i class="bi bi-lightning-fill text-yellow-500"></i>
                         Quick Actions
                     </h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <button onclick="sendPaymentReminders()" class="neu-button bg-red-500 text-white w-full py-3">
-                            <i class="bi bi-cash-coin"></i> Send Payment Reminders
-                            <span class="text-xs block mt-1">To customers with balance > Rs.1000</span>
+                            <i class="bi bi-cash-coin"></i> Payment Reminders
+                            <span class="text-xs block mt-1">Balance > Rs.1000</span>
+                        </button>
+                        <button onclick="showBoliSection()" class="neu-button bg-green-600 text-white w-full py-3">
+                            <i class="bi bi-megaphone-fill"></i> बोली Notification
+                            <span class="text-xs block mt-1">Buyer arrival alert</span>
                         </button>
                         <button onclick="showCustomFilters()" class="neu-button bg-blue-500 text-white w-full py-3">
                             <i class="bi bi-funnel"></i> Custom Filters
-                            <span class="text-xs block mt-1">Filter by balance, items, activity</span>
+                            <span class="text-xs block mt-1">Filter customers</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Boli Notification Section -->
+                <div id="boliSection" class="hidden neu-border bg-white p-4 mb-6">
+                    <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                        <i class="bi bi-megaphone-fill text-green-600"></i>
+                        बोली (Buyer Arrival) Notification
+                    </h2>
+                    <div class="p-4 bg-green-50 neu-border mb-4">
+                        <p class="text-sm text-green-800">
+                            <i class="bi bi-info-circle"></i>
+                            Send notification to all customers who have stored items when a buyer arrives.
+                        </p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <!-- Item/Crop Type -->
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Item/Crop Type (फसल)</label>
+                            <input type="text" id="boliItemType" class="w-full neu-input" placeholder="e.g., आलू, प्याज, Potato">
+                        </div>
+                        <!-- Expected Rate -->
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Expected Rate (Rs./क्विंटल)</label>
+                            <input type="number" id="boliRate" class="w-full neu-input" placeholder="e.g., 1500">
+                        </div>
+                        <!-- Buyer Name (Optional) -->
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Buyer Name (Optional)</label>
+                            <input type="text" id="boliBuyerName" class="w-full neu-input" placeholder="e.g., राम ट्रेडर्स">
+                        </div>
+                        <!-- Language -->
+                        <div>
+                            <label class="block text-sm font-semibold mb-2">Language (भाषा)</label>
+                            <select id="boliLanguage" class="w-full neu-input" onchange="updateBoliPreview()">
+                                <option value="hindi">हिंदी (Hindi)</option>
+                                <option value="english">English</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Message Preview -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold mb-2">Message Preview</label>
+                        <div class="p-4 bg-gray-100 neu-border">
+                            <p id="boliPreview" class="text-sm whitespace-pre-line">
+                                {नाम} जी, आज कोल्ड स्टोरेज में {फसल} की बोली लगने वाली है।
+                                अनुमानित भाव: Rs.{भाव}/क्विंटल
+                                कृपया अपना माल बेचने हेतु संपर्क करें। धन्यवाद!
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Target Customers -->
+                    <div class="mb-4 p-3 bg-yellow-50 border-2 border-yellow-400 rounded">
+                        <p class="text-sm">
+                            <i class="bi bi-people-fill"></i>
+                            Will send to: <span id="boliCustomerCount" class="font-bold">All customers with active entries</span>
+                        </p>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button onclick="sendBoliNotification()" class="neu-button bg-green-600 text-white">
+                            <i class="bi bi-send-fill"></i> Send बोली Notification
+                        </button>
+                        <button onclick="hideBoliSection()" class="neu-button bg-gray-500 text-white">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                    </div>
+
+                    <!-- Boli Result -->
+                    <div id="boliResult" class="hidden mt-4 p-4 rounded border-2">
+                        <p id="boliResultText"></p>
                     </div>
                 </div>
 
@@ -636,6 +714,136 @@
             }
 
             setTimeout(() => resultDiv.classList.add('hidden'), 5000);
+        }
+
+        // ==================== Boli Notification Functions ====================
+
+        function showBoliSection() {
+            document.getElementById('boliSection').classList.remove('hidden');
+            document.getElementById('filtersSection').classList.add('hidden');
+            updateBoliPreview();
+            loadBoliCustomerCount();
+        }
+
+        function hideBoliSection() {
+            document.getElementById('boliSection').classList.add('hidden');
+            document.getElementById('boliResult').classList.add('hidden');
+        }
+
+        async function loadBoliCustomerCount() {
+            try {
+                const response = await fetch('/api/sms/customers?has_active_entry=true', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const count = data.customers ? data.customers.length : 0;
+                    document.getElementById('boliCustomerCount').textContent =
+                        `${count} customers with active entries`;
+                }
+            } catch (error) {
+                console.error('Error loading customer count:', error);
+            }
+        }
+
+        function updateBoliPreview() {
+            const itemType = document.getElementById('boliItemType').value || '{फसल}';
+            const rate = document.getElementById('boliRate').value || '{भाव}';
+            const buyerName = document.getElementById('boliBuyerName').value;
+            const language = document.getElementById('boliLanguage').value;
+
+            let preview = '';
+            if (language === 'hindi') {
+                preview = `{नाम} जी, आज कोल्ड स्टोरेज में ${itemType} की बोली लगने वाली है।\n`;
+                if (buyerName) {
+                    preview += `खरीददार: ${buyerName}\n`;
+                }
+                preview += `अनुमानित भाव: Rs.${rate}/क्विंटल\n`;
+                preview += `कृपया अपना माल बेचने हेतु संपर्क करें। धन्यवाद!`;
+            } else {
+                preview = `Dear {Name}, buyers are available today at Cold Storage for ${itemType}.\n`;
+                if (buyerName) {
+                    preview += `Buyer: ${buyerName}\n`;
+                }
+                preview += `Expected Rate: Rs.${rate}/quintal\n`;
+                preview += `Contact us to sell your items at best rates. Thank you!`;
+            }
+
+            document.getElementById('boliPreview').textContent = preview;
+        }
+
+        // Add event listeners for Boli inputs
+        document.getElementById('boliItemType')?.addEventListener('input', updateBoliPreview);
+        document.getElementById('boliRate')?.addEventListener('input', updateBoliPreview);
+        document.getElementById('boliBuyerName')?.addEventListener('input', updateBoliPreview);
+
+        async function sendBoliNotification() {
+            const itemType = document.getElementById('boliItemType').value.trim();
+            const rate = document.getElementById('boliRate').value.trim();
+            const buyerName = document.getElementById('boliBuyerName').value.trim();
+            const language = document.getElementById('boliLanguage').value;
+
+            if (!itemType) {
+                alert('Please enter item/crop type (फसल)');
+                return;
+            }
+
+            if (!rate) {
+                alert('Please enter expected rate');
+                return;
+            }
+
+            if (!confirm('Send बोली notification to all customers with active entries?')) {
+                return;
+            }
+
+            const boliResultDiv = document.getElementById('boliResult');
+            const boliResultText = document.getElementById('boliResultText');
+
+            // Show loading
+            boliResultDiv.classList.remove('hidden', 'bg-green-100', 'bg-red-100', 'border-green-500', 'border-red-500');
+            boliResultDiv.classList.add('bg-blue-100', 'border-blue-500');
+            boliResultText.innerHTML = '<i class="bi bi-arrow-repeat animate-spin"></i> Sending notifications...';
+
+            try {
+                const response = await fetch('/api/sms/boli', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        item_type: itemType,
+                        rate: parseFloat(rate),
+                        buyer_name: buyerName,
+                        language: language
+                    })
+                });
+
+                const result = await response.json();
+
+                boliResultDiv.classList.remove('bg-blue-100', 'border-blue-500');
+
+                if (response.ok && result.success) {
+                    boliResultDiv.classList.add('bg-green-100', 'border-green-500');
+                    boliResultText.innerHTML = `<i class="bi bi-check-circle-fill text-green-600"></i> Sent ${result.sent} notifications, ${result.failed} failed`;
+                    await loadStats();
+
+                    // Clear inputs
+                    document.getElementById('boliItemType').value = '';
+                    document.getElementById('boliRate').value = '';
+                    document.getElementById('boliBuyerName').value = '';
+                    updateBoliPreview();
+                } else {
+                    boliResultDiv.classList.add('bg-red-100', 'border-red-500');
+                    boliResultText.innerHTML = `<i class="bi bi-x-circle-fill text-red-600"></i> ${result.message || 'Failed to send notifications'}`;
+                }
+            } catch (error) {
+                console.error('Error sending Boli notification:', error);
+                boliResultDiv.classList.remove('bg-blue-100', 'border-blue-500');
+                boliResultDiv.classList.add('bg-red-100', 'border-red-500');
+                boliResultText.innerHTML = `<i class="bi bi-x-circle-fill text-red-600"></i> ${error.message}`;
+            }
         }
     </script>
 </body>

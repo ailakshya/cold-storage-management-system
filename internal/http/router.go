@@ -127,6 +127,9 @@ func NewRouter(
 	r.HandleFunc("/sms/bulk", pageHandler.SMSBulkPage).Methods("GET")
 	r.HandleFunc("/sms/logs", pageHandler.SMSLogsPage).Methods("GET")
 
+	// Portfolio website for gurukripacoldstore.in
+	r.HandleFunc("/portfolio", pageHandler.PortfolioPage).Methods("GET")
+
 	// Guard pages (auth handled client-side via localStorage token)
 	r.HandleFunc("/guard/dashboard", pageHandler.GuardDashboardPage).Methods("GET")
 	r.HandleFunc("/guard/register", pageHandler.GuardRegisterPage).Methods("GET")
@@ -267,6 +270,7 @@ func NewRouter(
 		smsAPI.HandleFunc("/settings", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.GetNotificationSettings)).ServeHTTP).Methods("GET")
 		smsAPI.HandleFunc("/settings", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.UpdateNotificationSettings)).ServeHTTP).Methods("PUT")
 		smsAPI.HandleFunc("/test", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.TestSMS)).ServeHTTP).Methods("POST")
+		smsAPI.HandleFunc("/boli", authMiddleware.RequireRole("admin")(http.HandlerFunc(smsHandler.SendBoliNotification)).ServeHTTP).Methods("POST")
 	}
 
 	// Protected API routes - Merge History (admin only)

@@ -218,3 +218,8 @@ func (h *PageHandler) SMSBulkPage(w http.ResponseWriter, r *http.Request) {
 func (h *PageHandler) SMSLogsPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "sms_logs.html", nil)
 }
+
+// PortfolioPage serves the Guru Kripa Cold Store portfolio website
+func (h *PageHandler) PortfolioPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "portfolio.html", nil)
+}

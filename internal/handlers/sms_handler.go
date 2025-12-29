@@ -362,3 +362,106 @@ func (h *SMSHandler) TestSMS(w http.ResponseWriter, r *http.Request) {
 		"message": "Test SMS sent successfully",
 	})
 }
+
+// BoliNotificationRequest represents a boli notification request
+type BoliNotificationRequest struct {
+	ItemType  string  `json:"item_type"`
+	Rate      float64 `json:"rate"`
+	BuyerName string  `json:"buyer_name"`
+	Language  string  `json:"language"` // "hindi" or "english"
+}
+
+// SendBoliNotification sends boli (buyer arrival) notification to customers with active entries
+func (h *SMSHandler) SendBoliNotification(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var req BoliNotificationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.ItemType == "" {
+		http.Error(w, "Item type is required", http.StatusBadRequest)
+		return
+	}
+
+	if req.Rate <= 0 {
+		http.Error(w, "Rate must be greater than 0", http.StatusBadRequest)
+		return
+	}
+
+	if req.Language == "" {
+		req.Language = "hindi" // Default to Hindi
+	}
+
+	// Get customers with active entries
+	hasActiveEntry := true
+	filters := models.SMSFilter{
+		HasActiveEntry: &hasActiveEntry,
+	}
+
+	customers, err := h.SMSLogRepo.GetFilteredCustomers(ctx, filters)
+	if err != nil {
+		http.Error(w, "Failed to fetch customers: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if len(customers) == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"total":   0,
+			"sent":    0,
+			"failed":  0,
+			"message": "No customers with active entries found",
+		})
+		return
+	}
+
+	success := 0
+	failed := 0
+
+	for _, c := range customers {
+		phone, _ := c["phone"].(string)
+		name, _ := c["name"].(string)
+		customerID, _ := c["customer_id"].(int)
+
+		if phone == "" {
+			failed++
+			continue
+		}
+
+		// Generate personalized message
+		var message string
+		if req.Language == "hindi" {
+			message = fmt.Sprintf("%s जी, आज कोल्ड स्टोरेज में %s की बोली लगने वाली है।", name, req.ItemType)
+			if req.BuyerName != "" {
+				message += fmt.Sprintf(" खरीददार: %s।", req.BuyerName)
+			}
+			message += fmt.Sprintf(" अनुमानित भाव: Rs.%.0f/क्विंटल। कृपया अपना माल बेचने हेतु संपर्क करें। धन्यवाद!", req.Rate)
+		} else {
+			message = fmt.Sprintf("Dear %s, buyers available today at Cold Storage for %s.", name, req.ItemType)
+			if req.BuyerName != "" {
+				message += fmt.Sprintf(" Buyer: %s.", req.BuyerName)
+			}
+			message += fmt.Sprintf(" Expected Rate: Rs.%.0f/quintal. Contact us to sell at best rates. Thank you!", req.Rate)
+		}
+
+		err := h.SMSService.SendSMS(phone, message, models.SMSTypeBoli, customerID)
+		if err != nil {
+			failed++
+		} else {
+			success++
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"total":   len(customers),
+		"sent":    success,
+		"failed":  failed,
+		"message": fmt.Sprintf("Sent %d बोली notifications, %d failed", success, failed),
+	})
+}
