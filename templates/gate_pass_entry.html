@@ -976,8 +976,26 @@
                         const thockData = customerAccount.thocks.find(t => t.thock_number === selectedThockEntry.thock_number);
                         if (thockData) {
                             const thockQty = thockData.quantity || 0;
-                            const thockOutgoing = thockData.outgoing || 0;
+
+                            // Always calculate per-thock outgoing from gate passes for accuracy
+                            let thockOutgoing = 0;
+                            const gpResponse = await fetch('/api/gate-passes', {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            });
+                            if (gpResponse.ok) {
+                                const allGatePasses = await gpResponse.json();
+                                const thockGatePasses = allGatePasses.filter(gp =>
+                                    (gp.status === 'completed' || gp.status === 'partially_completed') &&
+                                    gp.thock_number === selectedThockEntry.thock_number &&
+                                    (gp.customer_phone === customerPhone || gp.customer_id === parseInt(customerId))
+                                );
+                                thockOutgoing = thockGatePasses.reduce((sum, gp) =>
+                                    sum + (gp.total_picked_up || (gp.status === 'completed' ? gp.requested_quantity : 0) || 0), 0);
+                            }
+
                             availableInventory = Math.max(0, thockQty - thockOutgoing);
+                            totalOutgoing = thockOutgoing; // Update for payment calculation
+                            console.log('Per-thock inventory:', { thock: selectedThockEntry.thock_number, qty: thockQty, outgoing: thockOutgoing, available: availableInventory });
                         }
                     } else {
                         // All trucks - use total from accounts summary
