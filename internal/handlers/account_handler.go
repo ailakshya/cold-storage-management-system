@@ -325,7 +325,10 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 	var totalThocks, totalQty int
 
 	for _, customer := range customerMap {
-		customer.Balance = customer.TotalRent - customer.TotalPaid
+		// Balance = (Total Rent for items IN storage) - (Rent for items that went OUT) - Paid
+		// When items go out, rent should decrease for those items
+		currentRent := customer.TotalRent - customer.OutgoingRent
+		customer.Balance = currentRent - customer.TotalPaid
 		customers = append(customers, *customer)
 		totalOutstanding += customer.Balance
 		totalCollected += customer.TotalPaid

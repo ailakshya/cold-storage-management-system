@@ -385,8 +385,10 @@
                 }
 
                 const allReqs = await response.json() || [];
-                // Filter for used/approved requests (items taken out on credit)
-                creditOutItems = allReqs.filter(r => r.status === 'used' || r.status === 'approved');
+                // Filter for ONLY used requests (items actually taken out on credit)
+                // 'approved' means approved but not yet picked up
+                // 'used' means items were actually taken out
+                creditOutItems = allReqs.filter(r => r.status === 'used');
                 renderCreditOut(creditOutItems);
                 document.getElementById('creditOutCount').textContent = creditOutItems.length;
 
@@ -433,7 +435,7 @@
                     </div>
                 </div>
                 ${items.map(item => `
-                    <div class="debtor-card p-4 border-l-4 ${item.status === 'used' ? 'border-red-500' : 'border-orange-500'}">
+                    <div class="debtor-card p-4 border-l-4 border-red-500">
                         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                             <div class="flex-1">
                                 <h3 class="text-lg font-bold">${escapeHtml(item.customer_name)}</h3>
@@ -453,7 +455,7 @@
                             <div class="text-right">
                                 <p class="text-xl font-bold text-red-600">₹${formatNumber(item.current_balance)}</p>
                                 <p class="text-sm text-gray-500">balance due</p>
-                                <span class="badge ${item.status === 'used' ? 'bg-red-200 text-red-800' : 'badge-approved'}">${item.status === 'used' ? '📦 TAKEN OUT' : '✅ APPROVED'}</span>
+                                <span class="badge bg-red-200 text-red-800">📦 TAKEN OUT</span>
                             </div>
                             <div class="flex gap-2">
                                 <a href="/rent-management?phone=${encodeURIComponent(item.customer_phone)}" class="neu-button bg-blue-500 text-white text-sm">
