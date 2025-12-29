@@ -549,7 +549,9 @@
 
                 if (!response.ok) {
                     if (response.status === 401) return;
-                    throw new Error('Failed to load credit items');
+                    const errorText = await response.text();
+                    console.error('Debt requests API error:', response.status, errorText);
+                    throw new Error(`Failed to load credit items: ${response.status} - ${errorText}`);
                 }
 
                 const allReqs = await response.json() || [];
@@ -570,7 +572,7 @@
             } catch (error) {
                 console.error('Error loading credit out items:', error);
                 document.getElementById('creditOutList').innerHTML = `
-                    <p class="text-red-500 text-center py-4">Error loading credit items</p>
+                    <p class="text-red-500 text-center py-4">Error: ${escapeHtml(error.message)}</p>
                 `;
             }
         }
