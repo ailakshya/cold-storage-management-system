@@ -78,7 +78,15 @@ func (r *SystemSettingRepository) Update(ctx context.Context, key string, value 
 		WHERE setting_key = $3
 	`
 
-	_, err := r.DB.Exec(ctx, query, value, userID, key)
+	// Pass NULL for user ID if 0 (foreign key constraint)
+	var userIDParam interface{}
+	if userID == 0 {
+		userIDParam = nil
+	} else {
+		userIDParam = userID
+	}
+
+	_, err := r.DB.Exec(ctx, query, value, userIDParam, key)
 	return err
 }
 
@@ -91,6 +99,14 @@ func (r *SystemSettingRepository) Upsert(ctx context.Context, key string, value 
 		DO UPDATE SET setting_value = $2, description = $3, updated_at = CURRENT_TIMESTAMP, updated_by_user_id = $4
 	`
 
-	_, err := r.DB.Exec(ctx, query, key, value, description, userID)
+	// Pass NULL for user ID if 0 (foreign key constraint)
+	var userIDParam interface{}
+	if userID == 0 {
+		userIDParam = nil
+	} else {
+		userIDParam = userID
+	}
+
+	_, err := r.DB.Exec(ctx, query, key, value, description, userIDParam)
 	return err
 }
