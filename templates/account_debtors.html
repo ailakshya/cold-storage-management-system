@@ -594,7 +594,29 @@
                     throw new Error(error);
                 }
 
-                // Then create a gate pass for the approved request
+                // Get customer ID from phone number
+                const customerResponse = await fetch(`/api/customers/search?phone=${encodeURIComponent(request.customer_phone)}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!customerResponse.ok) {
+                    alert('Debt request approved! Note: Could not find customer - employee can create gate pass manually.');
+                    closeModal();
+                    loadData();
+                    return;
+                }
+
+                const customers = await customerResponse.json();
+                const customer = customers.find(c => c.phone === request.customer_phone);
+
+                if (!customer) {
+                    alert('Debt request approved! Note: Customer not found - employee can create gate pass manually.');
+                    closeModal();
+                    loadData();
+                    return;
+                }
+
+                // Create a gate pass for the approved request
                 const gatePassResponse = await fetch('/api/gate-passes', {
                     method: 'POST',
                     headers: {
@@ -602,18 +624,19 @@
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        customer_phone: request.customer_phone,
+                        customer_id: customer.id,
                         thock_number: request.thock_number,
-                        quantity: request.requested_quantity,
-                        remarks: `Debt Approval #${currentRequestId} | Recipient: ${request.customer_name}`,
-                        debt_request_id: currentRequestId
+                        requested_quantity: request.requested_quantity,
+                        payment_verified: true,
+                        payment_amount: 0,
+                        remarks: `Debt Approval #${currentRequestId} | Recipient: ${request.customer_name}`
                     })
                 });
 
                 if (!gatePassResponse.ok) {
                     const error = await gatePassResponse.text();
                     console.error('Gate pass creation failed:', error);
-                    alert('Debt request approved! Note: Gate pass creation failed - employee can create it manually.');
+                    alert('Debt request approved! Note: Gate pass creation failed - ' + error);
                 } else {
                     const gatePass = await gatePassResponse.json();
                     alert(`Debt request approved and Gate Pass #${gatePass.id} created successfully!`);
