@@ -155,6 +155,12 @@ func (h *AccountHandler) GetAccountSummary(w http.ResponseWriter, r *http.Reques
 	w.Write(data)
 }
 
+// UsedDebtRequest represents a used debt request for credit tracking
+type UsedDebtRequest struct {
+	CustomerPhone     string
+	RequestedQuantity int
+}
+
 // generateAccountSummary generates the account summary data (used by cache and pre-warm)
 func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSummary, error) {
 	// Parallel data fetching using goroutines
@@ -163,16 +169,18 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 		roomEntries         []*models.RoomEntry
 		payments            []*models.RentPayment
 		completedGatePasses []CompletedGatePass
+		usedDebtRequests    []UsedDebtRequest
 		rentPerItem         float64
 		wg                  sync.WaitGroup
 		entriesErr          error
 		roomErr             error
 		paymentsErr         error
 		gatePassErr         error
+		debtErr             error
 		settingsErr         error
 	)
 
-	wg.Add(5)
+	wg.Add(6)
 
 	// Fetch entries
 	go func() {
@@ -196,6 +204,12 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 	go func() {
 		defer wg.Done()
 		completedGatePasses, gatePassErr = h.getCompletedGatePasses(ctx)
+	}()
+
+	// Fetch used debt requests (items taken on credit)
+	go func() {
+		defer wg.Done()
+		usedDebtRequests, debtErr = h.getUsedDebtRequests(ctx)
 	}()
 
 	// Fetch rent per item setting
@@ -229,12 +243,21 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 	if paymentsErr != nil {
 		return nil, fmt.Errorf("failed to load payments: %w", paymentsErr)
 	}
-	// Gate pass and settings errors are non-fatal
+	// Gate pass, debt, and settings errors are non-fatal
 	if settingsErr != nil {
 		rentPerItem = 0
 	}
 	if gatePassErr != nil {
 		completedGatePasses = []CompletedGatePass{}
+	}
+	if debtErr != nil {
+		usedDebtRequests = []UsedDebtRequest{}
+	}
+
+	// Build credit map from used debt requests (items taken on credit that are still owed)
+	creditByPhone := make(map[string]float64)
+	for _, dr := range usedDebtRequests {
+		creditByPhone[dr.CustomerPhone] += float64(dr.RequestedQuantity) * rentPerItem
 	}
 
 	// Build thock stored quantity map from room entries
@@ -325,10 +348,11 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 	var totalThocks, totalQty int
 
 	for _, customer := range customerMap {
-		// Balance = TotalRent - TotalPaid
-		// TotalRent includes rent for ALL items (in inventory + taken out on credit)
-		// This ensures debt from admin-approved credit items is still counted
-		customer.Balance = customer.TotalRent - customer.TotalPaid
+		// Balance = TotalRent + CreditValue - TotalPaid
+		// TotalRent = rent for items currently in storage
+		// CreditValue = rent for items taken out on credit (admin-approved debt)
+		creditValue := creditByPhone[customer.Phone]
+		customer.Balance = customer.TotalRent + creditValue - customer.TotalPaid
 		customers = append(customers, *customer)
 		totalOutstanding += customer.Balance
 		totalCollected += customer.TotalPaid
@@ -384,6 +408,32 @@ func (h *AccountHandler) getCompletedGatePasses(ctx context.Context) ([]Complete
 			return nil, err
 		}
 		results = append(results, gp)
+	}
+
+	return results, nil
+}
+
+// getUsedDebtRequests fetches used debt requests (items taken on credit)
+func (h *AccountHandler) getUsedDebtRequests(ctx context.Context) ([]UsedDebtRequest, error) {
+	query := `
+		SELECT customer_phone, requested_quantity
+		FROM debt_requests
+		WHERE status = 'used'
+	`
+
+	rows, err := h.DB.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []UsedDebtRequest
+	for rows.Next() {
+		var dr UsedDebtRequest
+		if err := rows.Scan(&dr.CustomerPhone, &dr.RequestedQuantity); err != nil {
+			return nil, err
+		}
+		results = append(results, dr)
 	}
 
 	return results, nil
