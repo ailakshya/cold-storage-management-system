@@ -66,7 +66,16 @@ func NewRouter(
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 
 	// Public HTML pages (NO AUTHENTICATION REQUIRED)
-	r.HandleFunc("/", pageHandler.LoginPage).Methods("GET")
+	// Domain-based routing: gurukripacoldstore.in serves portfolio, others serve login
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		// Serve portfolio for gurukripacoldstore.in (not app. or customer. subdomains)
+		if host == "gurukripacoldstore.in" || host == "www.gurukripacoldstore.in" {
+			pageHandler.PortfolioPage(w, r)
+			return
+		}
+		pageHandler.LoginPage(w, r)
+	}).Methods("GET")
 	r.HandleFunc("/login", pageHandler.LoginPage).Methods("GET")
 	r.HandleFunc("/logout", pageHandler.LogoutPage).Methods("GET")
 
