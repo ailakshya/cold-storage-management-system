@@ -768,18 +768,12 @@
             // Calculate items paid for
             const totalExpectedItems = customerEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
 
-            // Calculate total rent - if not available, derive from paid + balance
-            let actualTotalRent = totalRentOwed;
-            if (actualTotalRent <= 0 && (totalPaid > 0 || balanceDue > 0)) {
-                actualTotalRent = totalPaid + balanceDue;
-            }
-
+            // Use configured rent rate (₹160/item) to calculate items paid for
             let itemsPaidFor = 0;
-            if (actualTotalRent > 0 && totalExpectedItems > 0) {
-                const rentPerItem = actualTotalRent / totalExpectedItems;
-                itemsPaidFor = Math.floor(totalPaid / rentPerItem);
+            if (customerRentRate > 0) {
+                itemsPaidFor = Math.floor(totalPaid / customerRentRate);
             } else if (balanceDue <= 0) {
-                // No rent at all - can take all
+                // No rent rate configured and no balance - can take all
                 itemsPaidFor = totalExpectedItems;
             }
 
@@ -987,23 +981,16 @@
                 const totalCurrentInventory = allCustomerRoomEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
                 const itemsAlreadyTakenOut = totalExpectedItems - totalCurrentInventory;
 
-                // Calculate total rent - if not available, derive from paid + balance
-                let actualTotalRent = totalRentOwed;
-                if (actualTotalRent <= 0 && (totalPaid > 0 || balanceDue > 0)) {
-                    actualTotalRent = totalPaid + balanceDue;
-                }
-
-                // Calculate rent per item and items paid for
+                // Use configured rent rate (₹160/item) to calculate items paid for
                 let canTakeOut = 0;
                 let itemsPaidFor = 0;
-                if (totalExpectedItems > 0 && actualTotalRent > 0) {
-                    const rentPerItem = actualTotalRent / totalExpectedItems;
-                    itemsPaidFor = Math.floor(totalPaid / rentPerItem);
+                if (customerRentRate > 0) {
+                    itemsPaidFor = Math.floor(totalPaid / customerRentRate);
                     // Can take out = MIN(available inventory, items paid for - items already taken out)
                     const paidAllowance = Math.max(0, itemsPaidFor - itemsAlreadyTakenOut);
                     canTakeOut = Math.min(availableInventory, paidAllowance);
                 } else if (balanceDue <= 0) {
-                    // No rent or fully paid - can take all available
+                    // No rent rate configured and no balance - can take all available
                     canTakeOut = availableInventory;
                     itemsPaidFor = totalExpectedItems;
                 }
@@ -1100,18 +1087,12 @@
             // PROPORTIONAL: Calculate how many items customer has paid for
             const totalExpectedItems = customerEntries.reduce((sum, e) => sum + (e.expected_quantity || 0), 0);
 
-            // Calculate total rent - if not available, derive from paid + balance
-            let actualTotalRent = totalRentOwed;
-            if (actualTotalRent <= 0 && (totalPaid > 0 || balanceDue > 0)) {
-                actualTotalRent = totalPaid + balanceDue;
-            }
-
+            // Use configured rent rate (₹160/item) to calculate items paid for
             let itemsPaidFor = 0;
-            if (actualTotalRent > 0 && totalExpectedItems > 0) {
-                const rentPerItem = actualTotalRent / totalExpectedItems;
-                itemsPaidFor = Math.floor(totalPaid / rentPerItem);
+            if (customerRentRate > 0) {
+                itemsPaidFor = Math.floor(totalPaid / customerRentRate);
             } else if (balanceDue <= 0) {
-                // No rent at all - can take all
+                // No rent rate configured and no balance - can take all
                 itemsPaidFor = totalExpectedItems;
             }
 
