@@ -22,19 +22,17 @@ func NewDebtService(debtRepo *repositories.DebtRequestRepository, ledgerService 
 
 // CreateRequest creates a new debt request
 func (s *DebtService) CreateRequest(ctx context.Context, req *models.CreateDebtRequestRequest, requestedByUserID int, requestedByName string) (*models.DebtRequest, error) {
-	// Validate that customer actually has outstanding balance
+	// Try to get balance from ledger first
 	hasBalance, balance, err := s.LedgerService.HasOutstandingBalance(ctx, req.CustomerPhone)
-	if err != nil {
-		// If ledger has no entries, check if balance was provided
-		if req.CurrentBalance <= 0 {
-			return nil, fmt.Errorf("customer has no outstanding balance")
-		}
-	} else if !hasBalance {
-		return nil, fmt.Errorf("customer has no outstanding balance")
-	} else {
-		// Update the current balance from ledger
+	if err == nil && hasBalance {
+		// Use ledger balance if available
 		req.CurrentBalance = balance
+	} else if req.CurrentBalance <= 0 {
+		// No ledger balance AND no balance sent from frontend
+		return nil, fmt.Errorf("customer has no outstanding balance")
 	}
+	// If ledger has no balance but frontend sent balance > 0, trust it
+	// (balance might come from rent system which is separate from ledger)
 
 	return s.DebtRepo.Create(ctx, req, requestedByUserID, requestedByName)
 }
