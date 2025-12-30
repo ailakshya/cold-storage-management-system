@@ -14,38 +14,41 @@
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
     <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <link href="/static/css/inventory-theme.css" rel="stylesheet">
     <style>
         * { font-family: 'Space Grotesk', sans-serif; }
         .neu-border {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
             transition: all 0.2s ease;
         }
         .neu-border:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
         .neu-input {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             padding: 0.75rem;
             font-size: 1rem;
+            border-radius: 8px;
         }
         .neu-button {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
             padding: 0.75rem 1.5rem;
             font-weight: 600;
+            border-radius: 10px;
             transition: all 0.2s ease;
             cursor: pointer;
         }
         .neu-button:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         .neu-button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #000;
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         @keyframes spin {
             from { transform: rotate(0deg); }
@@ -77,7 +80,7 @@
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-6">
+<body class="bg-[#f8fafb] min-h-screen p-4 md:p-6">
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 neu-border bg-white p-4">
@@ -93,10 +96,13 @@
                     </div>
                 </div>
             </div>
-            <div class="flex gap-2">
-                <button onclick="theme.toggle()" class="neu-button bg-gray-200" title="Toggle Dark Mode">
+            <div class="flex gap-2 items-center">
+                <button onclick="theme.toggle()" class="neu-button bg-gray-100" title="Toggle Dark Mode">
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
+                <button class="neu-button bg-gray-100" onclick="history.back()">
+                    <span>Back</span> <i class="bi bi-arrow-right"></i>
                 </button>
                 <a href="/sms/bulk" class="neu-button bg-blue-500 text-white">
                     <i class="bi bi-send-fill"></i> Send SMS

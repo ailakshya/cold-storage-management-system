@@ -275,7 +275,7 @@
                                     type="number"
                                     id="customQuantityInput"
                                     min="1"
-                                    class="flex-1 border-3 border-black p-2 text-base"
+                                    class="flex-1 border border-gray-300 rounded-lg p-2 text-base shadow-sm"
                                     placeholder="Enter custom value"
                                 >
                                 <button type="button" onclick="addCustomQuantity()" class="neu-button bg-green-500 text-white px-4 text-sm">
@@ -425,7 +425,7 @@
                 chipsContainer.innerHTML = '<span class="text-sm text-gray-400 self-center">Click values above to add...</span>';
             } else {
                 chipsContainer.innerHTML = quantityValues.map((val, index) => `
-                    <span class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full text-lg font-bold border-3 border-black">
+                    <span class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full text-lg font-bold shadow-md">
                         ${val}
                         <button type="button" onclick="removeQuantity(${index})" class="hover:bg-red-500 rounded-full p-1 transition-colors" title="Remove">
                             <i class="bi bi-x-lg"></i>

@@ -179,13 +179,13 @@
                 <p class="text-sm text-gray-500 mt-2">Current value will be loaded automatically</p>
             </div>
 
-            <div id="successMessage" class="hidden p-4 bg-green-100 border-3 border-green-600 mb-4">
+            <div id="successMessage" class="hidden p-4 bg-green-100 rounded-xl border border-green-400 mb-4">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> Setting updated successfully!
                 </p>
             </div>
 
-            <div id="errorMessage" class="hidden p-4 bg-red-100 border-3 border-red-600 mb-4">
+            <div id="errorMessage" class="hidden p-4 bg-red-100 rounded-xl border border-red-400 mb-4">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="errorText"></span>
                 </p>
@@ -306,13 +306,13 @@
                 </button>
             </div>
 
-            <div id="smsSuccessMessage" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+            <div id="smsSuccessMessage" class="hidden mt-4 p-4 bg-green-100 rounded-xl border border-green-400">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> SMS rate limits updated successfully!
                 </p>
             </div>
 
-            <div id="smsErrorMessage" class="hidden mt-4 p-4 bg-red-100 border-3 border-red-600">
+            <div id="smsErrorMessage" class="hidden mt-4 p-4 bg-red-100 rounded-xl border border-red-400">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="smsErrorText"></span>
                 </p>
@@ -537,13 +537,13 @@
                 </button>
             </div>
 
-            <div id="smsNotifSuccessMessage" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+            <div id="smsNotifSuccessMessage" class="hidden mt-4 p-4 bg-green-100 rounded-xl border border-green-400">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> SMS settings updated successfully!
                 </p>
             </div>
 
-            <div id="smsNotifErrorMessage" class="hidden mt-4 p-4 bg-red-100 border-3 border-red-600">
+            <div id="smsNotifErrorMessage" class="hidden mt-4 p-4 bg-red-100 rounded-xl border border-red-400">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="smsNotifErrorText"></span>
                 </p>
@@ -595,13 +595,13 @@
                 </button>
             </div>
 
-            <div id="portalSuccessMessage" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+            <div id="portalSuccessMessage" class="hidden mt-4 p-4 bg-green-100 rounded-xl border border-green-400">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> Customer portal settings updated!
                 </p>
             </div>
 
-            <div id="portalErrorMessage" class="hidden mt-4 p-4 bg-red-100 border-3 border-red-600">
+            <div id="portalErrorMessage" class="hidden mt-4 p-4 bg-red-100 rounded-xl border border-red-400">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="portalErrorText"></span>
                 </p>
@@ -693,13 +693,13 @@
                 </a>
             </div>
 
-            <div id="onlinePaymentSuccessMessage" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+            <div id="onlinePaymentSuccessMessage" class="hidden mt-4 p-4 bg-green-100 rounded-xl border border-green-400">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> Online payment settings updated!
                 </p>
             </div>
 
-            <div id="onlinePaymentErrorMessage" class="hidden mt-4 p-4 bg-red-100 border-3 border-red-600">
+            <div id="onlinePaymentErrorMessage" class="hidden mt-4 p-4 bg-red-100 rounded-xl border border-red-400">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="onlinePaymentErrorText"></span>
                 </p>
@@ -1090,35 +1090,35 @@
                 </label>
                 <div class="grid grid-cols-4 md:grid-cols-8 gap-3" id="tokenColorGrid">
                     <button type="button" onclick="selectTokenColor('RED')" data-color="RED"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-red-500 text-white hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-red-300 text-center font-bold bg-red-500 text-white hover:scale-105 hover:shadow-lg transition-all">
                         RED<br><span class="text-xs">लाल</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('BLUE')" data-color="BLUE"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-blue-500 text-white hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-blue-300 text-center font-bold bg-blue-500 text-white hover:scale-105 hover:shadow-lg transition-all">
                         BLUE<br><span class="text-xs">नीला</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('GREEN')" data-color="GREEN"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-green-500 text-white hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-green-300 text-center font-bold bg-green-500 text-white hover:scale-105 hover:shadow-lg transition-all">
                         GREEN<br><span class="text-xs">हरा</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('YELLOW')" data-color="YELLOW"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-yellow-400 text-black hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-yellow-300 text-center font-bold bg-yellow-400 text-black hover:scale-105 hover:shadow-lg transition-all">
                         YELLOW<br><span class="text-xs">पीला</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('ORANGE')" data-color="ORANGE"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-orange-500 text-white hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-orange-300 text-center font-bold bg-orange-500 text-white hover:scale-105 hover:shadow-lg transition-all">
                         ORANGE<br><span class="text-xs">नारंगी</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('PINK')" data-color="PINK"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-pink-500 text-white hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-pink-300 text-center font-bold bg-pink-500 text-white hover:scale-105 hover:shadow-lg transition-all">
                         PINK<br><span class="text-xs">गुलाबी</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('WHITE')" data-color="WHITE"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-white text-black hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-gray-300 text-center font-bold bg-white text-black hover:scale-105 hover:shadow-lg transition-all">
                         WHITE<br><span class="text-xs">सफेद</span>
                     </button>
                     <button type="button" onclick="selectTokenColor('PURPLE')" data-color="PURPLE"
-                            class="token-color-btn p-4 border-3 border-black text-center font-bold bg-purple-600 text-white hover:scale-105 transition-transform">
+                            class="token-color-btn p-4 rounded-xl shadow-md border-2 border-purple-300 text-center font-bold bg-purple-600 text-white hover:scale-105 hover:shadow-lg transition-all">
                         PURPLE<br><span class="text-xs">बैंगनी</span>
                     </button>
                 </div>
@@ -1135,13 +1135,13 @@
                 </div>
             </div>
 
-            <div id="tokenColorSuccess" class="hidden mt-4 p-4 bg-green-100 border-3 border-green-600">
+            <div id="tokenColorSuccess" class="hidden mt-4 p-4 bg-green-100 rounded-xl border border-green-400">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> Token color updated successfully!
                 </p>
             </div>
 
-            <div id="tokenColorError" class="hidden mt-4 p-4 bg-red-100 border-3 border-red-600">
+            <div id="tokenColorError" class="hidden mt-4 p-4 bg-red-100 rounded-xl border border-red-400">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="tokenColorErrorText"></span>
                 </p>
@@ -1213,13 +1213,13 @@
                 </div>
             </div>
 
-            <div id="skipSuccessMessage" class="hidden p-4 bg-green-100 border-3 border-green-600 mb-4">
+            <div id="skipSuccessMessage" class="hidden p-4 bg-green-100 rounded-xl border border-green-400 mb-4">
                 <p class="text-green-800 font-bold">
                     <i class="bi bi-check-circle-fill"></i> Skip range updated successfully!
                 </p>
             </div>
 
-            <div id="skipErrorMessage" class="hidden p-4 bg-red-100 border-3 border-red-600 mb-4">
+            <div id="skipErrorMessage" class="hidden p-4 bg-red-100 rounded-xl border border-red-400 mb-4">
                 <p class="text-red-800 font-bold">
                     <i class="bi bi-exclamation-triangle-fill"></i> <span id="skipErrorText"></span>
                 </p>
@@ -2495,7 +2495,7 @@
                 const isToday = i === 0;
 
                 const div = document.createElement('div');
-                div.className = `text-center p-2 border-2 border-black ${isToday ? 'ring-2 ring-orange-500' : ''}`;
+                div.className = `text-center p-2 rounded-lg shadow-sm border border-gray-200 ${isToday ? 'ring-2 ring-orange-400' : ''}`;
                 div.style.backgroundColor = colorInfo.bg;
                 div.style.color = colorInfo.text;
                 div.innerHTML = `

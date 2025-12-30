@@ -1168,7 +1168,7 @@
                 chipsContainer.innerHTML = `<span class="text-sm text-gray-400 self-center">${clickMsg}</span>`;
             } else {
                 chipsContainer.innerHTML = quantityValues.map((val, index) => `
-                    <span class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full text-lg font-bold border-3 border-black">
+                    <span class="inline-flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-full text-lg font-bold shadow-md">
                         ${val}
                         <button type="button" onclick="removeQuantity(${index})" class="hover:bg-red-500 rounded-full p-1 transition-colors" title="Remove">
                             <i class="bi bi-x-lg"></i>

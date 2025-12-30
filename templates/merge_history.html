@@ -273,7 +273,7 @@
                 let entriesHtml = '';
                 if (log.merge_details?.entries && log.merge_details.entries.length > 0) {
                     entriesHtml = `
-                        <div class="mt-3 p-3 bg-yellow-50 border-2 border-yellow-300">
+                        <div class="mt-3 p-3 bg-yellow-50 border border-yellow-300 rounded-lg">
                             <p class="font-bold text-sm mb-2"><i class="bi bi-box-seam"></i> Thocks Transferred (${log.merge_details.entries.length}):</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                                 ${log.merge_details.entries.map(e => `
@@ -292,7 +292,7 @@
                 if (log.merge_details?.payments && log.merge_details.payments.length > 0) {
                     const totalPayments = log.merge_details.payments.reduce((sum, p) => sum + p.amount, 0);
                     paymentsHtml = `
-                        <div class="mt-3 p-3 bg-green-50 border-2 border-green-300">
+                        <div class="mt-3 p-3 bg-green-50 border border-green-300 rounded-lg">
                             <p class="font-bold text-sm mb-2"><i class="bi bi-cash"></i> Payments Transferred (${log.merge_details.payments.length}) - Total: ₹${totalPayments.toLocaleString()}:</p>
                             <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
                                 ${log.merge_details.payments.map(p => `
@@ -318,7 +318,7 @@
 
                                 <div class="grid md:grid-cols-2 gap-4">
                                     <!-- Source Customer -->
-                                    <div class="p-3 bg-red-50 border-2 border-red-300">
+                                    <div class="p-3 bg-red-50 border border-red-300 rounded-lg">
                                         <p class="text-xs text-red-600 font-bold mb-1">SOURCE (MERGED)</p>
                                         <h3 class="text-lg font-bold">${capitalizeText(log.source_customer_name || '')}</h3>
                                         <p class="text-gray-600 text-sm">
@@ -329,7 +329,7 @@
                                     </div>
 
                                     <!-- Target Customer -->
-                                    <div class="p-3 bg-green-50 border-2 border-green-300">
+                                    <div class="p-3 bg-green-50 border border-green-300 rounded-lg">
                                         <p class="text-xs text-green-600 font-bold mb-1">TARGET (KEPT)</p>
                                         <h3 class="text-lg font-bold">${capitalizeText(log.target_customer_name || '')}</h3>
                                         <p class="text-gray-600 text-sm">
@@ -386,7 +386,7 @@
                                 | ${capitalizeText(c.village)}
                             </p>
                             ${c.target_customer ? `
-                                <div class="mt-2 p-2 bg-green-50 border-2 border-green-300">
+                                <div class="mt-2 p-2 bg-green-50 border border-green-300 rounded-lg">
                                     <p class="text-sm text-green-700">
                                         <i class="bi bi-arrow-right"></i> Merged into:
                                         <strong>${capitalizeText(c.target_customer.name)}</strong> (${c.target_customer.phone})
@@ -428,7 +428,7 @@
                                 Original: ${capitalizeText(e.name)} (${e.phone}) | ${capitalizeText(e.village)}
                             </p>
                             ${e.current_customer ? `
-                                <div class="mt-2 p-2 bg-blue-50 border-2 border-blue-300">
+                                <div class="mt-2 p-2 bg-blue-50 border border-blue-300 rounded-lg">
                                     <p class="text-sm text-blue-700">
                                         <i class="bi bi-arrow-right"></i> Now belongs to:
                                         <strong>${capitalizeText(e.current_customer.name)}</strong> (${e.current_customer.phone})
