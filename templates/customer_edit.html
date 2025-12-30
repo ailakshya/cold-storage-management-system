@@ -142,7 +142,11 @@
                     <div>
                         <label class="block font-semibold mb-2">Phone *</label>
                         <input type="tel" id="customerPhone" required maxlength="10" minlength="10"
-                               pattern="[0-9]{10}" class="w-full p-3 neu-brutal bg-white" placeholder="10-digit phone number">
+                               pattern="[0-9]{10}" class="w-full p-3 neu-brutal bg-white" placeholder="10-digit phone number"
+                               oninput="validatePhoneOnCreate()">
+                        <p id="phoneExistsWarning" class="hidden text-sm mt-1 text-red-600 font-semibold">
+                            <i class="bi bi-exclamation-triangle"></i> Customer with this phone already exists!
+                        </p>
                     </div>
 
                     <div>
@@ -379,6 +383,35 @@
                 alert('Customer deleted successfully!');
             } catch (error) {
                 alert('Error: ' + error.message);
+            }
+        }
+
+        // Real-time phone validation for create mode
+        function validatePhoneOnCreate() {
+            const isCreateMode = document.getElementById('isCreateMode').value === 'true';
+            const warningEl = document.getElementById('phoneExistsWarning');
+            const phoneInput = document.getElementById('customerPhone');
+
+            if (!isCreateMode) {
+                warningEl.classList.add('hidden');
+                phoneInput.style.borderColor = '';
+                return;
+            }
+
+            const phone = phoneInput.value.trim();
+            if (phone.length === 10) {
+                const existing = allCustomers.find(c => c.phone === phone);
+                if (existing) {
+                    warningEl.innerHTML = `<i class="bi bi-exclamation-triangle"></i> Customer "${existing.name}" already exists with this phone!`;
+                    warningEl.classList.remove('hidden');
+                    phoneInput.style.borderColor = 'red';
+                } else {
+                    warningEl.classList.add('hidden');
+                    phoneInput.style.borderColor = 'green';
+                }
+            } else {
+                warningEl.classList.add('hidden');
+                phoneInput.style.borderColor = '';
             }
         }
 
@@ -654,6 +687,15 @@
                 so: document.getElementById('customerSO').value,
                 village: document.getElementById('customerVillage').value
             };
+
+            // Validate: Check if phone already exists when creating new customer
+            if (isCreateMode) {
+                const existingCustomer = allCustomers.find(c => c.phone === customerData.phone);
+                if (existingCustomer) {
+                    alert(`Customer with phone ${customerData.phone} already exists!\n\nName: ${existingCustomer.name}\nVillage: ${existingCustomer.village || '-'}\n\nUse Search to edit existing customer.`);
+                    return;
+                }
+            }
 
             try {
                 let response;
