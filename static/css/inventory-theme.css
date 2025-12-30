@@ -177,6 +177,10 @@ th:last-child {
     border-radius: 16px !important;
     box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
     border: 1px solid var(--border-color) !important;
+}
+
+/* Only set white background on cards without gradient backgrounds */
+.neu-border:not([class*="bg-gradient"]):not([class*="from-"]) {
     background: var(--white);
 }
 
