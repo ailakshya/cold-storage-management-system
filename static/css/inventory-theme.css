@@ -25,6 +25,80 @@
     --white: #ffffff;
     --text-muted: #6c7a89;
     --border-color: #e0e6ed;
+
+    /* Border Radius Scale */
+    --radius-sm: 6px;
+    --radius-md: 10px;
+    --radius-lg: 16px;
+}
+
+/* ===========================================
+   Global Border Radius - Make Everything Curved
+   =========================================== */
+
+/* All buttons get rounded corners */
+button,
+.btn,
+[class*="btn-"],
+[class*="button"],
+.page-button {
+    border-radius: var(--radius-md) !important;
+}
+
+/* All cards and containers */
+.card,
+.panel,
+[class*="card"],
+[class*="border"],
+.neu-border,
+.bg-white,
+.bg-yellow-50,
+.bg-yellow-100,
+.bg-blue-100,
+.bg-green-100,
+.bg-red-100,
+.bg-gray-100 {
+    border-radius: var(--radius-lg) !important;
+}
+
+/* All inputs and selects */
+input,
+select,
+textarea,
+.neu-input,
+.neu-select,
+.lang-selector {
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Badges and pills */
+.badge,
+[class*="badge"],
+.tag,
+.chip,
+.status-badge {
+    border-radius: var(--radius-sm) !important;
+}
+
+/* Tables */
+table {
+    border-radius: var(--radius-md) !important;
+    overflow: hidden;
+}
+
+th:first-child {
+    border-top-left-radius: var(--radius-md) !important;
+}
+
+th:last-child {
+    border-top-right-radius: var(--radius-md) !important;
+}
+
+/* Version badges and small elements */
+[class*="shadow-"],
+.admin-badge,
+.employee-badge {
+    border-radius: var(--radius-sm) !important;
 }
 
 /* ===========================================
