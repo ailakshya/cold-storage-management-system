@@ -69,17 +69,33 @@
             </div>
         </div>
 
-        <!-- Search -->
+        <!-- Search and Create -->
         <div class="mb-6 bg-white p-4 neu-brutal">
-            <div class="flex flex-col md:flex-row gap-4">
+            <div class="flex flex-col md:flex-row gap-4 items-end">
                 <div class="flex-1">
-                    <label class="font-semibold mr-4">Search:</label>
-                    <input type="text" id="searchInput" onkeyup="filterCustomers()"
-                           class="px-4 py-2 neu-brutal bg-white w-full md:w-96"
-                           placeholder="Search by name, phone, or village...">
+                    <label class="font-semibold mr-4">Search by Phone:</label>
+                    <div class="flex gap-2">
+                        <input type="tel" id="phoneSearchInput" maxlength="10"
+                               class="px-4 py-2 neu-brutal bg-white w-full md:w-64"
+                               placeholder="Enter 10-digit phone number"
+                               onkeyup="searchByPhone()">
+                        <button onclick="searchOrCreateCustomer()" class="bg-blue-500 text-white px-4 py-2 neu-brutal whitespace-nowrap">
+                            <i class="bi bi-search"></i> Search
+                        </button>
+                    </div>
+                    <p id="phoneSearchResult" class="text-sm mt-2 hidden"></p>
                 </div>
-                <div>
-                    <span class="font-semibold text-gray-600" id="customerCount">Loading...</span>
+                <div class="flex-1">
+                    <label class="font-semibold mr-4">Filter:</label>
+                    <input type="text" id="searchInput" onkeyup="filterCustomers()"
+                           class="px-4 py-2 neu-brutal bg-white w-full"
+                           placeholder="Filter by name, phone, or village...">
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="openCreateModal()" class="bg-green-500 text-white px-4 py-2 neu-brutal whitespace-nowrap">
+                        <i class="bi bi-plus-circle"></i> New Customer
+                    </button>
+                    <span class="font-semibold text-gray-600 py-2" id="customerCount">Loading...</span>
                 </div>
             </div>
         </div>
@@ -106,40 +122,98 @@
         </div>
     </div>
 
-    <!-- Edit Modal -->
+    <!-- Edit/Create Modal -->
     <div id="customerModal" class="modal items-center justify-center">
-        <div class="bg-white p-8 neu-brutal max-w-md w-full mx-4">
+        <div class="bg-white p-8 neu-brutal max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
             <h2 id="modalTitle" class="text-2xl font-bold mb-6 flex items-center gap-2">
                 <i class="bi bi-pencil-square text-blue-600"></i>
-                Edit Customer
+                <span id="modalTitleText">Edit Customer</span>
             </h2>
             <form id="customerForm" class="space-y-4">
                 <input type="hidden" id="customerId">
+                <input type="hidden" id="isCreateMode" value="false">
 
-                <div>
-                    <label class="block font-semibold mb-2">Name *</label>
-                    <input type="text" id="customerName" required class="w-full p-3 neu-brutal bg-white" placeholder="Customer Name">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block font-semibold mb-2">Name *</label>
+                        <input type="text" id="customerName" required class="w-full p-3 neu-brutal bg-white" placeholder="Customer Name">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold mb-2">Phone *</label>
+                        <input type="tel" id="customerPhone" required maxlength="10" minlength="10"
+                               pattern="[0-9]{10}" class="w-full p-3 neu-brutal bg-white" placeholder="10-digit phone number">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold mb-2">S/O (Father's Name)</label>
+                        <input type="text" id="customerSO" class="w-full p-3 neu-brutal bg-white" placeholder="Son Of / Father's Name">
+                    </div>
+
+                    <div>
+                        <label class="block font-semibold mb-2">Village</label>
+                        <input type="text" id="customerVillage" class="w-full p-3 neu-brutal bg-white" placeholder="Village">
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block font-semibold mb-2">Phone *</label>
-                    <input type="tel" id="customerPhone" required maxlength="10" minlength="10"
-                           pattern="[0-9]{10}" class="w-full p-3 neu-brutal bg-white" placeholder="10-digit phone number">
+                <!-- Family Members Section (only for edit mode) -->
+                <div id="familyMembersSection" class="hidden mt-6 p-4 bg-purple-50 border-2 border-purple-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-purple-800 flex items-center gap-2">
+                            <i class="bi bi-people-fill"></i> Family Members
+                        </h3>
+                        <button type="button" onclick="showAddFamilyMember()" class="bg-purple-500 text-white px-3 py-1 neu-brutal text-sm">
+                            <i class="bi bi-plus"></i> Add Member
+                        </button>
+                    </div>
+                    <div id="familyMembersList" class="space-y-2">
+                        <!-- Family members will be loaded here -->
+                    </div>
+                    <!-- Add Family Member Form (hidden by default) -->
+                    <div id="addFamilyMemberForm" class="hidden mt-4 p-3 bg-white border-2 border-purple-400">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input type="text" id="newFamilyMemberName" class="p-2 neu-brutal bg-white" placeholder="Member Name *">
+                            <select id="newFamilyMemberRelation" class="p-2 neu-brutal bg-white">
+                                <option value="Self">Self</option>
+                                <option value="Son">Son</option>
+                                <option value="Daughter">Daughter</option>
+                                <option value="Wife">Wife</option>
+                                <option value="Brother">Brother</option>
+                                <option value="Father">Father</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="addFamilyMember()" class="flex-1 bg-green-500 text-white p-2 neu-brutal text-sm">
+                                    <i class="bi bi-check"></i> Add
+                                </button>
+                                <button type="button" onclick="hideAddFamilyMember()" class="bg-gray-300 p-2 neu-brutal text-sm">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="block font-semibold mb-2">S/O (Father's Name)</label>
-                    <input type="text" id="customerSO" class="w-full p-3 neu-brutal bg-white" placeholder="Son Of / Father's Name">
-                </div>
-
-                <div>
-                    <label class="block font-semibold mb-2">Village</label>
-                    <input type="text" id="customerVillage" class="w-full p-3 neu-brutal bg-white" placeholder="Village">
+                <!-- Thock Transfer Section (only for edit mode) -->
+                <div id="thockTransferSection" class="hidden mt-6 p-4 bg-yellow-50 border-2 border-yellow-300">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-yellow-800 flex items-center gap-2">
+                            <i class="bi bi-arrow-left-right"></i> Transfer Thocks
+                        </h3>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-3">Transfer all thocks from this customer to another customer</p>
+                    <div class="flex gap-3">
+                        <input type="tel" id="transferToPhone" maxlength="10" class="flex-1 p-2 neu-brutal bg-white" placeholder="Target customer phone">
+                        <button type="button" onclick="initiateTransfer()" class="bg-yellow-500 text-white px-4 py-2 neu-brutal">
+                            <i class="bi bi-arrow-right"></i> Transfer
+                        </button>
+                    </div>
+                    <p id="transferResult" class="text-sm mt-2 hidden"></p>
                 </div>
 
                 <div class="flex gap-4 mt-6">
                     <button type="submit" class="flex-1 bg-[#2ecc71] text-white py-3 neu-brutal">
-                        <i class="bi bi-check-circle"></i> Save
+                        <i class="bi bi-check-circle"></i> <span id="submitBtnText">Save</span>
                     </button>
                     <button type="button" onclick="closeModal()" class="flex-1 bg-gray-300 py-3 neu-brutal">
                         <i class="bi bi-x-circle"></i> Cancel
@@ -275,24 +349,6 @@
                 `Showing: ${filtered.length} of ${allCustomers.length} customers`;
         }
 
-        function editCustomer(id) {
-            const customer = allCustomers.find(c => c.id === id);
-            if (!customer) return;
-
-            document.getElementById('customerId').value = customer.id;
-            document.getElementById('customerName').value = customer.name || '';
-            document.getElementById('customerPhone').value = customer.phone || '';
-            document.getElementById('customerSO').value = customer.so || '';
-            document.getElementById('customerVillage').value = customer.village || '';
-
-            document.getElementById('customerModal').classList.add('show');
-        }
-
-        function closeModal() {
-            document.getElementById('customerModal').classList.remove('show');
-            document.getElementById('customerForm').reset();
-        }
-
         function showDeleteModal(id, name) {
             deleteCustomerId = id;
             document.getElementById('deleteCustomerName').textContent = name;
@@ -326,10 +382,271 @@
             }
         }
 
-        // Form submission
+        // Phone search functionality
+        function searchByPhone() {
+            const phone = document.getElementById('phoneSearchInput').value.trim();
+            const resultEl = document.getElementById('phoneSearchResult');
+
+            if (phone.length < 3) {
+                resultEl.classList.add('hidden');
+                return;
+            }
+
+            const matches = allCustomers.filter(c => c.phone && c.phone.includes(phone));
+
+            if (matches.length > 0) {
+                resultEl.innerHTML = `<span class="text-green-600"><i class="bi bi-check-circle"></i> Found ${matches.length} customer(s)</span>`;
+                resultEl.classList.remove('hidden');
+                renderCustomers(matches);
+                document.getElementById('customerCount').textContent = `Found: ${matches.length} customers`;
+            } else if (phone.length === 10) {
+                resultEl.innerHTML = `<span class="text-orange-600"><i class="bi bi-info-circle"></i> No customer found. Click Search to create new.</span>`;
+                resultEl.classList.remove('hidden');
+            } else {
+                resultEl.innerHTML = `<span class="text-gray-500">Enter 10 digits to search/create</span>`;
+                resultEl.classList.remove('hidden');
+            }
+        }
+
+        async function searchOrCreateCustomer() {
+            const phone = document.getElementById('phoneSearchInput').value.trim();
+
+            if (phone.length !== 10) {
+                alert('Please enter a valid 10-digit phone number');
+                return;
+            }
+
+            // Check if customer exists
+            const existing = allCustomers.find(c => c.phone === phone);
+            if (existing) {
+                // Open edit modal for existing customer
+                editCustomer(existing.id);
+                return;
+            }
+
+            // No customer found - open create modal with phone pre-filled
+            openCreateModal(phone);
+        }
+
+        function openCreateModal(prefillPhone = '') {
+            // Reset form
+            document.getElementById('customerForm').reset();
+            document.getElementById('customerId').value = '';
+            document.getElementById('isCreateMode').value = 'true';
+
+            // Pre-fill phone if provided
+            if (prefillPhone) {
+                document.getElementById('customerPhone').value = prefillPhone;
+            }
+
+            // Update modal title
+            document.getElementById('modalTitleText').textContent = 'Create New Customer';
+            document.getElementById('submitBtnText').textContent = 'Create Customer';
+
+            // Hide family members and transfer sections (not available for new customer)
+            document.getElementById('familyMembersSection').classList.add('hidden');
+            document.getElementById('thockTransferSection').classList.add('hidden');
+
+            document.getElementById('customerModal').classList.add('show');
+        }
+
+        function editCustomer(id) {
+            const customer = allCustomers.find(c => c.id === id);
+            if (!customer) return;
+
+            document.getElementById('customerId').value = customer.id;
+            document.getElementById('isCreateMode').value = 'false';
+            document.getElementById('customerName').value = customer.name || '';
+            document.getElementById('customerPhone').value = customer.phone || '';
+            document.getElementById('customerSO').value = customer.so || '';
+            document.getElementById('customerVillage').value = customer.village || '';
+
+            // Update modal title
+            document.getElementById('modalTitleText').textContent = 'Edit Customer';
+            document.getElementById('submitBtnText').textContent = 'Save Changes';
+
+            // Show family members and transfer sections
+            document.getElementById('familyMembersSection').classList.remove('hidden');
+            document.getElementById('thockTransferSection').classList.remove('hidden');
+
+            // Load family members
+            loadFamilyMembers(customer.id);
+
+            // Reset transfer result
+            document.getElementById('transferToPhone').value = '';
+            document.getElementById('transferResult').classList.add('hidden');
+
+            document.getElementById('customerModal').classList.add('show');
+        }
+
+        // Family member functions
+        async function loadFamilyMembers(customerId) {
+            const listEl = document.getElementById('familyMembersList');
+            listEl.innerHTML = '<p class="text-gray-500">Loading...</p>';
+
+            try {
+                const response = await fetch(`/api/customers/${customerId}/family-members`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to load family members');
+
+                const members = await response.json() || [];
+
+                if (members.length === 0) {
+                    listEl.innerHTML = '<p class="text-gray-500 italic">No family members added yet</p>';
+                    return;
+                }
+
+                listEl.innerHTML = members.map(m => `
+                    <div class="flex items-center justify-between p-2 bg-white border border-purple-200 rounded">
+                        <div>
+                            <span class="font-semibold">${escapeHtml(m.name)}</span>
+                            <span class="text-sm text-gray-500 ml-2">(${escapeHtml(m.relation)})</span>
+                            ${m.is_default ? '<span class="ml-2 text-xs bg-purple-200 px-2 py-1 rounded">Default</span>' : ''}
+                        </div>
+                        <button type="button" onclick="deleteFamilyMember(${m.id}, '${escapeHtml(m.name)}')"
+                                class="text-red-500 hover:bg-red-100 p-1 rounded">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                `).join('');
+            } catch (error) {
+                listEl.innerHTML = '<p class="text-red-500">Failed to load family members</p>';
+            }
+        }
+
+        function showAddFamilyMember() {
+            document.getElementById('addFamilyMemberForm').classList.remove('hidden');
+            document.getElementById('newFamilyMemberName').value = '';
+            document.getElementById('newFamilyMemberRelation').value = 'Self';
+            document.getElementById('newFamilyMemberName').focus();
+        }
+
+        function hideAddFamilyMember() {
+            document.getElementById('addFamilyMemberForm').classList.add('hidden');
+        }
+
+        async function addFamilyMember() {
+            const customerId = document.getElementById('customerId').value;
+            const name = document.getElementById('newFamilyMemberName').value.trim();
+            const relation = document.getElementById('newFamilyMemberRelation').value;
+
+            if (!name) {
+                alert('Please enter member name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/customers/${customerId}/family-members`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name, relation })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                hideAddFamilyMember();
+                loadFamilyMembers(customerId);
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function deleteFamilyMember(memberId, memberName) {
+            if (!confirm(`Delete family member "${memberName}"?`)) return;
+
+            const customerId = document.getElementById('customerId').value;
+
+            try {
+                const response = await fetch(`/api/customers/${customerId}/family-members/${memberId}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                loadFamilyMembers(customerId);
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // Thock transfer function
+        async function initiateTransfer() {
+            const sourceCustomerId = document.getElementById('customerId').value;
+            const targetPhone = document.getElementById('transferToPhone').value.trim();
+            const resultEl = document.getElementById('transferResult');
+
+            if (targetPhone.length !== 10) {
+                resultEl.innerHTML = '<span class="text-red-600"><i class="bi bi-x-circle"></i> Enter valid 10-digit phone</span>';
+                resultEl.classList.remove('hidden');
+                return;
+            }
+
+            // Find target customer
+            const targetCustomer = allCustomers.find(c => c.phone === targetPhone);
+            if (!targetCustomer) {
+                resultEl.innerHTML = '<span class="text-red-600"><i class="bi bi-x-circle"></i> No customer found with this phone</span>';
+                resultEl.classList.remove('hidden');
+                return;
+            }
+
+            const sourceCustomer = allCustomers.find(c => c.id === parseInt(sourceCustomerId));
+            if (!sourceCustomer) return;
+
+            if (sourceCustomer.phone === targetPhone) {
+                resultEl.innerHTML = '<span class="text-red-600"><i class="bi bi-x-circle"></i> Cannot transfer to same customer</span>';
+                resultEl.classList.remove('hidden');
+                return;
+            }
+
+            const confirmMsg = `Transfer all thocks from "${sourceCustomer.name}" to "${targetCustomer.name}"?\n\nThis will merge entries and payments.`;
+            if (!confirm(confirmMsg)) return;
+
+            try {
+                const response = await fetch(`/api/customers/${sourceCustomerId}/merge/${targetCustomer.id}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const result = await response.json();
+                resultEl.innerHTML = `<span class="text-green-600"><i class="bi bi-check-circle"></i> Transferred ${result.entries_moved || 0} entries and ${result.payments_moved || 0} payments</span>`;
+                resultEl.classList.remove('hidden');
+
+                // Refresh customer list
+                loadCustomers();
+            } catch (error) {
+                resultEl.innerHTML = `<span class="text-red-600"><i class="bi bi-x-circle"></i> ${error.message}</span>`;
+                resultEl.classList.remove('hidden');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('customerModal').classList.remove('show');
+            document.getElementById('customerForm').reset();
+            document.getElementById('addFamilyMemberForm').classList.add('hidden');
+        }
+
+        // Form submission - handles both create and update
         document.getElementById('customerForm').addEventListener('submit', async function(e) {
             e.preventDefault();
 
+            const isCreateMode = document.getElementById('isCreateMode').value === 'true';
             const id = document.getElementById('customerId').value;
             const customerData = {
                 name: document.getElementById('customerName').value,
@@ -339,14 +656,28 @@
             };
 
             try {
-                const response = await fetch(`/api/customers/${id}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(customerData)
-                });
+                let response;
+                if (isCreateMode) {
+                    // Create new customer
+                    response = await fetch('/api/customers', {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(customerData)
+                    });
+                } else {
+                    // Update existing customer
+                    response = await fetch(`/api/customers/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(customerData)
+                    });
+                }
 
                 if (!response.ok) {
                     const error = await response.text();
@@ -355,7 +686,12 @@
 
                 closeModal();
                 loadCustomers();
-                alert('Customer updated successfully!');
+
+                // Clear phone search
+                document.getElementById('phoneSearchInput').value = '';
+                document.getElementById('phoneSearchResult').classList.add('hidden');
+
+                alert(isCreateMode ? 'Customer created successfully!' : 'Customer updated successfully!');
             } catch (error) {
                 alert('Error: ' + error.message);
             }
