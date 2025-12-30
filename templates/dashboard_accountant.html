@@ -14,41 +14,48 @@
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
     <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <link href="/static/css/inventory-theme.css" rel="stylesheet">
 
     <style>
         * {
             font-family: 'Space Grotesk', sans-serif;
         }
+        /* Modern card styling */
         .neu-border {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
             transition: all 0.2s ease;
         }
         .neu-border:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
+        /* Modern button styling */
         .neu-button {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             padding: 0.75rem 1.5rem;
             font-weight: 600;
+            border-radius: 10px;
             transition: all 0.2s ease;
             cursor: pointer;
         }
         .neu-button:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(0,0,0,0.1);
         }
         .neu-button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #000;
+            transform: translateY(0);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
+        /* Modern stat cards */
         .stat-card {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
             padding: 1.5rem;
             background: white;
+            border-radius: 12px;
         }
         /* Hide content by default until permission check passes */
         #mainContent {
@@ -64,7 +71,7 @@
 <script src="/static/js/prefetch.js?v=5"></script>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
+<body class="bg-[#f8fafb] min-h-screen p-4 md:p-8">
     <!-- Loading Screen -->
     <div id="loadingScreen" class="max-w-7xl mx-auto">
         <div class="neu-border bg-white p-8 text-center">
@@ -158,7 +165,7 @@
             <div class="overflow-x-auto">
                 <table class="w-full border-collapse">
                     <thead>
-                        <tr class="border-b-2 border-black">
+                        <tr class="border-b border-gray-200 bg-gray-50">
                             <th class="p-2 text-left">Date</th>
                             <th class="p-2 text-left">Customer</th>
                             <th class="p-2 text-left">Phone</th>

@@ -21,46 +21,59 @@
         * {
             font-family: 'Space Grotesk', sans-serif;
         }
+        /* Modern card styling */
         .neu-border {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
             transition: all 0.2s ease;
         }
         .neu-border:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
+        /* Modern page buttons */
         .page-button {
-            padding: 2rem;
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-radius: 12px;
             transition: all 0.2s ease;
             text-align: center;
             font-weight: 600;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem;
             cursor: pointer;
         }
         .page-button:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
         }
         .page-button i {
-            font-size: 2rem;
+            font-size: 1.75rem;
+            opacity: 0.85;
         }
+        /* Softer button background colors */
+        .page-button.bg-\[\#FFE082\] { background: #FFF8E0 !important; }
+        .page-button.bg-\[\#98EECC\] { background: #E8FFF5 !important; }
+        .page-button.bg-\[\#7DEDFF\] { background: #E0FAFF !important; }
+        .page-button.bg-\[\#DFCCFB\] { background: #F5F0FF !important; }
+        .page-button.bg-\[\#A8E6CF\] { background: #E8F8F0 !important; }
+        .page-button.bg-\[\#B8E8FC\] { background: #E8F6FF !important; }
+        .page-button.bg-\[\#FFB3BA\] { background: #FFE8EA !important; }
+        .page-button.bg-\[\#FFDFBA\] { background: #FFF5E8 !important; }
+        .page-button.bg-\[\#FFD3B6\] { background: #FFF0E5 !important; }
+
+        /* Modern employee badge */
         .employee-badge {
             background: linear-gradient(135deg, #3498db 0%, #2ecc71 100%);
             color: white;
             padding: 0.5rem 1rem;
-            border-radius: 0;
-            border: 2px solid #000;
-            box-shadow: 3px 3px 0 #000;
-        }
-        .lang-selector {
-            border: 2px solid #000;
-            box-shadow: 2px 2px 0px #000;
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
         }
 
         /* Tablet/Phone Portrait Optimizations */
@@ -68,6 +81,7 @@
             .page-button {
                 padding: 1rem;
                 gap: 0.5rem;
+                border-radius: 10px;
             }
             .page-button i {
                 font-size: 1.5rem;
@@ -79,7 +93,7 @@
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#E8F5E9] min-h-screen">
+<body class="bg-[#f8fafb] min-h-screen">
     <!-- Navigation Bar -->
     <div class="page-nav">
         <a href="/home" class="nav-btn nav-btn-dashboard">
@@ -198,35 +212,35 @@
         <div class="neu-border bg-white p-3 md:p-6">
             <h3 class="text-lg md:text-2xl font-bold mb-3 md:mb-4" data-i18n="todays_summary">Today's Summary</h3>
             <div class="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
-                <div class="p-2 md:p-4 bg-blue-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-blue-50 rounded-xl border border-blue-200">
                     <p class="text-xs md:text-sm text-gray-600" data-i18n="my_entries_today">My Entries Today</p>
-                    <p id="myEntriesToday" class="text-xl md:text-3xl font-bold">...</p>
+                    <p id="myEntriesToday" class="text-xl md:text-3xl font-bold text-blue-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-green-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-green-50 rounded-xl border border-green-200">
                     <p class="text-xs md:text-sm text-gray-600">My Room Entries</p>
-                    <p id="myRoomEntriesToday" class="text-xl md:text-3xl font-bold">...</p>
+                    <p id="myRoomEntriesToday" class="text-xl md:text-3xl font-bold text-green-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-yellow-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-yellow-50 rounded-xl border border-yellow-200">
                     <p class="text-xs md:text-sm text-gray-600">Payments Collected</p>
-                    <p id="myPaymentsToday" class="text-xl md:text-3xl font-bold">...</p>
+                    <p id="myPaymentsToday" class="text-xl md:text-3xl font-bold text-yellow-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-purple-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-purple-50 rounded-xl border border-purple-200">
                     <p class="text-xs md:text-sm text-gray-600" data-i18n="todays_room_entries">Today's Room Entries</p>
-                    <p id="totalRoomEntries" class="text-xl md:text-3xl font-bold">...</p>
+                    <p id="totalRoomEntries" class="text-xl md:text-3xl font-bold text-purple-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-orange-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-orange-50 rounded-xl border border-orange-200">
                     <p class="text-xs md:text-sm text-gray-600" data-i18n="todays_bags">Today's Bags</p>
-                    <p id="totalBags" class="text-xl md:text-3xl font-bold">...</p>
+                    <p id="totalBags" class="text-xl md:text-3xl font-bold text-orange-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-gray-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-gray-50 rounded-xl border border-gray-200">
                     <p class="text-xs md:text-sm text-gray-600" data-i18n="total_entries">Total Entries</p>
-                    <p id="totalEntries" class="text-xl md:text-3xl font-bold">...</p>
+                    <p id="totalEntries" class="text-xl md:text-3xl font-bold text-gray-700">...</p>
                 </div>
             </div>
         </div>
 
         <!-- Restricted Access Notice -->
-        <div class="mt-4 md:mt-8 p-2 md:p-4 border-2 border-gray-300 bg-gray-50">
+        <div class="mt-4 md:mt-8 p-2 md:p-4 border border-gray-200 bg-gray-50 rounded-xl">
             <p class="text-xs md:text-sm text-gray-600 text-center">
                 <i class="bi bi-lock"></i> <span class="hidden sm:inline" data-i18n="restricted_notice">Some features are restricted to administrators. Contact your admin for access to reports, employee management, and system settings.</span>
                 <span class="sm:hidden">Admin features restricted</span>

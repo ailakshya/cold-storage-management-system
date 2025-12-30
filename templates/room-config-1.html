@@ -21,42 +21,47 @@
         * {
             font-family: 'Space Grotesk', sans-serif;
         }
+        /* Modern card styling */
         .neu-border {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
             transition: all 0.2s ease;
         }
         .neu-border:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
+        /* Modern input styling */
         .neu-input, .neu-select {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
             padding: 0.75rem;
             font-size: 1rem;
+            border-radius: 8px;
             transition: all 0.2s ease;
         }
         .neu-input:focus, .neu-select:focus {
             outline: none;
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            border-color: #4a90a4;
+            box-shadow: 0 0 0 3px rgba(74, 144, 164, 0.15);
         }
+        /* Modern button styling */
         .neu-button {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
             padding: 0.75rem 1.5rem;
             font-weight: 600;
+            border-radius: 10px;
             transition: all 0.2s ease;
             cursor: pointer;
         }
         .neu-button:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         }
         .neu-button:active {
-            transform: translate(2px, 2px);
-            box-shadow: 2px 2px 0 #000;
+            transform: translateY(0);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
         .hidden { display: none; }
         .clickable-row {
@@ -76,23 +81,32 @@
         .selected-entry {
             background-color: #FDE68A !important;
             border-left: 4px solid #F59E0B;
+            border-radius: 8px;
         }
         .room-btn.selected {
             background-color: #10B981 !important;
             color: white !important;
         }
+        /* Quantity calculator buttons - colorful style */
+        .qty-btn {
+            border: none !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.08) !important;
+            border-radius: 8px !important;
+            font-weight: 700;
+            transition: all 0.15s ease;
+        }
+        .qty-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+        }
+        .qty-btn-1 { background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%) !important; }
+        .qty-btn-2 { background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important; }
+        .qty-btn-3 { background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%) !important; }
+        .qty-btn-4 { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important; }
 
         /* Tablet/Phone Portrait Optimizations */
         @media (max-width: 1023px) and (orientation: portrait) {
             body { font-size: 0.875rem; }
-            .neu-border, .neu-button, .neu-input, .neu-select {
-                border-width: 2px;
-                box-shadow: 2px 2px 0 #000;
-            }
-            .neu-border:hover, .neu-button:hover {
-                transform: none;
-                box-shadow: 2px 2px 0 #000;
-            }
             h1 { font-size: 1.25rem !important; }
             h2 { font-size: 1rem !important; }
             h3 { font-size: 0.875rem !important; }
@@ -106,7 +120,7 @@
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen">
+<body class="bg-[#f8fafb] min-h-screen">
     <!-- Navigation Bar -->
     <div class="page-nav">
         <a href="{{.DashboardURL}}" class="nav-btn nav-btn-dashboard">
@@ -163,10 +177,10 @@
                     <div class="overflow-auto" style="max-height: 300px;">
                         <table class="w-full">
                             <thead class="sticky top-0 bg-white">
-                                <tr class="border-b-2 border-black">
-                                    <th class="text-left p-2 font-bold" data-i18n="truck_number">Truck No</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="name">Name</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
+                                <tr class="border-b border-gray-200 bg-gray-50">
+                                    <th class="text-left p-2 font-bold text-gray-700" data-i18n="truck_number">Truck No</th>
+                                    <th class="text-left p-2 font-bold text-gray-700" data-i18n="name">Name</th>
+                                    <th class="text-left p-2 font-bold text-gray-700" data-i18n="qty">Qty</th>
                                 </tr>
                             </thead>
                             <tbody id="unassignedEntriesTableBody">
@@ -265,44 +279,45 @@
                         </div>
 
                         <!-- Quantity Calculator (Now inside form) -->
-                        <div class="mb-6 neu-border bg-purple-50 p-4">
+                        <div class="mb-6 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 p-4 border border-purple-200">
                             <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
                                 <i class="bi bi-calculator text-purple-600"></i>
                                 <span data-i18n="quantity_calculator">Quantity Calculator</span>
-                                <span class="ml-auto text-2xl font-bold text-purple-700" id="totalQuantity">0</span>
+                                <span class="ml-auto text-2xl font-bold text-purple-700 bg-white px-3 py-1 rounded-lg shadow-sm" id="totalQuantity">0</span>
                             </h3>
                             <!-- Hidden input for form submission -->
                             <input type="hidden" id="quantity" required min="1">
 
-                            <!-- Preset Value Buttons -->
-                            <div class="grid grid-cols-8 gap-1 mb-3">
-                                <button type="button" onclick="addQuantity(1)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">1</button>
-                                <button type="button" onclick="addQuantity(2)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">2</button>
-                                <button type="button" onclick="addQuantity(3)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">3</button>
-                                <button type="button" onclick="addQuantity(4)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">4</button>
-                                <button type="button" onclick="addQuantity(5)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">5</button>
-                                <button type="button" onclick="addQuantity(6)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">6</button>
-                                <button type="button" onclick="addQuantity(7)" class="neu-button bg-gray-100 hover:bg-gray-200 py-2 text-sm font-bold">7</button>
-                                <button type="button" onclick="addQuantity(8)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">8</button>
-                                <button type="button" onclick="addQuantity(9)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">9</button>
-                                <button type="button" onclick="addQuantity(10)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">10</button>
-                                <button type="button" onclick="addQuantity(11)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">11</button>
-                                <button type="button" onclick="addQuantity(12)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">12</button>
-                                <button type="button" onclick="addQuantity(13)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">13</button>
-                                <button type="button" onclick="addQuantity(14)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">14</button>
-                                <button type="button" onclick="addQuantity(15)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">15</button>
-                                <button type="button" onclick="addQuantity(16)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">16</button>
-                                <button type="button" onclick="addQuantity(17)" class="neu-button bg-blue-100 hover:bg-blue-200 py-2 text-sm font-bold">17</button>
-                                <button type="button" onclick="addQuantity(18)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">18</button>
-                                <button type="button" onclick="addQuantity(19)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">19</button>
-                                <button type="button" onclick="addQuantity(20)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">20</button>
-                                <button type="button" onclick="addQuantity(21)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">21</button>
-                                <button type="button" onclick="addQuantity(24)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">24</button>
-                                <button type="button" onclick="addQuantity(25)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">25</button>
-                                <button type="button" onclick="addQuantity(26)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">26</button>
-                                <button type="button" onclick="addQuantity(27)" class="neu-button bg-green-100 hover:bg-green-200 py-2 text-sm font-bold">27</button>
-                                <button type="button" onclick="addQuantity(30)" class="neu-button bg-yellow-100 hover:bg-yellow-200 py-2 text-sm font-bold">30</button>
-                                <button type="button" onclick="showCustomInput()" class="neu-button bg-purple-100 hover:bg-purple-200 py-2 text-xs font-bold col-span-1">+</button>
+                            <!-- Preset Value Buttons - Colorful gradient style -->
+                            <p class="text-xs text-purple-600 mb-2" data-i18n="click_to_add">Click values above to add...</p>
+                            <div class="grid grid-cols-8 gap-1.5 mb-3">
+                                <button type="button" onclick="addQuantity(1)" class="qty-btn qty-btn-1 py-2 text-sm">1</button>
+                                <button type="button" onclick="addQuantity(2)" class="qty-btn qty-btn-1 py-2 text-sm">2</button>
+                                <button type="button" onclick="addQuantity(3)" class="qty-btn qty-btn-1 py-2 text-sm">3</button>
+                                <button type="button" onclick="addQuantity(4)" class="qty-btn qty-btn-1 py-2 text-sm">4</button>
+                                <button type="button" onclick="addQuantity(5)" class="qty-btn qty-btn-1 py-2 text-sm">5</button>
+                                <button type="button" onclick="addQuantity(6)" class="qty-btn qty-btn-1 py-2 text-sm">6</button>
+                                <button type="button" onclick="addQuantity(7)" class="qty-btn qty-btn-1 py-2 text-sm">7</button>
+                                <button type="button" onclick="addQuantity(8)" class="qty-btn qty-btn-2 py-2 text-sm">8</button>
+                                <button type="button" onclick="addQuantity(9)" class="qty-btn qty-btn-2 py-2 text-sm">9</button>
+                                <button type="button" onclick="addQuantity(10)" class="qty-btn qty-btn-2 py-2 text-sm">10</button>
+                                <button type="button" onclick="addQuantity(11)" class="qty-btn qty-btn-2 py-2 text-sm">11</button>
+                                <button type="button" onclick="addQuantity(12)" class="qty-btn qty-btn-2 py-2 text-sm">12</button>
+                                <button type="button" onclick="addQuantity(13)" class="qty-btn qty-btn-2 py-2 text-sm">13</button>
+                                <button type="button" onclick="addQuantity(14)" class="qty-btn qty-btn-2 py-2 text-sm">14</button>
+                                <button type="button" onclick="addQuantity(15)" class="qty-btn qty-btn-2 py-2 text-sm">15</button>
+                                <button type="button" onclick="addQuantity(16)" class="qty-btn qty-btn-2 py-2 text-sm">16</button>
+                                <button type="button" onclick="addQuantity(17)" class="qty-btn qty-btn-2 py-2 text-sm">17</button>
+                                <button type="button" onclick="addQuantity(18)" class="qty-btn qty-btn-3 py-2 text-sm">18</button>
+                                <button type="button" onclick="addQuantity(19)" class="qty-btn qty-btn-3 py-2 text-sm">19</button>
+                                <button type="button" onclick="addQuantity(20)" class="qty-btn qty-btn-3 py-2 text-sm">20</button>
+                                <button type="button" onclick="addQuantity(21)" class="qty-btn qty-btn-3 py-2 text-sm">21</button>
+                                <button type="button" onclick="addQuantity(24)" class="qty-btn qty-btn-3 py-2 text-sm">24</button>
+                                <button type="button" onclick="addQuantity(25)" class="qty-btn qty-btn-3 py-2 text-sm">25</button>
+                                <button type="button" onclick="addQuantity(26)" class="qty-btn qty-btn-3 py-2 text-sm">26</button>
+                                <button type="button" onclick="addQuantity(27)" class="qty-btn qty-btn-3 py-2 text-sm">27</button>
+                                <button type="button" onclick="addQuantity(30)" class="qty-btn qty-btn-4 py-2 text-sm">30</button>
+                                <button type="button" onclick="showCustomInput()" class="qty-btn bg-gradient-to-br from-purple-200 to-purple-300 py-2 text-xs col-span-1">+</button>
                             </div>
 
                             <!-- Custom Input (Hidden by default) -->
@@ -320,21 +335,21 @@
                             </div>
 
                             <!-- Quality Buttons (N/U/D/G) - Now inside calculator -->
-                            <div class="flex items-center gap-2 mb-3">
+                            <div class="flex items-center gap-2 mb-3 p-3 bg-white/60 rounded-xl">
                                 <span class="text-sm font-bold text-purple-800">
-                                    <i class="bi bi-bookmark-check mr-1"></i>Quality:
+                                    <i class="bi bi-bookmark-check mr-1"></i><span data-i18n="quality">Quality</span>:
                                 </span>
-                                <span id="pendingQtyDisplay" class="text-sm text-purple-600 font-bold hidden">
+                                <span id="pendingQtyDisplay" class="text-sm text-purple-600 font-bold hidden bg-purple-100 px-2 py-0.5 rounded">
                                     (<span id="pendingQtyValue">0</span>)
                                 </span>
-                                <div class="flex gap-1 ml-2">
-                                    <button type="button" onclick="addWithQuality('N')" class="neu-button bg-green-400 hover:bg-green-500 text-white py-1 px-3 text-sm font-bold">N</button>
-                                    <button type="button" onclick="addWithQuality('U')" class="neu-button bg-yellow-400 hover:bg-yellow-500 text-white py-1 px-3 text-sm font-bold">U</button>
-                                    <button type="button" onclick="addWithQuality('D')" class="neu-button bg-red-400 hover:bg-red-500 text-white py-1 px-3 text-sm font-bold">D</button>
-                                    <button type="button" onclick="addWithQuality('G')" class="neu-button bg-blue-400 hover:bg-blue-500 text-white py-1 px-3 text-sm font-bold">G</button>
+                                <div class="flex gap-1.5 ml-2">
+                                    <button type="button" onclick="addWithQuality('N')" class="bg-gradient-to-br from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">N</button>
+                                    <button type="button" onclick="addWithQuality('U')" class="bg-gradient-to-br from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">U</button>
+                                    <button type="button" onclick="addWithQuality('D')" class="bg-gradient-to-br from-red-400 to-red-500 hover:from-red-500 hover:to-red-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">D</button>
+                                    <button type="button" onclick="addWithQuality('G')" class="bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">G</button>
                                 </div>
-                                <button type="button" onclick="clearAllQuantities()" class="ml-auto neu-button bg-red-500 text-white py-1 px-3 text-sm font-bold">
-                                    <i class="bi bi-trash"></i> Clear
+                                <button type="button" onclick="clearAllQuantities()" class="ml-auto bg-gradient-to-br from-gray-400 to-gray-500 hover:from-red-500 hover:to-red-600 text-white py-1.5 px-3 text-sm font-bold rounded-lg shadow-md transition-all">
+                                    <i class="bi bi-trash"></i> <span data-i18n="clear">Clear</span>
                                 </button>
                             </div>
 

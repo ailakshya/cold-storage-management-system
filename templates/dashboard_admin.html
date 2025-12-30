@@ -21,54 +21,70 @@
         * {
             font-family: 'Space Grotesk', sans-serif;
         }
+        /* Modern card styling - soft shadows, rounded corners */
         .neu-border {
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
             transition: all 0.2s ease;
         }
         .neu-border:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
         }
+        /* Modern page buttons */
         .page-button {
-            padding: 2rem;
-            border: 3px solid #000;
-            box-shadow: 4px 4px 0 #000;
+            padding: 1.5rem;
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            border-radius: 12px;
             transition: all 0.2s ease;
             text-align: center;
             font-weight: 600;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 1rem;
+            gap: 0.75rem;
             cursor: pointer;
         }
         .page-button:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 6px 6px 0 #000;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
         }
         .page-button i {
-            font-size: 2rem;
+            font-size: 1.75rem;
+            opacity: 0.85;
         }
+
+        /* Softer button background colors */
+        .page-button.bg-\[\#FFB4B4\] { background: #FFE4E4 !important; }
+        .page-button.bg-\[\#FFE5CA\] { background: #FFF3E8 !important; }
+        .page-button.bg-\[\#D4ADFC\] { background: #EDE4FF !important; }
+        .page-button.bg-\[\#FF6B9D\] { background: #FFE0EB !important; }
+        .page-button.bg-\[\#98EECC\] { background: #E8FFF5 !important; }
+        .page-button.bg-\[\#C4B5FD\] { background: #EDE8FF !important; }
+        .page-button.bg-\[\#38BDF8\] { background: #E0F4FF !important; }
+        .page-button.bg-\[\#FFE082\] { background: #FFF8E0 !important; }
+        .page-button.bg-\[\#7DEDFF\] { background: #E0FAFF !important; }
+        .page-button.bg-\[\#A8E6CF\] { background: #E8F8F0 !important; }
+        .page-button.bg-\[\#FFB3BA\] { background: #FFE8EA !important; }
+        .page-button.bg-\[\#FFDFBA\] { background: #FFF5E8 !important; }
+        .page-button.bg-\[\#B4FF9F\] { background: #E8FFE4 !important; }
+        .page-button.bg-\[\#FFD3B6\] { background: #FFF0E5 !important; }
+        .page-button.bg-\[\#E8B4F8\] { background: #F8E8FF !important; }
+        .page-button.bg-\[\#A8D5FF\] { background: #E8F4FF !important; }
+        .page-button.bg-\[\#F5C518\] { background: #FFF8E0 !important; }
+        .page-button.bg-\[\#DFCCFB\] { background: #F5F0FF !important; }
 
         /* Tablet/Phone Portrait Optimizations */
         @media (max-width: 1023px) and (orientation: portrait) {
             body {
                 font-size: 0.875rem;
             }
-            .neu-border {
-                border-width: 2px;
-                box-shadow: 2px 2px 0 #000;
-            }
-            .neu-border:hover {
-                transform: none;
-                box-shadow: 2px 2px 0 #000;
-            }
             .page-button {
                 padding: 0.75rem;
                 gap: 0.375rem;
-                border-width: 2px;
-                box-shadow: 2px 2px 0 #000;
+                border-radius: 10px;
             }
             .page-button i {
                 font-size: 1.25rem;
@@ -83,22 +99,24 @@
             h2 { font-size: 1rem !important; }
             h3 { font-size: 0.875rem !important; }
         }
+        /* Modern admin badge */
         .admin-badge {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 0.5rem 1rem;
-            border-radius: 0;
-            border: 2px solid #000;
-            box-shadow: 3px 3px 0 #000;
+            border-radius: 8px;
+            border: none;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
         }
-        .lang-selector {
-            border: 2px solid #000;
-            box-shadow: 2px 2px 0px #000;
+        /* Stat boxes - soft style */
+        .stat-box {
+            border: 1px solid var(--border-color, #e0e6ed) !important;
+            border-radius: 12px !important;
         }
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#FFEBEB] min-h-screen">
+<body class="bg-[#f8fafb] min-h-screen">
     <!-- Navigation Bar -->
     <div class="page-nav">
         <a href="/home" class="nav-btn nav-btn-dashboard">
@@ -280,25 +298,25 @@
         <div class="neu-border bg-white p-3 md:p-6 mb-4 md:mb-8">
             <h3 class="text-base md:text-2xl font-bold mb-2 md:mb-4" data-i18n="system_overview">System Overview</h3>
             <div class="grid grid-cols-3 md:grid-cols-5 gap-2 md:gap-4">
-                <div class="p-2 md:p-4 bg-blue-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-blue-50 rounded-xl border border-blue-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="total_users">Total Users</p>
-                    <p id="totalUsers" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="totalUsers" class="text-lg md:text-3xl font-bold text-blue-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-green-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-green-50 rounded-xl border border-green-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="total_customers">Customers</p>
-                    <p id="totalCustomers" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="totalCustomers" class="text-lg md:text-3xl font-bold text-green-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-purple-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-purple-50 rounded-xl border border-purple-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="total_entries">Entries</p>
-                    <p id="totalEntries" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="totalEntries" class="text-lg md:text-3xl font-bold text-purple-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-red-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-red-50 rounded-xl border border-red-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="room_entries">Room</p>
-                    <p id="totalRoomEntries" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="totalRoomEntries" class="text-lg md:text-3xl font-bold text-red-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-orange-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-orange-50 rounded-xl border border-orange-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="total_bags_all">Bags</p>
-                    <p id="allTimeBags" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="allTimeBags" class="text-lg md:text-3xl font-bold text-orange-700">...</p>
                 </div>
             </div>
         </div>
@@ -307,21 +325,21 @@
         <div class="neu-border bg-white p-3 md:p-6">
             <h3 class="text-base md:text-2xl font-bold mb-2 md:mb-4" data-i18n="todays_summary">Today's Summary</h3>
             <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
-                <div class="p-2 md:p-4 bg-blue-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-blue-50 rounded-xl border border-blue-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="todays_entries">Today's Entries</p>
-                    <p id="todayEntries" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="todayEntries" class="text-lg md:text-3xl font-bold text-blue-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-green-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-green-50 rounded-xl border border-green-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="todays_room_entries">Room Entries</p>
-                    <p id="todayRoomEntries" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="todayRoomEntries" class="text-lg md:text-3xl font-bold text-green-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-purple-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-purple-50 rounded-xl border border-purple-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="active_users">Active Users</p>
-                    <p id="activeUsers" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="activeUsers" class="text-lg md:text-3xl font-bold text-purple-700">...</p>
                 </div>
-                <div class="p-2 md:p-4 bg-orange-50 border-2 border-black">
+                <div class="p-2 md:p-4 bg-orange-50 rounded-xl border border-orange-200">
                     <p class="text-[10px] md:text-sm text-gray-600" data-i18n="todays_bags">Today's Bags</p>
-                    <p id="totalBags" class="text-lg md:text-3xl font-bold">...</p>
+                    <p id="totalBags" class="text-lg md:text-3xl font-bold text-orange-700">...</p>
                 </div>
             </div>
         </div>
