@@ -437,6 +437,8 @@
 
             <input type="hidden" id="reassignEntryId">
             <input type="hidden" id="reassignNewCustomerId">
+            <input type="hidden" id="reassignFamilyMemberId">
+            <input type="hidden" id="reassignFamilyMemberName">
 
             <div class="flex gap-4">
                 <button id="reassignSubmitBtn" onclick="submitReassign()" class="flex-1 neu-button bg-blue-500 text-white" disabled>
@@ -1556,42 +1558,87 @@
                 resultsDiv.innerHTML = '<p class="text-gray-500 text-sm p-4 text-center"><i class="bi bi-hourglass-split"></i> Searching...</p>';
 
                 try {
+                    let results = [];
+
                     // Search from cached customer accounts first
-                    let filtered = allCustomerAccounts.filter(c =>
+                    const filteredCustomers = allCustomerAccounts.filter(c =>
                         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         c.phone.includes(searchTerm)
-                    ).slice(0, 10);
+                    ).slice(0, 5);
 
-                    // If no local results, search ALL customers from database
-                    if (filtered.length === 0) {
-                        const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(searchTerm)}`, {
-                            headers: { 'Authorization': `Bearer ${token}` }
+                    // Add customers to results
+                    filteredCustomers.forEach(c => {
+                        results.push({
+                            type: 'customer',
+                            customerId: c.id || 0,
+                            name: c.name,
+                            phone: c.phone,
+                            so: c.so || '',
+                            village: c.village || 'N/A',
+                            familyMemberId: null,
+                            familyMemberName: ''
                         });
-                        if (response.ok) {
-                            const dbCustomers = await response.json() || [];
-                            filtered = dbCustomers.map(c => ({
-                                id: c.id,
-                                name: c.name,
-                                phone: c.phone,
-                                so: c.so || '',
-                                village: c.village || 'N/A',
-                                fromDb: true
-                            }));
-                        }
+                    });
+
+                    // Also search ALL customers from database
+                    const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(searchTerm)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const dbCustomers = await response.json() || [];
+                        dbCustomers.forEach(c => {
+                            // Avoid duplicates
+                            if (!results.find(r => r.phone === c.phone && r.type === 'customer')) {
+                                results.push({
+                                    type: 'customer',
+                                    customerId: c.id,
+                                    name: c.name,
+                                    phone: c.phone,
+                                    so: c.so || '',
+                                    village: c.village || 'N/A',
+                                    familyMemberId: null,
+                                    familyMemberName: ''
+                                });
+                            }
+
+                            // Also fetch family members for this customer
+                            fetch(`/api/customers/${c.id}/family-members`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            }).then(fmRes => fmRes.json()).then(familyMembers => {
+                                if (familyMembers && familyMembers.length > 0) {
+                                    const matchingFm = familyMembers.filter(fm =>
+                                        fm.name.toLowerCase().includes(searchTerm.toLowerCase())
+                                    );
+                                    if (matchingFm.length > 0) {
+                                        // Re-render with family members
+                                        matchingFm.forEach(fm => {
+                                            if (!results.find(r => r.familyMemberId === fm.id)) {
+                                                results.push({
+                                                    type: 'family_member',
+                                                    customerId: c.id,
+                                                    name: c.name,
+                                                    phone: c.phone,
+                                                    so: c.so || '',
+                                                    village: c.village || 'N/A',
+                                                    familyMemberId: fm.id,
+                                                    familyMemberName: fm.name,
+                                                    relation: fm.relation
+                                                });
+                                            }
+                                        });
+                                        renderReassignResults(results);
+                                    }
+                                }
+                            }).catch(() => {});
+                        });
                     }
 
-                    if (filtered.length === 0) {
-                        resultsDiv.innerHTML = '<p class="text-gray-500 text-sm p-4 text-center">No customers found</p>';
+                    if (results.length === 0) {
+                        resultsDiv.innerHTML = '<p class="text-gray-500 text-sm p-4 text-center">No customers or family members found</p>';
                         return;
                     }
 
-                    resultsDiv.innerHTML = filtered.map(c => `
-                        <div onclick="selectCustomerForReassign('${c.phone}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}', '${(c.so || '').replace(/'/g, "\\'")}', '${(c.village || '').replace(/'/g, "\\'")}', ${c.id || 0})"
-                             class="p-2 border-b border-gray-200 hover:bg-blue-50 cursor-pointer">
-                            <p class="font-bold">${capitalizeText(c.name)}</p>
-                            <p class="text-sm text-gray-600">${c.phone}${c.so ? ' • S/O: ' + capitalizeText(c.so) : ''} • ${capitalizeText(c.village || 'N/A')}</p>
-                        </div>
-                    `).join('');
+                    renderReassignResults(results);
                 } catch (error) {
                     console.error('Error searching customers:', error);
                     resultsDiv.innerHTML = '<p class="text-red-500 text-sm p-4 text-center">Error searching customers</p>';
@@ -1599,76 +1646,54 @@
             }, 300);
         }
 
-        async function selectCustomerForReassign(customerPhone, customerName, phone, so, village, customerId = 0) {
-            // If we have customerId from DB search, use it directly
-            if (customerId > 0) {
-                document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
-                document.getElementById('reassignNewCustomerName').textContent = customerName;
-                document.getElementById('reassignNewCustomerPhone').textContent = phone + (so ? ' • S/O: ' + so : '') + ' • ' + village;
-                document.getElementById('reassignNewCustomerId').value = customerId;
-                document.getElementById('reassignSubmitBtn').disabled = false;
-                return;
-            }
-
-            // Find the customer to get their ID from local cache
-            const customer = allCustomerAccounts.find(c => c.phone === customerPhone);
-            if (!customer) {
-                // Try to fetch from DB
-                try {
-                    const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(customerPhone)}`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (response.ok) {
-                        const customers = await response.json();
-                        if (customers && customers.length > 0) {
-                            document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
-                            document.getElementById('reassignNewCustomerName').textContent = customers[0].name;
-                            document.getElementById('reassignNewCustomerPhone').textContent = customers[0].phone;
-                            document.getElementById('reassignNewCustomerId').value = customers[0].id;
-                            document.getElementById('reassignSubmitBtn').disabled = false;
-                            return;
-                        }
-                    }
-                } catch (e) {
-                    console.error('Error fetching customer:', e);
+        function renderReassignResults(results) {
+            const resultsDiv = document.getElementById('reassignCustomerResults');
+            resultsDiv.innerHTML = results.map(r => {
+                if (r.type === 'family_member') {
+                    return `
+                        <div onclick="selectCustomerForReassign(${r.customerId}, '${r.name.replace(/'/g, "\\'")}', '${r.phone}', '${(r.so || '').replace(/'/g, "\\'")}', '${(r.village || '').replace(/'/g, "\\'")}', ${r.familyMemberId}, '${r.familyMemberName.replace(/'/g, "\\'")}')"
+                             class="p-2 border-b border-gray-200 hover:bg-purple-50 cursor-pointer bg-purple-50">
+                            <p class="font-bold"><i class="bi bi-person text-purple-600"></i> ${capitalizeText(r.familyMemberName)} <span class="text-xs text-purple-600">(${r.relation})</span></p>
+                            <p class="text-sm text-gray-600">Under: ${capitalizeText(r.name)} • ${r.phone}</p>
+                        </div>
+                    `;
+                } else {
+                    return `
+                        <div onclick="selectCustomerForReassign(${r.customerId}, '${r.name.replace(/'/g, "\\'")}', '${r.phone}', '${(r.so || '').replace(/'/g, "\\'")}', '${(r.village || '').replace(/'/g, "\\'")}', null, '')"
+                             class="p-2 border-b border-gray-200 hover:bg-blue-50 cursor-pointer">
+                            <p class="font-bold">${capitalizeText(r.name)}</p>
+                            <p class="text-sm text-gray-600">${r.phone}${r.so ? ' • S/O: ' + capitalizeText(r.so) : ''} • ${capitalizeText(r.village || 'N/A')}</p>
+                        </div>
+                    `;
                 }
-                alert('Customer not found');
-                return;
-            }
+            }).join('');
+        }
 
-            // We need the customer ID, which we can get from their first entry
-            // Or we need to call an API to get customer by phone
-            try {
-                const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(customerPhone)}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+        async function selectCustomerForReassign(customerId, customerName, phone, so, village, familyMemberId = null, familyMemberName = '') {
+            // Set customer and family member info
+            document.getElementById('reassignNewCustomerId').value = customerId;
+            document.getElementById('reassignFamilyMemberId').value = familyMemberId || '';
+            document.getElementById('reassignFamilyMemberName').value = familyMemberName || '';
 
-                if (!response.ok) {
-                    throw new Error('Failed to fetch customer');
-                }
-
-                const customers = await response.json();
-                if (!customers || customers.length === 0) {
-                    alert('Customer not found in database');
-                    return;
-                }
-
-                const customerId = customers[0].id;
-                document.getElementById('reassignNewCustomerId').value = customerId;
+            // Display selected customer/family member
+            if (familyMemberId && familyMemberName) {
+                document.getElementById('reassignNewCustomerName').innerHTML = `<i class="bi bi-person text-purple-600"></i> ${capitalizeText(familyMemberName)} <span class="text-xs text-purple-600">(Family Member)</span>`;
+                document.getElementById('reassignNewCustomerPhone').textContent = `Under: ${capitalizeText(customerName)} • ${phone}`;
+            } else {
                 document.getElementById('reassignNewCustomerName').textContent = capitalizeText(customerName);
                 document.getElementById('reassignNewCustomerPhone').textContent = phone + (so ? ' • S/O: ' + capitalizeText(so) : '') + ' • ' + capitalizeText(village || 'N/A');
-                document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
-                document.getElementById('reassignCustomerResults').innerHTML = '';
-                document.getElementById('reassignSubmitBtn').disabled = false;
-            } catch (error) {
-                console.error('Error selecting customer:', error);
-                alert('Error selecting customer: ' + error.message);
             }
+
+            document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
+            document.getElementById('reassignCustomerResults').innerHTML = '';
+            document.getElementById('reassignSubmitBtn').disabled = false;
         }
 
         async function submitReassign() {
             const entryId = document.getElementById('reassignEntryId').value;
             const newCustomerId = document.getElementById('reassignNewCustomerId').value;
+            const familyMemberId = document.getElementById('reassignFamilyMemberId').value;
+            const familyMemberName = document.getElementById('reassignFamilyMemberName').value;
 
             if (!entryId || !newCustomerId) {
                 alert('Please select a new customer');
@@ -1680,13 +1705,23 @@
             submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Reassigning...';
 
             try {
+                const requestBody = {
+                    new_customer_id: parseInt(newCustomerId)
+                };
+
+                // Add family member info if selected
+                if (familyMemberId) {
+                    requestBody.family_member_id = parseInt(familyMemberId);
+                    requestBody.family_member_name = familyMemberName;
+                }
+
                 const response = await fetch(`/api/entries/${entryId}/reassign`, {
                     method: 'PUT',
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ new_customer_id: parseInt(newCustomerId) })
+                    body: JSON.stringify(requestBody)
                 });
 
                 if (!response.ok) {

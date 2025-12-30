@@ -212,16 +212,21 @@ func (s *EntryService) GetMaxThockNumber(ctx context.Context, category string) (
 	return s.EntryRepo.GetMaxThockNumber(ctx, category)
 }
 
-// ReassignEntry reassigns an entry to a different customer
-func (s *EntryService) ReassignEntry(ctx context.Context, entryID int, newCustomerID int) (*models.Entry, *models.Customer, error) {
+// ReassignEntry reassigns an entry to a different customer (optionally to a specific family member)
+func (s *EntryService) ReassignEntry(ctx context.Context, entryID int, newCustomerID int, familyMemberID *int, familyMemberName string) (*models.Entry, *models.Customer, error) {
 	// Get the new customer
 	newCustomer, err := s.CustomerRepo.Get(ctx, newCustomerID)
 	if err != nil {
 		return nil, nil, errors.New("new customer not found")
 	}
 
+	// If no family member specified, use customer name
+	if familyMemberName == "" {
+		familyMemberName = newCustomer.Name
+	}
+
 	// Update entry with new customer details
-	err = s.EntryRepo.ReassignCustomer(ctx, entryID, newCustomerID, newCustomer.Name, newCustomer.Phone, newCustomer.Village, newCustomer.SO)
+	err = s.EntryRepo.ReassignCustomer(ctx, entryID, newCustomerID, newCustomer.Name, newCustomer.Phone, newCustomer.Village, newCustomer.SO, familyMemberID, familyMemberName)
 	if err != nil {
 		return nil, nil, errors.New("failed to reassign entry: " + err.Error())
 	}

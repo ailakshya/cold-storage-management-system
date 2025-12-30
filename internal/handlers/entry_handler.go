@@ -277,13 +277,13 @@ func (h *EntryHandler) ReassignEntry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if already assigned to this customer
-	if oldEntry.CustomerID == req.NewCustomerID {
+	if oldEntry.CustomerID == req.NewCustomerID && req.FamilyMemberID == nil {
 		http.Error(w, "Entry is already assigned to this customer", http.StatusBadRequest)
 		return
 	}
 
-	// Reassign the entry
-	entry, newCustomer, err := h.Service.ReassignEntry(context.Background(), id, req.NewCustomerID)
+	// Reassign the entry (with optional family member)
+	entry, newCustomer, err := h.Service.ReassignEntry(context.Background(), id, req.NewCustomerID, req.FamilyMemberID, req.FamilyMemberName)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

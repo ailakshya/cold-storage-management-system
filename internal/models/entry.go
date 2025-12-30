@@ -50,5 +50,7 @@ type UpdateEntryRequest struct {
 
 // ReassignEntryRequest represents the request body for reassigning an entry to a different customer
 type ReassignEntryRequest struct {
-	NewCustomerID int `json:"new_customer_id"`
+	NewCustomerID    int    `json:"new_customer_id"`
+	FamilyMemberID   *int   `json:"family_member_id,omitempty"`
+	FamilyMemberName string `json:"family_member_name,omitempty"`
 }

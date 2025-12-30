@@ -352,13 +352,14 @@ func (r *EntryRepository) GetByThockNumber(ctx context.Context, thockNumber stri
 
 // ReassignCustomer reassigns an entry to a different customer
 // Tracks the transfer by updating status and transferred_to fields
-func (r *EntryRepository) ReassignCustomer(ctx context.Context, entryID int, newCustomerID int, name, phone, village, so string) error {
+func (r *EntryRepository) ReassignCustomer(ctx context.Context, entryID int, newCustomerID int, name, phone, village, so string, familyMemberID *int, familyMemberName string) error {
 	query := `UPDATE entries
 	          SET customer_id=$1, name=$2, phone=$3, village=$4, so=$5,
+	              family_member_id=$6, family_member_name=$7,
 	              status='transferred', transferred_to_customer_id=$1, transferred_at=NOW(),
 	              updated_at=NOW()
-	          WHERE id=$6`
-	_, err := r.DB.Exec(ctx, query, newCustomerID, name, phone, village, so, entryID)
+	          WHERE id=$8`
+	_, err := r.DB.Exec(ctx, query, newCustomerID, name, phone, village, so, familyMemberID, familyMemberName, entryID)
 	return err
 }
 
