@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"cold-backend/internal/auth"
+	"cold-backend/internal/middleware"
 	"cold-backend/internal/models"
 	"cold-backend/internal/repositories"
 	"cold-backend/internal/services"
@@ -28,19 +29,17 @@ func NewTOTPHandler(totpService *services.TOTPService, userRepo *repositories.Us
 
 // SetupTOTP initiates 2FA setup - returns secret and QR code
 func (h *TOTPHandler) SetupTOTP(w http.ResponseWriter, r *http.Request) {
-	claims := r.Context().Value("claims").(*auth.Claims)
-
-	// Only admins can set up 2FA
-	if claims.Role != "admin" {
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusForbidden)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Only admin users can enable 2FA"})
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized"})
 		return
 	}
 
-	user, err := h.UserRepo.Get(context.Background(), claims.UserID)
+	user, err := h.UserRepo.Get(context.Background(), userID)
 	if err != nil {
-		log.Printf("[2FA] Failed to get user %d: %v", claims.UserID, err)
+		log.Printf("[2FA] Failed to get user %d: %v", userID, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(map[string]string{"error": "User not found: " + err.Error()})
@@ -70,7 +69,11 @@ func (h *TOTPHandler) SetupTOTP(w http.ResponseWriter, r *http.Request) {
 
 // EnableTOTP verifies the code and enables 2FA - returns backup codes
 func (h *TOTPHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
-	claims := r.Context().Value("claims").(*auth.Claims)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var req models.TOTPEnableRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -84,7 +87,7 @@ func (h *TOTPHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ipAddress := getIPAddress(r)
-	response, err := h.TOTPService.VerifyAndEnable(context.Background(), claims.UserID, req.Code, ipAddress)
+	response, err := h.TOTPService.VerifyAndEnable(context.Background(), userID, req.Code, ipAddress)
 	if err != nil {
 		if _, ok := err.(*services.TOTPError); ok {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -100,7 +103,11 @@ func (h *TOTPHandler) EnableTOTP(w http.ResponseWriter, r *http.Request) {
 
 // DisableTOTP turns off 2FA after verifying password and code
 func (h *TOTPHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
-	claims := r.Context().Value("claims").(*auth.Claims)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var req models.TOTPDisableRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -113,7 +120,7 @@ func (h *TOTPHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.TOTPService.Disable(context.Background(), claims.UserID, req.Password, req.Code)
+	err := h.TOTPService.Disable(context.Background(), userID, req.Password, req.Code)
 	if err != nil {
 		if _, ok := err.(*services.TOTPError); ok {
 			http.Error(w, err.Error(), http.StatusBadRequest)
@@ -129,11 +136,15 @@ func (h *TOTPHandler) DisableTOTP(w http.ResponseWriter, r *http.Request) {
 
 // GetStatus returns the 2FA status for the current user
 func (h *TOTPHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
-	claims := r.Context().Value("claims").(*auth.Claims)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
-	status, err := h.TOTPService.GetStatus(context.Background(), claims.UserID)
+	status, err := h.TOTPService.GetStatus(context.Background(), userID)
 	if err != nil {
-		log.Printf("[2FA] Failed to get status for user %d: %v", claims.UserID, err)
+		log.Printf("[2FA] Failed to get status for user %d: %v", userID, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get 2FA status: " + err.Error()})
@@ -146,7 +157,11 @@ func (h *TOTPHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
 
 // RegenerateBackupCodes creates new backup codes (requires password)
 func (h *TOTPHandler) RegenerateBackupCodes(w http.ResponseWriter, r *http.Request) {
-	claims := r.Context().Value("claims").(*auth.Claims)
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
 
 	var req models.RegenerateBackupCodesRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -159,7 +174,7 @@ func (h *TOTPHandler) RegenerateBackupCodes(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	response, err := h.TOTPService.RegenerateBackupCodes(context.Background(), claims.UserID, req.Password)
+	response, err := h.TOTPService.RegenerateBackupCodes(context.Background(), userID, req.Password)
 	if err != nil {
 		if _, ok := err.(*services.TOTPError); ok {
 			http.Error(w, err.Error(), http.StatusBadRequest)
