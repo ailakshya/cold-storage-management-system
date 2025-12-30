@@ -1238,7 +1238,7 @@
             }
 
             // Render trucks
-            renderTrucks();
+            await renderTrucks();
 
             // Render payments
             renderPayments();
@@ -1250,7 +1250,7 @@
             renderPaymentSection();
         }
 
-        function renderTrucks() {
+        async function renderTrucks() {
             const trucksContainer = document.getElementById('trucksContainer');
             const thockSelect = document.getElementById('thockSelect');
             trucksContainer.innerHTML = '';
