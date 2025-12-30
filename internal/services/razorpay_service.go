@@ -104,12 +104,7 @@ func (s *RazorpayService) getWebhookSecret(ctx context.Context) string {
 
 // IsEnabled checks if online payments are enabled in system settings
 func (s *RazorpayService) IsEnabled(ctx context.Context) bool {
-	// Check if credentials are configured
-	keyID, keySecret, _ := s.getCredentials(ctx)
-	if keyID == "" || keySecret == "" {
-		return false
-	}
-
+	// Only check the toggle setting - credentials are checked when actually creating payment
 	setting, err := s.systemSettingRepo.Get(ctx, "online_payment_enabled")
 	if err != nil || setting == nil {
 		return false
