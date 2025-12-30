@@ -1539,7 +1539,7 @@
             `).join('');
 
             // Show/hide online vs offline payment sections
-            if (onlinePaymentEnabled && razorpayKeyId) {
+            if (onlinePaymentEnabled) {
                 document.getElementById('onlinePaymentSection').classList.remove('hidden');
                 document.getElementById('offlinePaymentSection').classList.add('hidden');
                 document.getElementById('offlinePaymentFooter').classList.add('hidden');
@@ -1752,7 +1752,7 @@
             const section = document.getElementById('paymentSection');
 
             // Only show if online payments enabled AND there's a balance due
-            if (!onlinePaymentEnabled || !razorpayKeyId || dashboardData.total_balance <= 0) {
+            if (!onlinePaymentEnabled || dashboardData.total_balance <= 0) {
                 section.style.display = 'none';
                 return;
             }
