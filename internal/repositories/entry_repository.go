@@ -523,3 +523,56 @@ func (r *EntryRepository) Update(ctx context.Context, e *models.Entry, oldCatego
 		return err
 	}
 }
+
+// SoftDelete marks an entry as deleted (soft delete)
+func (r *EntryRepository) SoftDelete(ctx context.Context, entryID int, deletedByUserID int) error {
+	query := `UPDATE entries SET status='deleted', deleted_at=NOW(), deleted_by_user_id=$1, updated_at=NOW() WHERE id=$2`
+	_, err := r.DB.Exec(ctx, query, deletedByUserID, entryID)
+	return err
+}
+
+// RestoreDeleted restores a soft-deleted entry
+func (r *EntryRepository) RestoreDeleted(ctx context.Context, entryID int) error {
+	query := `UPDATE entries SET status='active', deleted_at=NULL, deleted_by_user_id=NULL, updated_at=NOW() WHERE id=$1 AND status='deleted'`
+	_, err := r.DB.Exec(ctx, query, entryID)
+	return err
+}
+
+// GetDeletedEntries returns all soft-deleted entries
+func (r *EntryRepository) GetDeletedEntries(ctx context.Context) ([]*models.Entry, error) {
+	rows, err := r.DB.Query(ctx,
+		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
+		        COALESCE(rq.total_qty, 0) as actual_quantity,
+		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark,
+		        COALESCE(e.status, 'active') as status,
+		        e.transferred_to_customer_id, e.transferred_at,
+		        e.created_by_user_id, e.created_at, e.updated_at,
+		        e.deleted_at, e.deleted_by_user_id
+         FROM entries e
+         LEFT JOIN (
+             SELECT entry_id, SUM(quantity) as total_qty
+             FROM room_entries
+             GROUP BY entry_id
+         ) rq ON e.id = rq.entry_id
+         WHERE e.status = 'deleted'
+         ORDER BY e.deleted_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []*models.Entry
+	for rows.Next() {
+		var entry models.Entry
+		err := rows.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
+			&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber,
+			&entry.Remark, &entry.Status, &entry.TransferredToCustomerID, &entry.TransferredAt,
+			&entry.CreatedByUserID, &entry.CreatedAt, &entry.UpdatedAt,
+			&entry.DeletedAt, &entry.DeletedByUserID)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, &entry)
+	}
+	return entries, nil
+}

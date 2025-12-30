@@ -16,9 +16,11 @@ type Entry struct {
 	ThockCategory           string     `json:"thock_category"`  // 'seed' or 'sell'
 	ThockNumber             string     `json:"thock_number"`
 	Remark                  string     `json:"remark"` // Variety/varieties (comma-separated): Chipsona 1, Chipsona 3, 3797, S4, etc.
-	Status                  string     `json:"status"`                     // 'active', 'transferred'
+	Status                  string     `json:"status"`                     // 'active', 'transferred', 'deleted'
 	TransferredToCustomerID *int       `json:"transferred_to_customer_id"` // If transferred, points to new customer
 	TransferredAt           *time.Time `json:"transferred_at"`             // When transfer happened
+	DeletedAt               *time.Time `json:"deleted_at,omitempty"`       // Soft delete timestamp
+	DeletedByUserID         *int       `json:"deleted_by_user_id,omitempty"` // Who deleted it
 	CreatedByUserID         int        `json:"created_by_user_id"`
 	CreatedAt               time.Time  `json:"created_at"`
 	UpdatedAt               time.Time  `json:"updated_at"`

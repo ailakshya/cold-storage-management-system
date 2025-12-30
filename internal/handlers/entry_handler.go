@@ -430,3 +430,144 @@ func padThockNumber(num int, category string) string {
 	}
 	return strconv.Itoa(num)
 }
+
+// SoftDeleteEntry soft-deletes an entry (admin only)
+// DELETE /api/entries/{id}/soft-delete
+func (h *EntryHandler) SoftDeleteEntry(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid entry ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check admin role
+	role, ok := middleware.GetRoleFromContext(r.Context())
+	if !ok || role != "admin" {
+		http.Error(w, "Admin access required", http.StatusForbidden)
+		return
+	}
+
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
+
+	// Get entry before deletion for logging
+	entry, err := h.Service.EntryRepo.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Entry not found", http.StatusNotFound)
+		return
+	}
+
+	// Soft delete
+	err = h.Service.EntryRepo.SoftDelete(r.Context(), id, userID)
+	if err != nil {
+		http.Error(w, "Failed to delete entry: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Log the deletion to management log
+	if h.ManagementLogRepo != nil {
+		managementLog := &models.EntryManagementLog{
+			ActionType:       "delete",
+			PerformedByID:    userID,
+			EntryID:          &id,
+			ThockNumber:      &entry.ThockNumber,
+			OldCustomerID:    &entry.CustomerID,
+			OldCustomerName:  &entry.Name,
+			OldCustomerPhone: &entry.Phone,
+		}
+		h.ManagementLogRepo.CreateReassignLog(context.Background(), managementLog)
+	}
+
+	// Invalidate caches
+	cache.InvalidateEntryCaches(r.Context())
+	cache.InvalidateCustomerCaches(r.Context())
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Entry deleted successfully",
+	})
+}
+
+// RestoreEntry restores a soft-deleted entry (admin only)
+// PUT /api/entries/{id}/restore
+func (h *EntryHandler) RestoreEntry(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id, err := strconv.Atoi(vars["id"])
+	if err != nil {
+		http.Error(w, "Invalid entry ID", http.StatusBadRequest)
+		return
+	}
+
+	// Check admin role
+	role, ok := middleware.GetRoleFromContext(r.Context())
+	if !ok || role != "admin" {
+		http.Error(w, "Admin access required", http.StatusForbidden)
+		return
+	}
+
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
+
+	// Get entry before restoration for logging
+	entry, err := h.Service.EntryRepo.Get(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Entry not found", http.StatusNotFound)
+		return
+	}
+
+	if entry.Status != "deleted" {
+		http.Error(w, "Entry is not deleted", http.StatusBadRequest)
+		return
+	}
+
+	// Restore
+	err = h.Service.EntryRepo.RestoreDeleted(r.Context(), id)
+	if err != nil {
+		http.Error(w, "Failed to restore entry: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Log the restoration to management log
+	if h.ManagementLogRepo != nil {
+		managementLog := &models.EntryManagementLog{
+			ActionType:       "restore",
+			PerformedByID:    userID,
+			EntryID:          &id,
+			ThockNumber:      &entry.ThockNumber,
+			NewCustomerID:    &entry.CustomerID,
+			NewCustomerName:  &entry.Name,
+			NewCustomerPhone: &entry.Phone,
+		}
+		h.ManagementLogRepo.CreateReassignLog(context.Background(), managementLog)
+	}
+
+	// Invalidate caches
+	cache.InvalidateEntryCaches(r.Context())
+	cache.InvalidateCustomerCaches(r.Context())
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Entry restored successfully",
+	})
+}
+
+// GetDeletedEntries returns all soft-deleted entries (admin only)
+// GET /api/entries/deleted
+func (h *EntryHandler) GetDeletedEntries(w http.ResponseWriter, r *http.Request) {
+	// Check admin role
+	role, ok := middleware.GetRoleFromContext(r.Context())
+	if !ok || role != "admin" {
+		http.Error(w, "Admin access required", http.StatusForbidden)
+		return
+	}
+
+	entries, err := h.Service.EntryRepo.GetDeletedEntries(r.Context())
+	if err != nil {
+		http.Error(w, "Failed to get deleted entries: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entries)
+}

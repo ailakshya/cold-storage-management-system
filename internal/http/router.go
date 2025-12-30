@@ -203,6 +203,9 @@ func NewRouter(
 	entriesAPI.HandleFunc("/{id}", entryHandler.GetEntry).Methods("GET")
 	entriesAPI.HandleFunc("/{id}", entryHandler.UpdateEntry).Methods("PUT")
 	entriesAPI.HandleFunc("/{id}/reassign", entryHandler.ReassignEntry).Methods("PUT") // Requires can_manage_entries permission
+	entriesAPI.HandleFunc("/{id}/soft-delete", entryHandler.SoftDeleteEntry).Methods("DELETE") // Admin only
+	entriesAPI.HandleFunc("/{id}/restore", entryHandler.RestoreEntry).Methods("PUT") // Admin only
+	entriesAPI.HandleFunc("/deleted", entryHandler.GetDeletedEntries).Methods("GET") // Admin only - get all deleted entries
 	entriesAPI.HandleFunc("/customer/{customer_id}", entryHandler.ListEntriesByCustomer).Methods("GET")
 
 	// Protected API routes - Room Entries (employees and admins only for creation/update, LOADING MODE ONLY)
