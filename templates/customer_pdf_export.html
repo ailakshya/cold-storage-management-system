@@ -274,6 +274,7 @@
 
                 customer.thocks.push({
                     thock_number: entry.thock_number,
+                    family_member_name: entry.family_member_name || entry.name,
                     category: entry.thock_category,
                     quantity: storedQty,
                     qtyDisplay: storedQty,
@@ -511,34 +512,66 @@
             const entryWithSO = entries.find(e => e.so);
             const customerSO = entryWithSO?.so || '-';
 
-            // Storage table
+            // Storage table - Group by family member
             let storageRows = '';
             let storageTotalQty = 0;
             if (roomEntries && roomEntries.length > 0) {
-                storageRows = roomEntries.map(re => {
-                    const createdBy = userMap[re.created_by_user_id] || '-';
-                    const date = new Date(re.created_at).toLocaleString('en-IN', {
-                        day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-                    });
-                    // Sum up quantity for total
+                // Group room entries by family member
+                const groupedByFamily = {};
+                roomEntries.forEach(re => {
+                    // Find the entry to get family_member_name
+                    const entry = entries.find(e => e.thock_number === re.thock_number);
+                    const familyName = entry?.family_member_name || entry?.name || customer.name;
+                    if (!groupedByFamily[familyName]) {
+                        groupedByFamily[familyName] = [];
+                    }
+                    groupedByFamily[familyName].push(re);
                     storageTotalQty += re.quantity || 0;
-                    // Show quantity with breakdown: "56 (11, 21, 14, 10)"
-                    const qtyDisplay = re.quantity_breakdown
-                        ? `${re.quantity} (${re.quantity_breakdown})`
-                        : re.quantity;
-                    return `
-                        <tr class="border-b hover:bg-gray-50">
-                            <td class="p-2 font-medium">${re.thock_number}</td>
-                            <td class="p-2">${re.room_no || '-'}</td>
-                            <td class="p-2">${re.floor || '0'}</td>
-                            <td class="p-2">${re.gate_no || '-'}</td>
-                            <td class="p-2 font-bold">${qtyDisplay}</td>
-                            <td class="p-2">${re.remark || '-'}</td>
-                            <td class="p-2">${createdBy}</td>
-                            <td class="p-2 text-sm">${date}</td>
-                        </tr>
-                    `;
-                }).join('');
+                });
+
+                const familyNames = Object.keys(groupedByFamily);
+                const hasMultipleFamilies = familyNames.length > 1;
+
+                familyNames.forEach(familyName => {
+                    const familyEntries = groupedByFamily[familyName];
+                    const familyQty = familyEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
+                    const familyRent = familyQty * rentRate;
+
+                    // Add family header if multiple families
+                    if (hasMultipleFamilies) {
+                        storageRows += `
+                            <tr class="bg-purple-100 border-t-2 border-purple-400">
+                                <td colspan="8" class="p-2 font-bold text-purple-800">
+                                    <i class="bi bi-person-fill"></i> ${familyName}
+                                    <span class="text-sm font-normal">(${familyEntries.length} entries, ${familyQty} qty, ₹${familyRent.toLocaleString('en-IN')})</span>
+                                </td>
+                            </tr>
+                        `;
+                    }
+
+                    // Add entries for this family
+                    familyEntries.forEach(re => {
+                        const createdBy = userMap[re.created_by_user_id] || '-';
+                        const date = new Date(re.created_at).toLocaleString('en-IN', {
+                            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                        });
+                        const qtyDisplay = re.quantity_breakdown
+                            ? `${re.quantity} (${re.quantity_breakdown})`
+                            : re.quantity;
+                        storageRows += `
+                            <tr class="border-b hover:bg-gray-50">
+                                <td class="p-2 font-medium">${re.thock_number}</td>
+                                <td class="p-2">${re.room_no || '-'}</td>
+                                <td class="p-2">${re.floor || '0'}</td>
+                                <td class="p-2">${re.gate_no || '-'}</td>
+                                <td class="p-2 font-bold">${qtyDisplay}</td>
+                                <td class="p-2">${re.remark || '-'}</td>
+                                <td class="p-2">${createdBy}</td>
+                                <td class="p-2 text-sm">${date}</td>
+                            </tr>
+                        `;
+                    });
+                });
             } else {
                 storageRows = '<tr><td colspan="8" class="p-4 text-center text-gray-500">No storage entries</td></tr>';
             }
