@@ -216,8 +216,6 @@
                             <th>S/O</th>
                             <th>Phone</th>
                             <th>Type</th>
-                            <th>Description</th>
-                            <th class="text-right">Debit</th>
                             <th class="text-right">Credit</th>
                             <th class="text-right">Balance</th>
                             <th>By</th>
@@ -227,7 +225,7 @@
                     </thead>
                     <tbody id="auditTableBody">
                         <tr>
-                            <td colspan="12" class="text-center py-8">
+                            <td colspan="10" class="text-center py-8">
                                 <i class="bi bi-hourglass-split text-4xl text-gray-400"></i>
                                 <p class="text-gray-600 mt-2">Loading audit data...</p>
                             </td>
@@ -334,7 +332,7 @@
                 console.error('Error loading audit data:', error);
                 document.getElementById('auditTableBody').innerHTML = `
                     <tr>
-                        <td colspan="12" class="text-center py-8 text-red-500">
+                        <td colspan="10" class="text-center py-8 text-red-500">
                             <i class="bi bi-exclamation-triangle text-4xl"></i>
                             <p class="mt-2">Error loading audit data</p>
                         </td>
@@ -350,7 +348,7 @@
             if (!entries || entries.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="12" class="text-center py-8">
+                        <td colspan="10" class="text-center py-8">
                             <i class="bi bi-inbox text-4xl text-gray-400"></i>
                             <p class="text-gray-600 mt-2">No entries found</p>
                         </td>
@@ -367,8 +365,6 @@
                     <td>${escapeHtml(entry.customer_so || '-')}</td>
                     <td>${escapeHtml(entry.customer_phone)}</td>
                     <td><span class="badge ${getBadgeClass(entry.entry_type)}">${entry.entry_type}</span></td>
-                    <td>${escapeHtml(entry.description || '-')}</td>
-                    <td class="text-right ${entry.debit > 0 ? 'text-red-600 font-semibold' : ''}">${entry.debit > 0 ? '₹' + formatNumber(entry.debit) : '-'}</td>
                     <td class="text-right ${entry.credit > 0 ? 'text-green-600 font-semibold' : ''}">${entry.credit > 0 ? '₹' + formatNumber(entry.credit) : '-'}</td>
                     <td class="text-right font-semibold ${entry.running_balance > 0 ? 'text-red-600' : 'text-green-600'}">₹${formatNumber(entry.running_balance)}</td>
                     <td class="whitespace-nowrap">${escapeHtml(entry.created_by_name || '-')}</td>
