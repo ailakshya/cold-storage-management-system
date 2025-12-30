@@ -1560,57 +1560,34 @@
                 try {
                     let results = [];
 
-                    // Search from cached customer accounts first
-                    const filteredCustomers = allCustomerAccounts.filter(c =>
-                        c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                        c.phone.includes(searchTerm)
-                    ).slice(0, 5);
-
-                    // Add customers to results
-                    filteredCustomers.forEach(c => {
-                        results.push({
-                            type: 'customer',
-                            customerId: c.id || 0,
-                            name: c.name,
-                            phone: c.phone,
-                            so: c.so || '',
-                            village: c.village || 'N/A',
-                            familyMemberId: null,
-                            familyMemberName: ''
-                        });
-                    });
-
-                    // Also search ALL customers from database
+                    // Always search database first to get proper customer IDs
                     const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(searchTerm)}`, {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (response.ok) {
                         const dbCustomers = await response.json() || [];
                         dbCustomers.forEach(c => {
-                            // Avoid duplicates
-                            if (!results.find(r => r.phone === c.phone && r.type === 'customer')) {
-                                results.push({
-                                    type: 'customer',
-                                    customerId: c.id,
-                                    name: c.name,
-                                    phone: c.phone,
-                                    so: c.so || '',
-                                    village: c.village || 'N/A',
-                                    familyMemberId: null,
-                                    familyMemberName: ''
-                                });
-                            }
+                            results.push({
+                                type: 'customer',
+                                customerId: c.id,
+                                name: c.name,
+                                phone: c.phone,
+                                so: c.so || '',
+                                village: c.village || 'N/A',
+                                familyMemberId: null,
+                                familyMemberName: ''
+                            });
 
                             // Also fetch family members for this customer
                             fetch(`/api/customers/${c.id}/family-members`, {
                                 headers: { 'Authorization': `Bearer ${token}` }
-                            }).then(fmRes => fmRes.json()).then(familyMembers => {
-                                if (familyMembers && familyMembers.length > 0) {
+                            }).then(fmRes => fmRes.json()).then(fmData => {
+                                const familyMembers = fmData?.family_members || [];
+                                if (familyMembers.length > 0) {
                                     const matchingFm = familyMembers.filter(fm =>
                                         fm.name.toLowerCase().includes(searchTerm.toLowerCase())
                                     );
                                     if (matchingFm.length > 0) {
-                                        // Re-render with family members
                                         matchingFm.forEach(fm => {
                                             if (!results.find(r => r.familyMemberId === fm.id)) {
                                                 results.push({
@@ -1631,6 +1608,35 @@
                                 }
                             }).catch(() => {});
                         });
+                    }
+
+                    // Also search from cached accounts (for name matching)
+                    const filteredFromCache = allCustomerAccounts.filter(c =>
+                        (c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         c.phone.includes(searchTerm)) &&
+                        !results.find(r => r.phone === c.phone)
+                    ).slice(0, 5);
+
+                    // For cached results, we need to fetch their ID from database
+                    for (const c of filteredFromCache) {
+                        const idResponse = await fetch(`/api/customers/search?phone=${encodeURIComponent(c.phone)}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (idResponse.ok) {
+                            const idData = await idResponse.json();
+                            if (idData && idData.length > 0) {
+                                results.push({
+                                    type: 'customer',
+                                    customerId: idData[0].id,
+                                    name: c.name,
+                                    phone: c.phone,
+                                    so: c.so || '',
+                                    village: c.village || 'N/A',
+                                    familyMemberId: null,
+                                    familyMemberName: ''
+                                });
+                            }
+                        }
                     }
 
                     if (results.length === 0) {
