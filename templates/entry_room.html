@@ -18,6 +18,7 @@
     <link href="/static/css/fonts.css" rel="stylesheet">
     <link href="/static/css/dark-mode.css" rel="stylesheet">
     <link href="/static/css/responsive.css" rel="stylesheet">
+    <link href="/static/css/inventory-theme.css" rel="stylesheet">
 
     <style>
         * {
@@ -130,8 +131,26 @@
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#FFF9E6] min-h-screen p-2 sm:p-4 md:p-8">
-    <div class="max-w-7xl mx-auto">
+<body class="bg-[#FFF9E6] min-h-screen">
+    <!-- Navigation Bar -->
+    <div class="page-nav">
+        <a href="{{.DashboardURL}}" class="nav-btn nav-btn-dashboard">
+            <i class="bi bi-house"></i>
+            <span data-i18n="dashboard">Dashboard</span>
+        </a>
+        <div class="flex items-center gap-2">
+            <select id="langSelector" onchange="i18n.setLanguage(this.value)" class="lang-toggle">
+                <option value="en">EN</option>
+                <option value="hi">हिं</option>
+            </select>
+            <button onclick="history.back()" class="nav-btn nav-btn-back">
+                <span data-i18n="back">Back</span>
+                <i class="bi bi-arrow-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto p-2 sm:p-4 md:p-8">
         <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 md:mb-8 neu-border bg-white p-3 md:p-6 gap-3 md:gap-4">
             <div>
                 <div class="flex items-center gap-2 md:gap-3">
@@ -143,19 +162,10 @@
                 </div>
             </div>
             <div class="flex gap-2 md:gap-3 items-center w-full md:w-auto justify-end">
-                <!-- Language Selector -->
-                <select id="langSelector" onchange="i18n.setLanguage(this.value)"
-                        class="lang-selector bg-white px-2 md:px-3 py-2 text-sm font-medium cursor-pointer">
-                    <option value="en">EN</option>
-                    <option value="hi">हिं</option>
-                </select>
                 <!-- Theme Toggle -->
-                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-2 md:px-3 py-2" title="Toggle Dark Mode">
+                <button onclick="theme.toggle()" class="nav-btn nav-btn-back" title="Toggle Dark Mode">
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
-                </button>
-                <button onclick="goBack()" class="neu-button bg-gray-200 px-3 md:px-4 py-2">
-                    <i class="bi bi-arrow-left"></i> <span class="hidden sm:inline" data-i18n="back">Back</span>
                 </button>
             </div>
         </header>
