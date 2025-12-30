@@ -619,6 +619,80 @@ func (h *EntryHandler) UpdateFamilyMember(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// BulkSoftDeleteEntries soft-deletes multiple entries at once (admin only)
+// POST /api/entries/bulk-delete
+func (h *EntryHandler) BulkSoftDeleteEntries(w http.ResponseWriter, r *http.Request) {
+	// Check admin role
+	role, ok := middleware.GetRoleFromContext(r.Context())
+	if !ok || role != "admin" {
+		http.Error(w, "Admin access required", http.StatusForbidden)
+		return
+	}
+
+	userID, _ := middleware.GetUserIDFromContext(r.Context())
+
+	var req struct {
+		EntryIDs []int `json:"entry_ids"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.EntryIDs) == 0 {
+		http.Error(w, "entry_ids is required", http.StatusBadRequest)
+		return
+	}
+
+	// Process each entry
+	var successCount int
+	var errors []string
+
+	for _, entryID := range req.EntryIDs {
+		// Get entry before deletion for logging
+		entry, err := h.Service.EntryRepo.Get(r.Context(), entryID)
+		if err != nil {
+			errors = append(errors, "Entry "+strconv.Itoa(entryID)+": not found")
+			continue
+		}
+
+		// Soft delete
+		err = h.Service.EntryRepo.SoftDelete(r.Context(), entryID, userID)
+		if err != nil {
+			errors = append(errors, "Entry "+strconv.Itoa(entryID)+": "+err.Error())
+			continue
+		}
+
+		// Log the deletion
+		if h.ManagementLogRepo != nil {
+			managementLog := &models.EntryManagementLog{
+				ActionType:       "delete",
+				PerformedByID:    userID,
+				EntryID:          &entryID,
+				ThockNumber:      &entry.ThockNumber,
+				OldCustomerID:    &entry.CustomerID,
+				OldCustomerName:  &entry.Name,
+				OldCustomerPhone: &entry.Phone,
+			}
+			h.ManagementLogRepo.CreateReassignLog(context.Background(), managementLog)
+		}
+
+		successCount++
+	}
+
+	// Invalidate caches
+	cache.InvalidateEntryCaches(r.Context())
+	cache.InvalidateCustomerCaches(r.Context())
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":       len(errors) == 0,
+		"success_count": successCount,
+		"total_count":   len(req.EntryIDs),
+		"errors":        errors,
+	})
+}
+
 // BulkReassignEntries reassigns multiple entries to a different customer at once
 // POST /api/entries/bulk-reassign
 func (h *EntryHandler) BulkReassignEntries(w http.ResponseWriter, r *http.Request) {

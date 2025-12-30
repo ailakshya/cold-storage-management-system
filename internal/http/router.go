@@ -207,6 +207,7 @@ func NewRouter(
 	entriesAPI.HandleFunc("/{id}/soft-delete", entryHandler.SoftDeleteEntry).Methods("DELETE") // Admin only
 	entriesAPI.HandleFunc("/{id}/restore", entryHandler.RestoreEntry).Methods("PUT") // Admin only
 	entriesAPI.HandleFunc("/bulk-reassign", entryHandler.BulkReassignEntries).Methods("POST") // Requires can_manage_entries permission
+	entriesAPI.HandleFunc("/bulk-delete", entryHandler.BulkSoftDeleteEntries).Methods("POST") // Admin only - bulk soft delete
 	entriesAPI.HandleFunc("/deleted", entryHandler.GetDeletedEntries).Methods("GET") // Admin only - get all deleted entries
 	entriesAPI.HandleFunc("/customer/{customer_id}", entryHandler.ListEntriesByCustomer).Methods("GET")
 

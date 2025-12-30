@@ -492,9 +492,12 @@
     <div id="bulkTransferToolbar" class="hidden fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-40 flex items-center gap-4 neu-border border-blue-800">
         <span class="font-bold"><span id="selectedCount">0</span> thock(s) selected</span>
         <button onclick="openBulkTransferModal()" class="neu-button bg-green-500 text-white py-2 px-4">
-            <i class="bi bi-arrow-left-right"></i> Transfer Selected
+            <i class="bi bi-arrow-left-right"></i> Transfer
         </button>
-        <button onclick="clearBulkSelection()" class="neu-button bg-red-500 text-white py-2 px-4">
+        <button id="bulkDeleteBtn" onclick="bulkDeleteThocks()" class="hidden neu-button bg-red-600 text-white py-2 px-4">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+        <button onclick="clearBulkSelection()" class="neu-button bg-gray-500 text-white py-2 px-4">
             <i class="bi bi-x-circle"></i> Clear
         </button>
     </div>
@@ -1963,6 +1966,44 @@
             }
         }
 
+        async function bulkDeleteThocks() {
+            const thockList = Array.from(selectedThocks.values()).map(t => t.thock).join(', ');
+            if (!confirm(`Are you sure you want to delete ${selectedThocks.size} thock(s)?\n\n${thockList}\n\nThis is a soft delete and can be undone from Merge & Transfer History.`)) {
+                return;
+            }
+
+            const entryIds = Array.from(selectedThocks.keys()).map(id => parseInt(id));
+
+            try {
+                const response = await fetch('/api/entries/bulk-delete', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ entry_ids: entryIds })
+                });
+
+                const result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.errors?.join(', ') || 'Delete failed');
+                }
+
+                if (result.errors && result.errors.length > 0) {
+                    alert(`Deleted ${result.success_count}/${result.total_count} thocks.\n\nErrors:\n${result.errors.join('\n')}`);
+                } else {
+                    alert(`Successfully deleted ${result.success_count} thock(s)!`);
+                }
+
+                clearBulkSelection();
+                loadCustomerAccounts(true); // Force refresh
+            } catch (error) {
+                console.error('Bulk delete error:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+
         // ===============================
         // Bulk Transfer Functions
         // ===============================
@@ -1990,12 +2031,18 @@
 
             const toolbar = document.getElementById('bulkTransferToolbar');
             const countSpan = document.getElementById('selectedCount');
+            const deleteBtn = document.getElementById('bulkDeleteBtn');
 
             if (selectedThocks.size > 0) {
                 toolbar.classList.remove('hidden');
                 countSpan.textContent = selectedThocks.size;
+                // Show delete button only for admins
+                if (isAdmin) {
+                    deleteBtn.classList.remove('hidden');
+                }
             } else {
                 toolbar.classList.add('hidden');
+                deleteBtn.classList.add('hidden');
             }
 
             // Update select-all checkboxes
