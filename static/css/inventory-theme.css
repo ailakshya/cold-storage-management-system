@@ -317,7 +317,8 @@ textarea {
     border: 1px solid var(--border-color) !important;
     padding: 0.75rem !important;
     transition: all 0.2s ease;
-    background: var(--white);
+    background: var(--white) !important;
+    color: var(--dark) !important;
 }
 
 .neu-input:focus,
