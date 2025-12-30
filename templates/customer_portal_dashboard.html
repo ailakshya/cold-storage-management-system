@@ -239,12 +239,47 @@
             color: var(--secondary);
         }
 
+        /* Due Section - Prominent */
+        .truck-due-section {
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe0e0 100%);
+            border-radius: 10px;
+            padding: 0.75rem;
+            margin-bottom: 0.75rem;
+            text-align: center;
+            border: 1px solid #ffcccc;
+        }
+
+        .truck-due-section.paid {
+            background: linear-gradient(135deg, #f0fff4 0%, #dcffe4 100%);
+            border-color: #a7f3d0;
+        }
+
+        .truck-due-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .truck-due-amount {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--sell-color);
+        }
+
+        .truck-due-section.paid .truck-due-amount {
+            color: var(--secondary);
+            font-size: 1.2rem;
+        }
+
         .truck-balance {
             display: flex;
             justify-content: space-between;
             align-items: center;
             padding-top: 0.5rem;
             border-top: 1px solid var(--border-color);
+            gap: 0.5rem;
         }
 
         .truck-balance-amount {
@@ -254,15 +289,262 @@
         .truck-balance-amount.due { color: var(--sell-color); }
         .truck-balance-amount.paid { color: var(--secondary); }
 
+        .truck-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
         .request-btn {
             background: var(--primary);
             color: var(--white);
-            padding: 0.5rem 1rem;
+            padding: 0.5rem 0.75rem;
             border-radius: 8px;
             border: none;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 600;
             cursor: pointer;
+        }
+
+        .pay-btn {
+            background: linear-gradient(135deg, #5cb85c 0%, #3d8b40 100%);
+            color: var(--white);
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            border: none;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(92, 184, 92, 0.3);
+        }
+
+        .pay-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(92, 184, 92, 0.4);
+        }
+
+        /* Payment Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+
+        .modal-content {
+            background: var(--white);
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-title i {
+            color: var(--secondary);
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+        }
+
+        .modal-body {
+            padding: 1.25rem;
+        }
+
+        .payment-truck-info {
+            background: var(--light);
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .payment-truck-number {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .payment-truck-due {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .payment-truck-due strong {
+            color: var(--sell-color);
+            font-size: 1.1rem;
+        }
+
+        .payment-amount-input {
+            margin-bottom: 1rem;
+        }
+
+        .payment-amount-input label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .payment-amount-input input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.5rem;
+            font-weight: 700;
+            text-align: center;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
+            background: var(--light);
+        }
+
+        .payment-amount-input input:focus {
+            outline: none;
+            border-color: var(--secondary);
+            background: var(--white);
+        }
+
+        .quick-amount-btns {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .quick-amount-btn {
+            flex: 1;
+            min-width: calc(50% - 0.25rem);
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background: var(--white);
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            color: var(--dark);
+        }
+
+        .quick-amount-btn:hover, .quick-amount-btn.active {
+            background: var(--primary-light);
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        .qr-section {
+            text-align: center;
+            padding: 1.5rem;
+            background: var(--light);
+            border-radius: 12px;
+            margin-bottom: 1rem;
+        }
+
+        .qr-placeholder {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 1rem;
+            background: var(--white);
+            border: 2px dashed var(--border-color);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: var(--text-muted);
+        }
+
+        .qr-placeholder i {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.5;
+        }
+
+        .qr-info {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+        }
+
+        .payment-upi-id {
+            background: var(--white);
+            padding: 0.75rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .copy-btn {
+            background: var(--primary-light);
+            color: var(--primary);
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.75rem;
+        }
+
+        .modal-footer {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 1rem;
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+        }
+
+        .modal-btn-secondary {
+            background: var(--light);
+            color: var(--dark);
+            border: 1px solid var(--border-color);
+        }
+
+        .modal-btn-primary {
+            background: linear-gradient(135deg, var(--secondary) 0%, #3d8b40 100%);
+            color: var(--white);
+            box-shadow: 0 4px 15px rgba(92, 184, 92, 0.3);
         }
 
         /* Family Member Header */
@@ -629,6 +911,57 @@
         </div>
     </div>
 
+    <!-- Payment Modal -->
+    <div id="paymentModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <i class="bi bi-credit-card"></i>
+                    <span data-i18n="pay_for_truck">Pay for Truck</span>
+                </div>
+                <button class="modal-close" onclick="closePaymentModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="payment-truck-info">
+                    <div class="payment-truck-number" id="paymentTruckNumber">-</div>
+                    <div class="payment-truck-due">
+                        <span data-i18n="total_due">Total Due</span>: <strong id="paymentTruckDue">₹0</strong>
+                    </div>
+                </div>
+
+                <div class="payment-amount-input">
+                    <label data-i18n="enter_amount">Enter Amount (₹)</label>
+                    <input type="number" id="paymentAmount" inputmode="numeric" placeholder="0" min="1">
+                </div>
+
+                <div class="quick-amount-btns" id="quickAmountBtns">
+                    <!-- Will be populated dynamically -->
+                </div>
+
+                <div class="qr-section">
+                    <div class="qr-placeholder" id="qrPlaceholder">
+                        <i class="bi bi-qr-code"></i>
+                        <span data-i18n="qr_coming_soon">QR Code Coming Soon</span>
+                    </div>
+                    <div class="qr-info" data-i18n="scan_to_pay">Scan QR code to pay via UPI</div>
+                    <div class="payment-upi-id">
+                        <span id="upiId">coldstore@upi</span>
+                        <button class="copy-btn" onclick="copyUPI()"><i class="bi bi-copy"></i></button>
+                    </div>
+                </div>
+
+                <div style="background: #fff8e7; padding: 0.75rem; border-radius: 10px; font-size: 0.8rem; color: #92400e;">
+                    <i class="bi bi-info-circle"></i>
+                    <span data-i18n="payment_note">Payment will be verified automatically. Please keep the transaction ID handy.</span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn modal-btn-secondary" onclick="closePaymentModal()" data-i18n="cancel">Cancel</button>
+                <button class="modal-btn modal-btn-primary" onclick="confirmPayment()" data-i18n="i_have_paid">I Have Paid</button>
+            </div>
+        </div>
+    </div>
+
     <!-- i18n Script -->
     <script src="/static/js/prefetch.js?v=5"></script>
     <script src="/static/js/i18n.js"></script>
@@ -775,8 +1108,16 @@
                     const categoryClass = category === 'seed' ? 'category-seed' : category === 'sell' ? 'category-sell' : '';
                     const categoryLabel = getCategoryLabel(category);
 
-                    const balanceClass = truck.balance > 0 ? 'due' : 'paid';
-                    const balanceLabel = truck.balance > 0 ? i18n.t('due', 'Due') : i18n.t('paid', 'Paid');
+                    const hasDue = truck.balance > 0;
+                    const dueClass = hasDue ? '' : 'paid';
+                    const dueLabel = hasDue ? i18n.t('amount_due', 'Amount Due') : i18n.t('fully_paid', 'Fully Paid');
+                    const dueAmount = hasDue ? `₹${formatNumber(truck.balance)}` : `<i class="bi bi-check-circle"></i> ${i18n.t('cleared', 'Cleared')}`;
+
+                    // Pay button only if there's a due
+                    const payButton = hasDue ?
+                        `<button onclick="openPaymentModal('${truck.thock_number}', ${truck.balance}, ${truck.entry_id})" class="pay-btn">
+                            <i class="bi bi-credit-card"></i> ${i18n.t('pay_now', 'Pay')}
+                        </button>` : '';
 
                     trucksContainer.innerHTML += `
                         <div class="truck-card">
@@ -784,6 +1125,13 @@
                                 <div class="truck-number">${truck.thock_number}</div>
                                 ${category ? `<span class="truck-category ${categoryClass}">${categoryLabel}</span>` : ''}
                             </div>
+
+                            <!-- Prominent Due Section -->
+                            <div class="truck-due-section ${dueClass}">
+                                <div class="truck-due-label">${dueLabel}</div>
+                                <div class="truck-due-amount">${dueAmount}</div>
+                            </div>
+
                             <div class="truck-stats">
                                 <div class="truck-stat">
                                     <div class="truck-stat-label">${i18n.t('stored', 'Stored')}</div>
@@ -799,13 +1147,16 @@
                                 </div>
                             </div>
                             <div class="truck-balance">
-                                <div>
-                                    <span class="truck-balance-amount ${balanceClass}">₹${formatNumber(Math.abs(truck.balance))}</span>
-                                    <small style="color: var(--text-muted)">${balanceLabel}</small>
+                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                    ${i18n.t('rent', 'Rent')}: ₹${formatNumber(truck.total_rent)} |
+                                    ${i18n.t('paid', 'Paid')}: ₹${formatNumber(truck.total_paid)}
                                 </div>
-                                <button onclick="selectThock('${truck.thock_number}', ${truck.can_take_out})" class="request-btn">
-                                    ${i18n.t('request', 'Request')}
-                                </button>
+                                <div class="truck-actions">
+                                    ${payButton}
+                                    <button onclick="selectThock('${truck.thock_number}', ${truck.can_take_out})" class="request-btn">
+                                        ${i18n.t('request', 'Request')}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     `;
@@ -986,6 +1337,104 @@
                 window.location.href = '/login';
             });
         }
+
+        // ========== Payment Modal Functions ==========
+        let currentPaymentTruck = null;
+        let currentPaymentDue = 0;
+        let currentPaymentEntryId = 0;
+
+        function openPaymentModal(truckNumber, dueAmount, entryId) {
+            currentPaymentTruck = truckNumber;
+            currentPaymentDue = dueAmount;
+            currentPaymentEntryId = entryId;
+
+            // Set truck info
+            document.getElementById('paymentTruckNumber').textContent = truckNumber;
+            document.getElementById('paymentTruckDue').textContent = '₹' + formatNumber(dueAmount);
+
+            // Set default amount to full due
+            document.getElementById('paymentAmount').value = Math.round(dueAmount);
+
+            // Generate quick amount buttons
+            const quickBtns = document.getElementById('quickAmountBtns');
+            const amounts = [
+                { label: i18n.t('full_amount', 'Full Amount'), value: Math.round(dueAmount) },
+                { label: '₹5,000', value: 5000 },
+                { label: '₹10,000', value: 10000 },
+                { label: '₹25,000', value: 25000 }
+            ].filter(a => a.value <= dueAmount || a.value === Math.round(dueAmount));
+
+            quickBtns.innerHTML = amounts.map(a => `
+                <button type="button" class="quick-amount-btn ${a.value === Math.round(dueAmount) ? 'active' : ''}"
+                        onclick="setPaymentAmount(${a.value}, this)">
+                    ${a.label}
+                </button>
+            `).join('');
+
+            // Show modal
+            document.getElementById('paymentModal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('paymentModal').classList.add('hidden');
+            currentPaymentTruck = null;
+            currentPaymentDue = 0;
+            currentPaymentEntryId = 0;
+        }
+
+        function setPaymentAmount(amount, btn) {
+            document.getElementById('paymentAmount').value = amount;
+
+            // Update active state
+            document.querySelectorAll('.quick-amount-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+        }
+
+        function copyUPI() {
+            const upiId = document.getElementById('upiId').textContent;
+            navigator.clipboard.writeText(upiId).then(() => {
+                const copyBtn = document.querySelector('.copy-btn');
+                copyBtn.innerHTML = '<i class="bi bi-check"></i>';
+                setTimeout(() => {
+                    copyBtn.innerHTML = '<i class="bi bi-copy"></i>';
+                }, 2000);
+            });
+        }
+
+        function confirmPayment() {
+            const amount = parseInt(document.getElementById('paymentAmount').value);
+
+            if (!amount || amount <= 0) {
+                alert(i18n.t('enter_valid_amount', 'Please enter a valid amount'));
+                return;
+            }
+
+            // For now, just show a confirmation since payment gateway is not integrated yet
+            const message = i18n.t('payment_confirmation_msg',
+                `Payment of ₹${formatNumber(amount)} for truck ${currentPaymentTruck} will be verified once you complete the UPI payment. Please ensure you use the correct UPI ID.`);
+
+            alert(message);
+
+            // Close modal
+            closePaymentModal();
+
+            // In future, this would integrate with payment gateway
+            // For now, user needs to manually pay and admin verifies
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closePaymentModal();
+            }
+        });
+
+        // Close modal on overlay click
+        document.getElementById('paymentModal')?.addEventListener('click', function(e) {
+            if (e.target === this) {
+                closePaymentModal();
+            }
+        });
 
         // Auto-refresh every 30 seconds
         setInterval(() => loadDashboard(true), 30000);
