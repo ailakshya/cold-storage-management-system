@@ -369,15 +369,22 @@ func (r *EntryRepository) ReassignCustomer(ctx context.Context, entryID int, new
 }
 
 // GetTransferredEntries returns all entries that have been transferred
+// Returns ORIGINAL customer data (from original_customer_id) for display
 func (r *EntryRepository) GetTransferredEntries(ctx context.Context) ([]*models.Entry, error) {
 	rows, err := r.DB.Query(ctx,
-		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
+		`SELECT e.id, e.customer_id,
+		        COALESCE(oc.phone, e.phone) as original_phone,
+		        COALESCE(oc.name, e.name) as original_name,
+		        COALESCE(oc.village, e.village) as original_village,
+		        COALESCE(oc.so, e.so) as original_so,
+		        e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
 		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark,
 		        COALESCE(e.status, 'active') as status,
 		        e.transferred_to_customer_id, e.transferred_at,
 		        e.created_by_user_id, e.created_at, e.updated_at
          FROM entries e
+         LEFT JOIN customers oc ON e.original_customer_id = oc.id
          LEFT JOIN (
              SELECT entry_id, SUM(quantity) as total_qty
              FROM room_entries
