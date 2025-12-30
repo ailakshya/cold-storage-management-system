@@ -130,6 +130,12 @@
     "paid": "भुगतान",
     "request": "अनुरोध",
     "trucks": "थोक",
+    "entire_account": "पूरा खाता",
+    "all_family_members": "सभी परिवार के सदस्य",
+    "make_payment": "भुगतान करें",
+    "pay": "भुगतान",
+    "recent_payments": "हाल के भुगतान",
+    "no_payments_yet": "अभी तक कोई भुगतान नहीं",
     "invoice": "इनवॉइस",
 
     "user": "उपयोगकर्ता",

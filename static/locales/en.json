@@ -130,6 +130,12 @@
     "paid": "Paid",
     "request": "Request",
     "trucks": "trucks",
+    "entire_account": "Entire Account",
+    "all_family_members": "All family members",
+    "make_payment": "Make Payment",
+    "pay": "Pay",
+    "recent_payments": "Recent Payments",
+    "no_payments_yet": "No payments recorded yet",
     "invoice": "Invoice",
 
     "user": "User",
