@@ -163,6 +163,7 @@ func (r *EntryRepository) List(ctx context.Context) ([]*models.Entry, error) {
 	// OPTIMIZED: Use LEFT JOIN with subquery aggregate instead of N+1 subqueries
 	// Before: 500 entries = 500 subqueries
 	// After: Single query with JOIN aggregate
+	// Filter out deleted entries
 	rows, err := r.DB.Query(ctx,
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
@@ -175,6 +176,7 @@ func (r *EntryRepository) List(ctx context.Context) ([]*models.Entry, error) {
              FROM room_entries
              GROUP BY entry_id
          ) rq ON e.id = rq.entry_id
+         WHERE COALESCE(e.status, 'active') != 'deleted'
          ORDER BY e.created_at DESC`)
 	if err != nil {
 		return nil, err
@@ -197,6 +199,7 @@ func (r *EntryRepository) List(ctx context.Context) ([]*models.Entry, error) {
 
 func (r *EntryRepository) ListByCustomer(ctx context.Context, customerID int) ([]*models.Entry, error) {
 	// OPTIMIZED: Use LEFT JOIN with subquery aggregate
+	// Filter out deleted entries
 	rows, err := r.DB.Query(ctx,
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
@@ -209,7 +212,7 @@ func (r *EntryRepository) ListByCustomer(ctx context.Context, customerID int) ([
              FROM room_entries
              GROUP BY entry_id
          ) rq ON e.id = rq.entry_id
-         WHERE e.customer_id=$1
+         WHERE e.customer_id=$1 AND COALESCE(e.status, 'active') != 'deleted'
          ORDER BY e.created_at DESC`, customerID)
 	if err != nil {
 		return nil, err
@@ -232,6 +235,7 @@ func (r *EntryRepository) ListByCustomer(ctx context.Context, customerID int) ([
 
 // ListSince returns entries created after the given timestamp (for delta refresh)
 func (r *EntryRepository) ListSince(ctx context.Context, since string) ([]*models.Entry, error) {
+	// Filter out deleted entries
 	rows, err := r.DB.Query(ctx,
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
@@ -244,7 +248,7 @@ func (r *EntryRepository) ListSince(ctx context.Context, since string) ([]*model
              FROM room_entries
              GROUP BY entry_id
          ) rq ON e.id = rq.entry_id
-         WHERE e.created_at > $1::timestamptz
+         WHERE e.created_at > $1::timestamptz AND COALESCE(e.status, 'active') != 'deleted'
          ORDER BY e.created_at DESC`, since)
 	if err != nil {
 		return nil, err
@@ -305,6 +309,7 @@ func (r *EntryRepository) ListUnassigned(ctx context.Context) ([]*models.Entry, 
 	// Get entries that don't have a room entry yet
 	// For unassigned entries, actual_quantity will be 0 (no room_entries yet)
 	// OPTIMIZED: No subquery needed - unassigned means 0 quantity
+	// Filter out deleted entries
 	rows, err := r.DB.Query(ctx,
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        0 as actual_quantity,
@@ -313,7 +318,7 @@ func (r *EntryRepository) ListUnassigned(ctx context.Context) ([]*models.Entry, 
 		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e
          LEFT JOIN room_entries re ON e.id = re.entry_id
-         WHERE re.id IS NULL
+         WHERE re.id IS NULL AND COALESCE(e.status, 'active') != 'deleted'
          ORDER BY e.created_at DESC`)
 	if err != nil {
 		return nil, err
