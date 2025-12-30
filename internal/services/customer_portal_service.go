@@ -44,6 +44,8 @@ type ThockInfo struct {
 	ThockNumber       string  `json:"thock_number"`
 	EntryID           int     `json:"entry_id"`
 	FamilyMemberName  string  `json:"family_member_name,omitempty"`
+	ThockCategory     string  `json:"thock_category"`
+	StoredQuantity    int     `json:"stored_quantity"`
 	ExpectedQuantity  int     `json:"expected_quantity"`
 	CurrentInventory  int     `json:"current_inventory"`
 	TotalRent         float64 `json:"total_rent"`
@@ -183,6 +185,8 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 			ThockNumber:       entry.ThockNumber,
 			EntryID:           entry.ID,
 			FamilyMemberName:  entry.FamilyMemberName,
+			ThockCategory:     entry.ThockCategory,
+			StoredQuantity:    originalEntered,
 			ExpectedQuantity:  entry.ExpectedQuantity,
 			CurrentInventory:  currentInventory,
 			TotalRent:         entryTotalRent,

@@ -803,6 +803,86 @@
             to { transform: rotate(360deg); }
         }
         .spin { animation: spin 1s linear infinite; display: inline-block; }
+
+        /* Payment Scope Selector */
+        .payment-scope-selector {
+            background: var(--light);
+            border-radius: 12px;
+            padding: 0.75rem;
+        }
+
+        .scope-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            background: var(--white);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .scope-option:hover {
+            border-color: var(--primary-light);
+        }
+
+        .scope-option.selected {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .scope-option input[type="radio"] {
+            display: none;
+        }
+
+        .scope-option-left {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .scope-radio {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .scope-option.selected .scope-radio {
+            border-color: var(--primary);
+        }
+
+        .scope-option.selected .scope-radio::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            background: var(--primary);
+            border-radius: 50%;
+        }
+
+        .scope-label {
+            font-weight: 600;
+            color: var(--dark);
+        }
+
+        .scope-sublabel {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .scope-amount {
+            font-weight: 700;
+            color: var(--accent);
+            font-size: 1rem;
+        }
+
+        .scope-option.selected .scope-amount {
+            color: var(--primary);
+        }
     </style>
     <script src="/static/js/theme.js"></script>
     <!-- Razorpay Checkout Script (loaded only when needed) -->
@@ -849,6 +929,24 @@
                     <div class="summary-value" id="balanceAmount">₹<span id="totalBalance">0</span></div>
                 </div>
             </div>
+        </div>
+
+        <!-- Make Payment Section (only shows when online payments enabled) -->
+        <div id="paymentSection" class="card" style="display: none;">
+            <div class="card-title">
+                <i class="bi bi-credit-card"></i>
+                <span data-i18n="make_payment">Make Payment</span>
+            </div>
+
+            <div class="payment-scope-selector" style="margin-bottom: 1rem;">
+                <div id="paymentScopeOptions" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+            </div>
+
+            <button id="topPayBtn" onclick="openScopedPaymentModal()" class="pay-btn" style="width: 100%; padding: 1rem; font-size: 1.1rem;">
+                <i class="bi bi-credit-card"></i> <span data-i18n="pay">Pay</span> <span id="selectedPayAmount">₹0</span>
+            </button>
         </div>
 
         <!-- Trucks List -->
@@ -1092,6 +1190,9 @@
 
             // Render gate pass history
             renderGatePassHistory();
+
+            // Render payment section at top (if enabled)
+            renderPaymentSection();
         }
 
         function renderTrucks() {
@@ -1156,10 +1257,10 @@
                     const dueLabel = hasDue ? i18n.t('amount_due', 'Amount Due') : i18n.t('fully_paid', 'Fully Paid');
                     const dueAmount = hasDue ? `₹${formatNumber(truck.balance)}` : `<i class="bi bi-check-circle"></i> ${i18n.t('cleared', 'Cleared')}`;
 
-                    // Pay button only if there's a due
-                    const payButton = hasDue ?
+                    // Pay button only if there's a due AND online payments are enabled
+                    const payButton = (hasDue && onlinePaymentEnabled) ?
                         `<button onclick="openPaymentModal('${truck.thock_number}', ${truck.balance}, ${truck.entry_id})" class="pay-btn">
-                            <i class="bi bi-credit-card"></i> ${i18n.t('pay_now', 'Pay')}
+                            <i class="bi bi-credit-card"></i> ${i18n.t('pay', 'Pay')}
                         </button>` : '';
 
                     trucksContainer.innerHTML += `
@@ -1178,7 +1279,7 @@
                             <div class="truck-stats">
                                 <div class="truck-stat">
                                     <div class="truck-stat-label">${i18n.t('stored', 'Stored')}</div>
-                                    <div class="truck-stat-value">${truck.expected_quantity}</div>
+                                    <div class="truck-stat-value">${truck.stored_quantity}</div>
                                 </div>
                                 <div class="truck-stat">
                                     <div class="truck-stat-label">${i18n.t('current', 'Current')}</div>
@@ -1638,6 +1739,134 @@
             const originalText = '<i class="bi bi-shield-lock"></i> Pay Securely via UPI/Card/NetBanking';
             payBtn.disabled = false;
             payBtn.innerHTML = originalText;
+        }
+
+        // ===========================================
+        // Payment Section at Top (with scope selection)
+        // ===========================================
+        let selectedPaymentScope = 'account';
+        let selectedPaymentAmount = 0;
+        let memberBalances = {};
+
+        function renderPaymentSection() {
+            const section = document.getElementById('paymentSection');
+
+            // Only show if online payments enabled AND there's a balance due
+            if (!onlinePaymentEnabled || !razorpayKeyId || dashboardData.total_balance <= 0) {
+                section.style.display = 'none';
+                return;
+            }
+
+            section.style.display = 'block';
+
+            // Calculate balances by family member
+            memberBalances = {};
+            dashboardData.trucks.forEach(truck => {
+                const name = truck.family_member_name || dashboardData.customer.name;
+                if (!memberBalances[name]) {
+                    memberBalances[name] = { balance: 0, trucks: [] };
+                }
+                memberBalances[name].balance += truck.balance;
+                memberBalances[name].trucks.push(truck);
+            });
+
+            const memberNames = Object.keys(memberBalances);
+            const hasMultipleMembers = memberNames.length > 1;
+
+            // Build scope options HTML
+            const optionsContainer = document.getElementById('paymentScopeOptions');
+            let optionsHTML = '';
+
+            // Account-wide option (always first, selected by default)
+            optionsHTML += `
+                <label class="scope-option selected" onclick="selectPaymentScope('account', ${dashboardData.total_balance})">
+                    <input type="radio" name="paymentScope" value="account" checked>
+                    <div class="scope-option-left">
+                        <div class="scope-radio"></div>
+                        <div>
+                            <div class="scope-label">${i18n.t('entire_account', 'Entire Account')}</div>
+                            ${hasMultipleMembers ? `<div class="scope-sublabel">${i18n.t('all_family_members', 'All family members')}</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="scope-amount">₹${formatNumber(dashboardData.total_balance)}</div>
+                </label>
+            `;
+
+            // Individual family member options (only if multiple members)
+            if (hasMultipleMembers) {
+                memberNames.forEach(name => {
+                    const data = memberBalances[name];
+                    if (data.balance > 0) {
+                        optionsHTML += `
+                            <label class="scope-option" onclick="selectPaymentScope('${name}', ${data.balance})">
+                                <input type="radio" name="paymentScope" value="${name}">
+                                <div class="scope-option-left">
+                                    <div class="scope-radio"></div>
+                                    <div>
+                                        <div class="scope-label">${name}</div>
+                                        <div class="scope-sublabel">${data.trucks.length} ${i18n.t('trucks', 'trucks')}</div>
+                                    </div>
+                                </div>
+                                <div class="scope-amount">₹${formatNumber(data.balance)}</div>
+                            </label>
+                        `;
+                    }
+                });
+            }
+
+            optionsContainer.innerHTML = optionsHTML;
+
+            // Set default selection
+            selectedPaymentScope = 'account';
+            selectedPaymentAmount = dashboardData.total_balance;
+            document.getElementById('selectedPayAmount').textContent = '₹' + formatNumber(selectedPaymentAmount);
+        }
+
+        function selectPaymentScope(scope, amount) {
+            selectedPaymentScope = scope;
+            selectedPaymentAmount = amount;
+
+            // Update UI
+            document.querySelectorAll('.scope-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            event.currentTarget.classList.add('selected');
+
+            // Update pay button amount
+            document.getElementById('selectedPayAmount').textContent = '₹' + formatNumber(amount);
+        }
+
+        function openScopedPaymentModal() {
+            // Determine which truck/entry to use for the payment
+            let truckNumber = '';
+            let entryId = 0;
+
+            if (selectedPaymentScope === 'account') {
+                // Use first truck with balance for account-wide payment
+                const truckWithBalance = dashboardData.trucks.find(t => t.balance > 0);
+                if (truckWithBalance) {
+                    truckNumber = truckWithBalance.thock_number;
+                    entryId = truckWithBalance.entry_id;
+                }
+            } else {
+                // Use first truck from selected family member with balance
+                const memberData = memberBalances[selectedPaymentScope];
+                if (memberData && memberData.trucks.length > 0) {
+                    const truckWithBalance = memberData.trucks.find(t => t.balance > 0);
+                    if (truckWithBalance) {
+                        truckNumber = truckWithBalance.thock_number;
+                        entryId = truckWithBalance.entry_id;
+                    }
+                }
+            }
+
+            if (!truckNumber) {
+                alert(i18n.t('no_balance_due', 'No balance due'));
+                return;
+            }
+
+            // Open the existing payment modal with the selected scope amount
+            openPaymentModal(truckNumber, selectedPaymentAmount, entryId);
         }
 
         // Close modal on escape key

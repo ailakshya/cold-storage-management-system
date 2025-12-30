@@ -82,4 +82,6 @@ type AuditEntry struct {
 	Credit          float64         `json:"credit"`
 	RunningBalance  float64         `json:"running_balance"`
 	CreatedByName   string          `json:"created_by_name"`
+	PaymentType     string          `json:"payment_type"`
+	Remarks         string          `json:"remarks"`
 }

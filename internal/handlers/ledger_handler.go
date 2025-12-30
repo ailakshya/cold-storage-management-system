@@ -161,6 +161,14 @@ func (h *LedgerHandler) GetAuditTrail(w http.ResponseWriter, r *http.Request) {
 	// Convert to audit entries format
 	auditEntries := make([]models.AuditEntry, len(entries))
 	for i, e := range entries {
+		// Determine payment type based on entry type
+		paymentType := ""
+		if e.EntryType == models.LedgerEntryTypePayment {
+			paymentType = "Cash"
+		} else if e.EntryType == models.LedgerEntryTypeOnlinePayment {
+			paymentType = "Online"
+		}
+
 		auditEntries[i] = models.AuditEntry{
 			ID:              e.ID,
 			Date:            e.CreatedAt,
@@ -173,6 +181,8 @@ func (h *LedgerHandler) GetAuditTrail(w http.ResponseWriter, r *http.Request) {
 			Credit:          e.Credit,
 			RunningBalance:  e.RunningBalance,
 			CreatedByName:   e.CreatedByName,
+			PaymentType:     paymentType,
+			Remarks:         e.Notes,
 		}
 	}
 
