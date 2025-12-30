@@ -770,6 +770,7 @@
                     thocks: customer.thocks.map(t => ({
                         id: t.id,
                         thock_number: t.thock_number,
+                        family_member_name: t.family_member_name,
                         quantity: t.quantity,
                         qtyDisplay: t.qty_display || t.quantity,
                         rent: t.rent,
@@ -1065,7 +1066,6 @@
                                     <div class="overflow-auto" style="max-height: 400px;">
                                     ${(() => {
                                         // Group thocks by family member
-                                        console.log('DEBUG: First thock:', JSON.stringify(customer.thocks[0]));
                                         const groupedThocks = {};
                                         customer.thocks.forEach(thock => {
                                             const memberName = thock.family_member_name || customer.name;
