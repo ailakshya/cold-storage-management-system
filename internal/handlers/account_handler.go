@@ -50,11 +50,11 @@ type CustomerAccount struct {
 	Balance       float64               `json:"balance"`
 }
 
-// ThockInfo represents a thock entry
+// ThockInfo represents a thock entry with family member support
 type ThockInfo struct {
 	ID               int     `json:"id"`
 	ThockNumber      string  `json:"thock_number"`
-	FamilyMemberName string  `json:"family_member_name,omitempty"`
+	FamilyMemberName string  `json:"family_member_name"`
 	Quantity         int     `json:"quantity"`
 	QtyDisplay       string  `json:"qty_display,omitempty"`
 	Rent             float64 `json:"rent"`
