@@ -125,6 +125,11 @@
     "balance": "Balance",
     "payment": "Payment",
     "receipt": "Receipt",
+    "stored": "Stored",
+    "can_take": "Can Take",
+    "paid": "Paid",
+    "request": "Request",
+    "trucks": "trucks",
     "invoice": "Invoice",
 
     "user": "User",
