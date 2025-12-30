@@ -1556,11 +1556,29 @@
                 resultsDiv.innerHTML = '<p class="text-gray-500 text-sm p-4 text-center"><i class="bi bi-hourglass-split"></i> Searching...</p>';
 
                 try {
-                    // Search from cached customer accounts
-                    const filtered = allCustomerAccounts.filter(c =>
+                    // Search from cached customer accounts first
+                    let filtered = allCustomerAccounts.filter(c =>
                         c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         c.phone.includes(searchTerm)
                     ).slice(0, 10);
+
+                    // If no local results, search ALL customers from database
+                    if (filtered.length === 0) {
+                        const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(searchTerm)}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (response.ok) {
+                            const dbCustomers = await response.json() || [];
+                            filtered = dbCustomers.map(c => ({
+                                id: c.id,
+                                name: c.name,
+                                phone: c.phone,
+                                so: c.so || '',
+                                village: c.village || 'N/A',
+                                fromDb: true
+                            }));
+                        }
+                    }
 
                     if (filtered.length === 0) {
                         resultsDiv.innerHTML = '<p class="text-gray-500 text-sm p-4 text-center">No customers found</p>';
@@ -1568,7 +1586,7 @@
                     }
 
                     resultsDiv.innerHTML = filtered.map(c => `
-                        <div onclick="selectCustomerForReassign('${c.phone}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}', '${(c.so || '').replace(/'/g, "\\'")}', '${(c.village || '').replace(/'/g, "\\'")}')"
+                        <div onclick="selectCustomerForReassign('${c.phone}', '${c.name.replace(/'/g, "\\'")}', '${c.phone}', '${(c.so || '').replace(/'/g, "\\'")}', '${(c.village || '').replace(/'/g, "\\'")}', ${c.id || 0})"
                              class="p-2 border-b border-gray-200 hover:bg-blue-50 cursor-pointer">
                             <p class="font-bold">${capitalizeText(c.name)}</p>
                             <p class="text-sm text-gray-600">${c.phone}${c.so ? ' • S/O: ' + capitalizeText(c.so) : ''} • ${capitalizeText(c.village || 'N/A')}</p>
@@ -1581,10 +1599,39 @@
             }, 300);
         }
 
-        async function selectCustomerForReassign(customerPhone, customerName, phone, so, village) {
-            // Find the customer to get their ID
+        async function selectCustomerForReassign(customerPhone, customerName, phone, so, village, customerId = 0) {
+            // If we have customerId from DB search, use it directly
+            if (customerId > 0) {
+                document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
+                document.getElementById('reassignNewCustomerName').textContent = customerName;
+                document.getElementById('reassignNewCustomerPhone').textContent = phone + (so ? ' • S/O: ' + so : '') + ' • ' + village;
+                document.getElementById('reassignNewCustomerId').value = customerId;
+                document.getElementById('reassignSubmitBtn').disabled = false;
+                return;
+            }
+
+            // Find the customer to get their ID from local cache
             const customer = allCustomerAccounts.find(c => c.phone === customerPhone);
             if (!customer) {
+                // Try to fetch from DB
+                try {
+                    const response = await fetch(`/api/customers/search?phone=${encodeURIComponent(customerPhone)}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (response.ok) {
+                        const customers = await response.json();
+                        if (customers && customers.length > 0) {
+                            document.getElementById('reassignSelectedCustomer').classList.remove('hidden');
+                            document.getElementById('reassignNewCustomerName').textContent = customers[0].name;
+                            document.getElementById('reassignNewCustomerPhone').textContent = customers[0].phone;
+                            document.getElementById('reassignNewCustomerId').value = customers[0].id;
+                            document.getElementById('reassignSubmitBtn').disabled = false;
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error fetching customer:', e);
+                }
                 alert('Customer not found');
                 return;
             }
