@@ -71,11 +71,20 @@
             transform: translate(-2px, -2px);
             box-shadow: 6px 6px 0 #000;
         }
+        /* Ensure gradient backgrounds and white text are visible */
+        .neu-border[class*="bg-gradient"] {
+            color: white !important;
+        }
+        .neu-border[class*="from-"] {
+            color: white !important;
+        }
         .neu-input {
             border: 3px solid #000;
             box-shadow: 4px 4px 0 #000;
             padding: 0.75rem;
             font-size: 1rem;
+            background-color: #ffffff;
+            color: #2c3e50;
         }
         .neu-button {
             border: 3px solid #000;

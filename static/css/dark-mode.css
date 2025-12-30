@@ -49,12 +49,21 @@ body.dark-mode[class*="bg-[#"] {
 }
 
 /* ===== Cards & Containers ===== */
-.dark-mode .neu-border,
+/* Don't override gradient backgrounds */
+.dark-mode .neu-border:not([class*="bg-gradient"]):not([class*="from-"]),
 .dark-mode .bg-white,
 .dark-mode [class*="bg-white"] {
     background-color: var(--bg-card) !important;
     border-color: var(--border-color) !important;
     color: var(--text-primary) !important;
+}
+
+/* Preserve white text on gradient backgrounds */
+.dark-mode .neu-border[class*="bg-gradient"],
+.dark-mode .neu-border[class*="from-"],
+.dark-mode [class*="bg-gradient"],
+.dark-mode [class*="from-"] {
+    color: white !important;
 }
 
 .dark-mode .neu-border {
