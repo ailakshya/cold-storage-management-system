@@ -43,6 +43,7 @@ func NewCustomerPortalService(
 type ThockInfo struct {
 	ThockNumber       string  `json:"thock_number"`
 	EntryID           int     `json:"entry_id"`
+	FamilyMemberName  string  `json:"family_member_name,omitempty"`
 	ExpectedQuantity  int     `json:"expected_quantity"`
 	CurrentInventory  int     `json:"current_inventory"`
 	TotalRent         float64 `json:"total_rent"`
@@ -169,15 +170,16 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 		}
 
 		trucks = append(trucks, ThockInfo{
-			ThockNumber:      entry.ThockNumber,
-			EntryID:          entry.ID,
-			ExpectedQuantity: entry.ExpectedQuantity,
-			CurrentInventory: currentInventory,
-			TotalRent:        entryTotalRent,
-			TotalPaid:        entryTotalPaid,
-			Balance:          entryBalance,
-			CanTakeOut:       canTakeOut,
-			RentPerItem:      rentPerItem,
+			ThockNumber:       entry.ThockNumber,
+			EntryID:           entry.ID,
+			FamilyMemberName:  entry.FamilyMemberName,
+			ExpectedQuantity:  entry.ExpectedQuantity,
+			CurrentInventory:  currentInventory,
+			TotalRent:         entryTotalRent,
+			TotalPaid:         entryTotalPaid,
+			Balance:           entryBalance,
+			CanTakeOut:        canTakeOut,
+			RentPerItem:       rentPerItem,
 		})
 
 		totalRent += entryTotalRent

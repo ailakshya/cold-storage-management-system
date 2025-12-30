@@ -49,6 +49,7 @@ func NewRouter(
 	mergeHistoryHandler *handlers.MergeHistoryHandler,
 	customerActivityLogHandler *handlers.CustomerActivityLogHandler,
 	smsHandler *handlers.SMSHandler,
+	familyMemberHandler *handlers.FamilyMemberHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -174,6 +175,19 @@ func NewRouter(
 	customersAPI.HandleFunc("/{id}", customerHandler.UpdateCustomer).Methods("PUT")
 	customersAPI.HandleFunc("/{id}", customerHandler.DeleteCustomer).Methods("DELETE")
 	customersAPI.HandleFunc("/{id}/entry-count", customerHandler.GetCustomerEntryCount).Methods("GET")
+
+	// Protected API routes - Family Members (nested under customers)
+	if familyMemberHandler != nil {
+		customersAPI.HandleFunc("/{id}/family-members", familyMemberHandler.List).Methods("GET")
+		customersAPI.HandleFunc("/{id}/family-members", familyMemberHandler.Create).Methods("POST")
+
+		// Family member direct routes
+		familyMemberAPI := r.PathPrefix("/api/family-members").Subrouter()
+		familyMemberAPI.Use(authMiddleware.Authenticate)
+		familyMemberAPI.HandleFunc("/relations", familyMemberHandler.GetRelations).Methods("GET")
+		familyMemberAPI.HandleFunc("/{id}", familyMemberHandler.Update).Methods("PUT")
+		familyMemberAPI.HandleFunc("/{id}", familyMemberHandler.Delete).Methods("DELETE")
+	}
 
 	// Protected API routes - Entries (employees and admins only for creation, LOADING MODE ONLY)
 	entriesAPI := r.PathPrefix("/api/entries").Subrouter()

@@ -16,10 +16,11 @@ type SkipRange struct {
 }
 
 type EntryService struct {
-	EntryRepo      *repositories.EntryRepository
-	CustomerRepo   *repositories.CustomerRepository
-	EntryEventRepo *repositories.EntryEventRepository
-	SettingRepo    *repositories.SystemSettingRepository
+	EntryRepo        *repositories.EntryRepository
+	CustomerRepo     *repositories.CustomerRepository
+	EntryEventRepo   *repositories.EntryEventRepository
+	SettingRepo      *repositories.SystemSettingRepository
+	FamilyMemberRepo *repositories.FamilyMemberRepository
 }
 
 func NewEntryService(entryRepo *repositories.EntryRepository, customerRepo *repositories.CustomerRepository, entryEventRepo *repositories.EntryEventRepository) *EntryService {
@@ -28,6 +29,11 @@ func NewEntryService(entryRepo *repositories.EntryRepository, customerRepo *repo
 		CustomerRepo:   customerRepo,
 		EntryEventRepo: entryEventRepo,
 	}
+}
+
+// SetFamilyMemberRepo sets the FamilyMemberRepository for family member handling
+func (s *EntryService) SetFamilyMemberRepo(repo *repositories.FamilyMemberRepository) {
+	s.FamilyMemberRepo = repo
 }
 
 // SetSettingRepo sets the SystemSettingRepository for skip range calculation
@@ -111,9 +117,35 @@ func (s *EntryService) CreateEntry(ctx context.Context, req *models.CreateEntryR
 	// Get skip ranges for the category
 	skipRanges := s.getSkipRanges(ctx, req.ThockCategory)
 
+	// Handle family member assignment
+	var familyMemberID *int
+	var familyMemberName string
+
+	if s.FamilyMemberRepo != nil {
+		// If family_member_id is provided, use it
+		if req.FamilyMemberID != nil && *req.FamilyMemberID > 0 {
+			fm, err := s.FamilyMemberRepo.Get(ctx, *req.FamilyMemberID)
+			if err == nil {
+				familyMemberID = &fm.ID
+				familyMemberName = fm.Name
+			}
+		}
+
+		// If no family member specified, get or create one based on entry name
+		if familyMemberID == nil {
+			fm, err := s.FamilyMemberRepo.GetOrCreateByName(ctx, customer.ID, req.Name, customer.Name)
+			if err == nil && fm != nil {
+				familyMemberID = &fm.ID
+				familyMemberName = fm.Name
+			}
+		}
+	}
+
 	// Create entry with denormalized customer data for historical record
 	entry := &models.Entry{
 		CustomerID:       customer.ID,
+		FamilyMemberID:   familyMemberID,
+		FamilyMemberName: familyMemberName,
 		Phone:            req.Phone,
 		Name:             req.Name,
 		Village:          req.Village,

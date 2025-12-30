@@ -415,6 +415,7 @@ func main() {
 	tokenColorRepo := repositories.NewTokenColorRepository(pool)
 	ledgerRepo := repositories.NewLedgerRepository(pool)
 	debtRequestRepo := repositories.NewDebtRequestRepository(pool)
+	familyMemberRepo := repositories.NewFamilyMemberRepository(pool)
 
 	// Initialize middleware (needed for both modes)
 	authMiddleware := middleware.NewAuthMiddleware(jwtManager, userRepo)
@@ -481,7 +482,8 @@ func main() {
 		userService := services.NewUserService(userRepo, jwtManager)
 		customerService := services.NewCustomerService(customerRepo)
 		entryService := services.NewEntryService(entryRepo, customerRepo, entryEventRepo)
-		entryService.SetSettingRepo(systemSettingRepo) // Wire SettingRepo for skip thock ranges
+		entryService.SetSettingRepo(systemSettingRepo)      // Wire SettingRepo for skip thock ranges
+		entryService.SetFamilyMemberRepo(familyMemberRepo) // Wire FamilyMemberRepo for family member auto-assign
 		roomEntryService := services.NewRoomEntryService(roomEntryRepo, entryRepo, entryEventRepo)
 		systemSettingService := services.NewSystemSettingService(systemSettingRepo)
 		rentPaymentService := services.NewRentPaymentService(rentPaymentRepo)
@@ -532,6 +534,9 @@ func main() {
 
 		// Initialize token color handler
 		tokenColorHandler := handlers.NewTokenColorHandler(tokenColorRepo)
+
+		// Initialize family member handler
+		familyMemberHandler := handlers.NewFamilyMemberHandler(familyMemberRepo)
 
 		// Initialize season repository
 		seasonRequestRepo := repositories.NewSeasonRequestRepository(pool)
@@ -615,7 +620,7 @@ func main() {
 		mergeHistoryHandler := handlers.NewMergeHistoryHandler(customerRepo, entryRepo, entryManagementLogRepo)
 
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

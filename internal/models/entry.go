@@ -5,6 +5,8 @@ import "time"
 type Entry struct {
 	ID                      int        `json:"id"`
 	CustomerID              int        `json:"customer_id"`
+	FamilyMemberID          *int       `json:"family_member_id,omitempty"`   // FK to family_members
+	FamilyMemberName        string     `json:"family_member_name,omitempty"` // Denormalized for display
 	Phone                   string     `json:"phone"`
 	Name                    string     `json:"name"`
 	Village                 string     `json:"village"`
@@ -25,6 +27,7 @@ type Entry struct {
 // CreateEntryRequest represents the request body for creating an entry
 type CreateEntryRequest struct {
 	CustomerID       int    `json:"customer_id"`
+	FamilyMemberID   *int   `json:"family_member_id,omitempty"` // Optional, auto-created if not provided
 	Phone            string `json:"phone"`
 	Name             string `json:"name"`
 	Village          string `json:"village"`

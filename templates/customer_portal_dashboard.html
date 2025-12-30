@@ -11,6 +11,7 @@
     <title data-i18n-page-title="page_title_customer_dashboard">Customer Dashboard</title>
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
     <style>
         .lang-selector {
             border: 2px solid #667eea;
@@ -123,25 +124,11 @@
             </div>
         </div>
 
-        <!-- Trucks List -->
+        <!-- Trucks List (Grouped by Family Member) -->
         <div class="neu-card">
             <h2 class="text-lg md:text-xl font-bold mb-3 md:mb-4 text-gray-800" data-i18n="your_trucks">Your Trucks</h2>
-            <div class="overflow-x-auto">
-                <table class="w-full min-w-[500px] text-sm md:text-base">
-                    <thead>
-                        <tr class="border-b-2">
-                            <th class="text-left p-2" data-i18n="truck_number">Truck Number</th>
-                            <th class="text-left p-2" data-i18n="expected_qty">Expected Qty</th>
-                            <th class="text-left p-2" data-i18n="current_stock">Current Stock</th>
-                            <th class="text-left p-2" data-i18n="can_take_out">Can Take Out</th>
-                            <th class="text-left p-2" data-i18n="balance">Balance</th>
-                            <th class="text-left p-2" data-i18n="action">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="thocksTable">
-                        <!-- Trucks will be loaded here -->
-                    </tbody>
-                </table>
+            <div id="trucksContainer">
+                <!-- Trucks grouped by family member will be loaded here -->
             </div>
         </div>
 
@@ -277,44 +264,109 @@
                 balanceEl.innerHTML = '₹' + Math.abs(dashboardData.total_balance).toFixed(2) + ' (' + i18n.t('advance', 'Advance') + ')';
             }
 
-            // Trucks table
-            const thocksTable = document.getElementById('thocksTable');
+            // Trucks grouped by family member
+            const trucksContainer = document.getElementById('trucksContainer');
             const thockSelect = document.getElementById('thockSelect');
-            thocksTable.innerHTML = '';
+            trucksContainer.innerHTML = '';
             thockSelect.innerHTML = '<option value="">' + i18n.t('select_truck_option', '-- Select Truck --') + '</option>';
 
             const requestPassText = i18n.t('request_pass', 'Request Pass');
             const maxText = i18n.t('max', 'Max');
+
+            // Group trucks by family member
+            const groupedTrucks = {};
             dashboardData.trucks.forEach(truck => {
-                // Display both expected and actual if different
-                // current_inventory is the actual stored quantity from room_entries
-                const qtyDisplay = truck.expected_quantity !== truck.current_inventory
-                    ? `${truck.expected_quantity} → ${truck.current_inventory}`
-                    : truck.current_inventory;
-                const row = `
-                    <tr class="border-b">
-                        <td class="p-2 font-semibold">${truck.thock_number}</td>
-                        <td class="p-2">${qtyDisplay}</td>
-                        <td class="p-2">${truck.current_inventory}</td>
-                        <td class="p-2 font-bold text-green-600">${truck.can_take_out}</td>
-                        <td class="p-2 ${truck.balance > 0 ? 'text-red-600' : 'text-green-600'}">
-                            ₹${Math.abs(truck.balance).toFixed(2)}
-                        </td>
-                        <td class="p-2">
-                            <button onclick="selectThock('${truck.thock_number}', ${truck.can_take_out})"
-                                    class="text-blue-600 hover:underline text-sm">
-                                ${requestPassText}
-                            </button>
-                        </td>
-                    </tr>
-                `;
-                thocksTable.innerHTML += row;
+                const memberName = truck.family_member_name || dashboardData.customer.name || 'Unknown';
+                if (!groupedTrucks[memberName]) {
+                    groupedTrucks[memberName] = [];
+                }
+                groupedTrucks[memberName].push(truck);
 
                 // Add to select dropdown
                 thockSelect.innerHTML += `<option value="${truck.thock_number}" data-max="${truck.can_take_out}">
                     ${truck.thock_number} (${maxText}: ${truck.can_take_out})
                 </option>`;
             });
+
+            // Render each family member section
+            const memberNames = Object.keys(groupedTrucks);
+            if (memberNames.length === 0) {
+                trucksContainer.innerHTML = '<p class="text-gray-500 text-center p-4">' + i18n.t('no_trucks_found', 'No trucks found') + '</p>';
+            } else if (memberNames.length === 1) {
+                // Only one family member - no need for grouping
+                trucksContainer.innerHTML = renderTrucksTable(groupedTrucks[memberNames[0]]);
+            } else {
+                // Multiple family members - show grouped sections
+                memberNames.forEach((memberName, index) => {
+                    const trucks = groupedTrucks[memberName];
+                    const memberBalance = trucks.reduce((sum, t) => sum + t.balance, 0);
+                    const memberTotal = trucks.reduce((sum, t) => sum + t.current_inventory, 0);
+
+                    const sectionHtml = `
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center p-3 bg-gradient-to-r from-purple-100 to-blue-100 rounded-t-lg cursor-pointer"
+                                 onclick="toggleFamilySection('family-${index}')">
+                                <div class="flex items-center gap-2">
+                                    <i class="bi bi-person-fill text-purple-600"></i>
+                                    <span class="font-bold text-gray-800">${memberName}</span>
+                                    <span class="text-sm text-gray-600">(${trucks.length} ${i18n.t('trucks', 'trucks')}, ${memberTotal} ${i18n.t('qty', 'qty')})</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <span class="${memberBalance > 0 ? 'text-red-600' : 'text-green-600'} font-semibold">
+                                        ₹${Math.abs(memberBalance).toFixed(2)}
+                                    </span>
+                                    <i class="bi bi-chevron-down transition-transform" id="chevron-${index}"></i>
+                                </div>
+                            </div>
+                            <div id="family-${index}" class="overflow-x-auto border border-t-0 rounded-b-lg">
+                                ${renderTrucksTable(trucks)}
+                            </div>
+                        </div>
+                    `;
+                    trucksContainer.innerHTML += sectionHtml;
+                });
+            }
+
+            function renderTrucksTable(trucks) {
+                let rows = trucks.map(truck => {
+                    const qtyDisplay = truck.expected_quantity !== truck.current_inventory
+                        ? `${truck.expected_quantity} → ${truck.current_inventory}`
+                        : truck.current_inventory;
+                    return `
+                        <tr class="border-b">
+                            <td class="p-2 font-semibold">${truck.thock_number}</td>
+                            <td class="p-2">${qtyDisplay}</td>
+                            <td class="p-2">${truck.current_inventory}</td>
+                            <td class="p-2 font-bold text-green-600">${truck.can_take_out}</td>
+                            <td class="p-2 ${truck.balance > 0 ? 'text-red-600' : 'text-green-600'}">
+                                ₹${Math.abs(truck.balance).toFixed(2)}
+                            </td>
+                            <td class="p-2">
+                                <button onclick="selectThock('${truck.thock_number}', ${truck.can_take_out})"
+                                        class="text-blue-600 hover:underline text-sm">
+                                    ${requestPassText}
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+                return `
+                    <table class="w-full min-w-[500px] text-sm md:text-base">
+                        <thead>
+                            <tr class="border-b-2 bg-gray-50">
+                                <th class="text-left p-2" data-i18n="truck_number">Truck Number</th>
+                                <th class="text-left p-2" data-i18n="expected_qty">Expected Qty</th>
+                                <th class="text-left p-2" data-i18n="current_stock">Current Stock</th>
+                                <th class="text-left p-2" data-i18n="can_take_out">Can Take Out</th>
+                                <th class="text-left p-2" data-i18n="balance">Balance</th>
+                                <th class="text-left p-2" data-i18n="action">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                `;
+            }
 
             // Gate pass history
             const historyTable = document.getElementById('gatePassHistory');
@@ -350,6 +402,21 @@
 
             if (dashboardData.gate_passes.length === 0) {
                 historyTable.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">' + i18n.t('no_gate_pass_requests', 'No gate pass requests yet') + '</td></tr>';
+            }
+        }
+
+        // Toggle family member section collapse
+        function toggleFamilySection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const index = sectionId.replace('family-', '');
+            const chevron = document.getElementById('chevron-' + index);
+
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                if (chevron) chevron.style.transform = 'rotate(0deg)';
+            } else {
+                section.style.display = 'none';
+                if (chevron) chevron.style.transform = 'rotate(-90deg)';
             }
         }
 

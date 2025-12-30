@@ -261,10 +261,25 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Family Member Section (shown when existing customer selected) -->
+                    <div id="familyMemberSection" class="hidden">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <span data-i18n="family_member">Family Member</span>
+                            <span class="text-xs text-gray-500 ml-1">(optional)</span>
+                        </label>
+                        <div class="flex flex-wrap gap-2" id="familyMemberChips">
+                            <!-- Family member chips will be loaded here -->
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1" data-i18n="family_member_hint">
+                            Select who this entry is for. Leave blank to use the name entered above.
+                        </p>
+                    </div>
                 </div>
 
             <form id="entrySubmitForm" onsubmit="submitEntry(event)">
                 <input type="hidden" id="userId" />
+                <input type="hidden" id="selectedFamilyMemberId" />
 
                 <div class="mb-4">
                     <label class="block text-sm font-semibold text-gray-700 mb-2">
@@ -826,6 +841,7 @@
 
                 // Map customer data to phone autocomplete format
                 customerPhones = customers.map(customer => ({
+                    id: customer.id || 0,
                     phone: customer.phone || '',
                     name: customer.name || '',
                     village: customer.village || '',
@@ -884,6 +900,104 @@
 
             document.getElementById('phoneDropdown').classList.add('hidden');
             showSearchStatus(i18n.t('customer_found', 'Customer found! Details auto-filled.'), 'success');
+
+            // Store customer ID and load family members
+            if (phoneData.id) {
+                document.getElementById('userId').value = phoneData.id;
+                loadFamilyMembers(phoneData.id);
+            } else {
+                // New customer - hide family member section
+                document.getElementById('familyMemberSection').classList.add('hidden');
+                document.getElementById('selectedFamilyMemberId').value = '';
+            }
+        }
+
+        // Load family members for a customer
+        async function loadFamilyMembers(customerId) {
+            const section = document.getElementById('familyMemberSection');
+            const chipsContainer = document.getElementById('familyMemberChips');
+
+            try {
+                const response = await fetch(`/api/customers/${customerId}/family-members`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    section.classList.add('hidden');
+                    return;
+                }
+
+                const data = await response.json();
+                const members = data.family_members || [];
+
+                if (members.length === 0) {
+                    // No family members yet - hide section
+                    section.classList.add('hidden');
+                    document.getElementById('selectedFamilyMemberId').value = '';
+                    return;
+                }
+
+                // Build chips for each family member
+                chipsContainer.innerHTML = members.map(member => {
+                    const isDefault = member.is_default;
+                    const relationText = member.relation !== 'Self' ? ` (${member.relation})` : '';
+                    return `<button type="button"
+                        onclick="selectFamilyMember(${member.id}, '${member.name}')"
+                        class="family-chip px-3 py-1 text-sm font-medium rounded-full border-2 transition-colors
+                            ${isDefault ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-300 bg-gray-50 hover:bg-gray-100'}"
+                        data-member-id="${member.id}">
+                        ${member.name}${relationText}
+                        ${member.entry_count > 0 ? `<span class="text-xs ml-1 text-gray-500">(${member.entry_count})</span>` : ''}
+                    </button>`;
+                }).join('');
+
+                // Show section
+                section.classList.remove('hidden');
+
+                // Clear any previous selection
+                document.getElementById('selectedFamilyMemberId').value = '';
+
+            } catch (error) {
+                console.error('Error loading family members:', error);
+                section.classList.add('hidden');
+            }
+        }
+
+        // Select a family member
+        function selectFamilyMember(memberId, memberName) {
+            const input = document.getElementById('selectedFamilyMemberId');
+            const chips = document.querySelectorAll('.family-chip');
+
+            // Toggle selection
+            if (input.value == memberId) {
+                // Deselect
+                input.value = '';
+                chips.forEach(chip => {
+                    chip.classList.remove('border-green-500', 'bg-green-100', 'text-green-800');
+                    chip.classList.add('border-gray-300', 'bg-gray-50');
+                });
+            } else {
+                // Select this one
+                input.value = memberId;
+                chips.forEach(chip => {
+                    if (chip.dataset.memberId == memberId) {
+                        chip.classList.remove('border-gray-300', 'bg-gray-50', 'border-blue-500', 'bg-blue-100', 'text-blue-800');
+                        chip.classList.add('border-green-500', 'bg-green-100', 'text-green-800');
+                    } else {
+                        chip.classList.remove('border-green-500', 'bg-green-100', 'text-green-800');
+                        if (!chip.classList.contains('border-blue-500')) {
+                            chip.classList.add('border-gray-300', 'bg-gray-50');
+                        }
+                    }
+                });
+
+                // Auto-fill name if different from current
+                const nameInput = document.getElementById('userName');
+                if (nameInput.value !== memberName) {
+                    nameInput.value = memberName;
+                    capitalizeFirstLetter(nameInput);
+                }
+            }
         }
 
         // Close dropdowns when clicking outside
@@ -1283,6 +1397,7 @@
 
                 // Setup customer autocomplete
                 customerPhones = (data.customer_phones || []).map(c => ({
+                    id: c.id || 0,
                     phone: c.phone || '',
                     name: c.name || '',
                     village: c.village || '',
@@ -1845,8 +1960,12 @@
             }
             const category = categoryRadio.value;
 
+            // Get family member ID if selected
+            const familyMemberId = parseInt(document.getElementById('selectedFamilyMemberId').value) || null;
+
             const entryData = {
                 customer_id: parseInt(document.getElementById('userId').value) || 0,
+                family_member_id: familyMemberId,
                 phone: phone,
                 name: name,
                 village: village,

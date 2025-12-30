@@ -49,14 +49,16 @@ func (r *EntryRepository) CreateWithSkipRanges(ctx context.Context, e *models.En
 				FROM entries
 				WHERE thock_category = $2
 			)
-			INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, remark, created_by_user_id)
+			INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, remark, created_by_user_id, family_member_id, family_member_name)
 			SELECT $3, $4, $5, $6, $7, $8::integer, $9::text,
 				CASE WHEN $9::text = 'seed'
 					THEN LPAD(num::text, 4, '0') || '/' || $8::text
 					ELSE num::text || '/' || $8::text
 				END,
 				$10,
-				$11
+				$11,
+				$12,
+				$13
 			FROM next_num
 			RETURNING id, thock_number, created_at, updated_at
 		`
@@ -73,6 +75,8 @@ func (r *EntryRepository) CreateWithSkipRanges(ctx context.Context, e *models.En
 			e.ThockCategory,      // $9
 			e.Remark,             // $10
 			e.CreatedByUserID,    // $11
+			e.FamilyMemberID,     // $12
+			e.FamilyMemberName,   // $13
 		).Scan(&e.ID, &e.ThockNumber, &e.CreatedAt, &e.UpdatedAt)
 	}
 
@@ -119,8 +123,8 @@ func (r *EntryRepository) CreateWithSkipRanges(ctx context.Context, e *models.En
 
 	// Insert with the calculated thock number
 	insertQuery := `
-		INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, remark, created_by_user_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO entries(customer_id, phone, name, village, so, expected_quantity, thock_category, thock_number, remark, created_by_user_id, family_member_id, family_member_name)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 		RETURNING id, thock_number, created_at, updated_at
 	`
 
@@ -135,6 +139,8 @@ func (r *EntryRepository) CreateWithSkipRanges(ctx context.Context, e *models.En
 		thockNumber,          // $8
 		e.Remark,             // $9
 		e.CreatedByUserID,    // $10
+		e.FamilyMemberID,     // $11
+		e.FamilyMemberName,   // $12
 	).Scan(&e.ID, &e.ThockNumber, &e.CreatedAt, &e.UpdatedAt)
 }
 
@@ -142,13 +148,14 @@ func (r *EntryRepository) Get(ctx context.Context, id int) (*models.Entry, error
 	row := r.DB.QueryRow(ctx,
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE((SELECT SUM(quantity) FROM room_entries WHERE entry_id = e.id), 0) as actual_quantity,
-		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark, e.created_by_user_id, e.created_at, e.updated_at
+		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark, e.created_by_user_id, e.created_at, e.updated_at,
+		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e WHERE e.id=$1`, id)
 
 	var entry models.Entry
 	err := row.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
 		&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber, &entry.Remark, &entry.CreatedByUserID,
-		&entry.CreatedAt, &entry.UpdatedAt)
+		&entry.CreatedAt, &entry.UpdatedAt, &entry.FamilyMemberID, &entry.FamilyMemberName)
 	return &entry, err
 }
 
@@ -160,7 +167,8 @@ func (r *EntryRepository) List(ctx context.Context) ([]*models.Entry, error) {
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
 		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark,
-		        e.created_by_user_id, e.created_at, e.updated_at
+		        e.created_by_user_id, e.created_at, e.updated_at,
+		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e
          LEFT JOIN (
              SELECT entry_id, SUM(quantity) as total_qty
@@ -178,7 +186,7 @@ func (r *EntryRepository) List(ctx context.Context) ([]*models.Entry, error) {
 		var entry models.Entry
 		err := rows.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
 			&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber, &entry.Remark, &entry.CreatedByUserID,
-			&entry.CreatedAt, &entry.UpdatedAt)
+			&entry.CreatedAt, &entry.UpdatedAt, &entry.FamilyMemberID, &entry.FamilyMemberName)
 		if err != nil {
 			return nil, err
 		}
@@ -193,7 +201,8 @@ func (r *EntryRepository) ListByCustomer(ctx context.Context, customerID int) ([
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
 		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark,
-		        e.created_by_user_id, e.created_at, e.updated_at
+		        e.created_by_user_id, e.created_at, e.updated_at,
+		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e
          LEFT JOIN (
              SELECT entry_id, SUM(quantity) as total_qty
@@ -212,7 +221,7 @@ func (r *EntryRepository) ListByCustomer(ctx context.Context, customerID int) ([
 		var entry models.Entry
 		err := rows.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
 			&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber, &entry.Remark, &entry.CreatedByUserID,
-			&entry.CreatedAt, &entry.UpdatedAt)
+			&entry.CreatedAt, &entry.UpdatedAt, &entry.FamilyMemberID, &entry.FamilyMemberName)
 		if err != nil {
 			return nil, err
 		}
@@ -227,7 +236,8 @@ func (r *EntryRepository) ListSince(ctx context.Context, since string) ([]*model
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE(rq.total_qty, 0) as actual_quantity,
 		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark,
-		        e.created_by_user_id, e.created_at, e.updated_at
+		        e.created_by_user_id, e.created_at, e.updated_at,
+		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e
          LEFT JOIN (
              SELECT entry_id, SUM(quantity) as total_qty
@@ -246,7 +256,7 @@ func (r *EntryRepository) ListSince(ctx context.Context, since string) ([]*model
 		var entry models.Entry
 		err := rows.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
 			&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber, &entry.Remark, &entry.CreatedByUserID,
-			&entry.CreatedAt, &entry.UpdatedAt)
+			&entry.CreatedAt, &entry.UpdatedAt, &entry.FamilyMemberID, &entry.FamilyMemberName)
 		if err != nil {
 			return nil, err
 		}
@@ -299,7 +309,8 @@ func (r *EntryRepository) ListUnassigned(ctx context.Context) ([]*models.Entry, 
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        0 as actual_quantity,
 		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark,
-		        e.created_by_user_id, e.created_at, e.updated_at
+		        e.created_by_user_id, e.created_at, e.updated_at,
+		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e
          LEFT JOIN room_entries re ON e.id = re.entry_id
          WHERE re.id IS NULL
@@ -314,7 +325,7 @@ func (r *EntryRepository) ListUnassigned(ctx context.Context) ([]*models.Entry, 
 		var entry models.Entry
 		err := rows.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
 			&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber, &entry.Remark, &entry.CreatedByUserID,
-			&entry.CreatedAt, &entry.UpdatedAt)
+			&entry.CreatedAt, &entry.UpdatedAt, &entry.FamilyMemberID, &entry.FamilyMemberName)
 		if err != nil {
 			return nil, err
 		}
@@ -328,13 +339,14 @@ func (r *EntryRepository) GetByThockNumber(ctx context.Context, thockNumber stri
 	row := r.DB.QueryRow(ctx,
 		`SELECT e.id, e.customer_id, e.phone, e.name, e.village, e.so, e.expected_quantity,
 		        COALESCE((SELECT SUM(quantity) FROM room_entries WHERE entry_id = e.id), 0) as actual_quantity,
-		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark, e.created_by_user_id, e.created_at, e.updated_at
+		        e.thock_category, e.thock_number, COALESCE(e.remark, '') as remark, e.created_by_user_id, e.created_at, e.updated_at,
+		        e.family_member_id, COALESCE(e.family_member_name, '') as family_member_name
          FROM entries e WHERE e.thock_number=$1`, thockNumber)
 
 	var entry models.Entry
 	err := row.Scan(&entry.ID, &entry.CustomerID, &entry.Phone, &entry.Name, &entry.Village, &entry.SO,
 		&entry.ExpectedQuantity, &entry.ActualQuantity, &entry.ThockCategory, &entry.ThockNumber, &entry.Remark, &entry.CreatedByUserID,
-		&entry.CreatedAt, &entry.UpdatedAt)
+		&entry.CreatedAt, &entry.UpdatedAt, &entry.FamilyMemberID, &entry.FamilyMemberName)
 	return &entry, err
 }
 

@@ -31,6 +31,7 @@ type EntryRoomHandler struct {
 
 // CustomerPhone represents minimal customer info for autocomplete
 type CustomerPhone struct {
+	ID      int    `json:"id"`
 	Phone   string `json:"phone"`
 	Name    string `json:"name"`
 	Village string `json:"village"`
@@ -171,6 +172,7 @@ func (h *EntryRoomHandler) fetchSummaryData(ctx context.Context) ([]byte, error)
 	customerPhones := make([]CustomerPhone, 0, len(customers))
 	for _, c := range customers {
 		customerPhones = append(customerPhones, CustomerPhone{
+			ID:      c.ID,
 			Phone:   c.Phone,
 			Name:    c.Name,
 			Village: c.Village,
