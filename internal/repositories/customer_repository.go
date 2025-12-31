@@ -78,10 +78,20 @@ func (r *CustomerRepository) List(ctx context.Context) ([]*models.Customer, erro
 }
 
 func (r *CustomerRepository) Update(ctx context.Context, c *models.Customer) error {
+	// Update customer
 	_, err := r.DB.Exec(ctx,
 		`UPDATE customers SET name=$1, phone=$2, so=$3, village=$4, address=$5, updated_at=CURRENT_TIMESTAMP
          WHERE id=$6`,
 		c.Name, c.Phone, c.SO, c.Village, c.Address, c.ID)
+	if err != nil {
+		return err
+	}
+
+	// Also update all entries for this customer to sync the denormalized data
+	_, err = r.DB.Exec(ctx,
+		`UPDATE entries SET name=$1, phone=$2, so=$3, village=$4, updated_at=CURRENT_TIMESTAMP
+         WHERE customer_id=$5`,
+		c.Name, c.Phone, c.SO, c.Village, c.ID)
 	return err
 }
 
