@@ -490,6 +490,17 @@
             window.history.back();
         }
 
+        // Get thock color based on seed/sell range
+        function getThockColor(thockNumber) {
+            if (!thockNumber) return 'text-gray-700';
+            const numMatch = String(thockNumber).match(/^(\d+)/);
+            if (numMatch) {
+                const num = parseInt(numMatch[1]);
+                return num <= 1500 ? 'text-green-600 font-bold' : 'text-orange-600 font-bold';
+            }
+            return 'text-gray-700';
+        }
+
         async function loadData(forceRefresh = false) {
             // Clear browser cache on manual refresh
             if (forceRefresh) {
@@ -854,7 +865,7 @@
                         html += `
                             <div class="p-3 bg-gray-50 border-2 border-gray-300">
                                 <div class="flex justify-between items-start mb-1">
-                                    <span class="font-bold">${item.thock_number || '-'}</span>
+                                    <span class="${getThockColor(item.thock_number)}">${item.thock_number || '-'}</span>
                                     <span class="bg-yellow-300 text-black px-2 py-1 text-xs font-bold border border-black">${item.quantity || 0} bags</span>
                                 </div>
                                 <p class="text-sm text-gray-600">${item.customer_name || 'Unknown'}</p>

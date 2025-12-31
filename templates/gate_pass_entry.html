@@ -1297,6 +1297,17 @@
             }
         }
 
+        // Get thock color based on seed/sell range
+        function getThockColor(thockNumber) {
+            if (!thockNumber) return 'text-gray-700';
+            const numMatch = String(thockNumber).match(/^(\d+)/);
+            if (numMatch) {
+                const num = parseInt(numMatch[1]);
+                return num <= 1500 ? 'text-green-600 font-bold' : 'text-orange-600 font-bold';
+            }
+            return 'text-gray-700';
+        }
+
         // Calculate remaining time until expiration
         function getRemainingTime(expiresAt) {
             if (!expiresAt) return { text: 'N/A', color: 'text-gray-500' };
@@ -1403,7 +1414,7 @@
 
                 return `
                     <tr class="border-b border-gray-200 hover:bg-gray-50">
-                        <td class="p-2 font-bold ${truckColor}">${gp.thock_number}</td>
+                        <td class="p-2 ${getThockColor(gp.thock_number)}">${gp.thock_number}</td>
                         <td class="p-2">${gp.customer_name}</td>
                         <td class="p-2 font-semibold text-purple-600">${recipient}</td>
                         <td class="p-2 font-bold">${gp.requested_quantity}</td>
@@ -1472,7 +1483,7 @@
                         <td class="p-2 text-xs">${formattedDate}</td>
                         <td class="p-2 font-bold">${req.customer_name}</td>
                         <td class="p-2 text-sm">${req.customer_phone}</td>
-                        <td class="p-2 font-bold text-blue-600">${req.thock_number}</td>
+                        <td class="p-2 ${getThockColor(req.thock_number)}">${req.thock_number}</td>
                         <td class="p-2 font-bold text-lg">${req.requested_quantity}</td>
                         <td class="p-2 text-xs font-bold ${remaining.color}">${remaining.text}</td>
                         <td class="p-2 text-sm">${req.remarks || '-'}</td>
