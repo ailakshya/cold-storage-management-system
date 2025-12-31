@@ -70,6 +70,8 @@ func (s *GatePassService) CreateGatePass(ctx context.Context, req *models.Create
 		CustomerID:        req.CustomerID,
 		ThockNumber:       req.ThockNumber,
 		EntryID:           req.EntryID,
+		FamilyMemberID:    req.FamilyMemberID,
+		FamilyMemberName:  req.FamilyMemberName,
 		RequestedQuantity: req.RequestedQuantity,
 		PaymentVerified:   req.PaymentVerified,
 		PaymentAmount:     &req.PaymentAmount,

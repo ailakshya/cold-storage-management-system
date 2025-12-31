@@ -7,6 +7,8 @@ type GatePass struct {
 	CustomerID            int        `json:"customer_id" db:"customer_id"`
 	ThockNumber           string     `json:"thock_number" db:"thock_number"`
 	EntryID               *int       `json:"entry_id,omitempty" db:"entry_id"`
+	FamilyMemberID        *int       `json:"family_member_id,omitempty" db:"family_member_id"`
+	FamilyMemberName      string     `json:"family_member_name,omitempty" db:"family_member_name"`
 	RequestedQuantity     int        `json:"requested_quantity" db:"requested_quantity"`
 	ApprovedQuantity      *int       `json:"approved_quantity,omitempty" db:"approved_quantity"`
 	GateNo                *string    `json:"gate_no,omitempty" db:"gate_no"`
@@ -32,6 +34,8 @@ type CreateGatePassRequest struct {
 	CustomerID        int     `json:"customer_id"`
 	ThockNumber       string  `json:"thock_number"`
 	EntryID           *int    `json:"entry_id"`
+	FamilyMemberID    *int    `json:"family_member_id"`
+	FamilyMemberName  string  `json:"family_member_name"`
 	RequestedQuantity int     `json:"requested_quantity"`
 	PaymentVerified   bool    `json:"payment_verified"`
 	PaymentAmount     float64 `json:"payment_amount"`
@@ -58,6 +62,8 @@ type RecordPickupRequest struct {
 // CreateCustomerGatePassRequest represents a customer's gate pass request
 type CreateCustomerGatePassRequest struct {
 	ThockNumber       string `json:"thock_number" binding:"required"`
+	FamilyMemberID    *int   `json:"family_member_id"`
+	FamilyMemberName  string `json:"family_member_name"`
 	RequestedQuantity int    `json:"requested_quantity" binding:"required"`
 	Remarks           string `json:"remarks"`
 }

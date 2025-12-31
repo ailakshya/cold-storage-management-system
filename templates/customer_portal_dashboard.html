@@ -985,6 +985,13 @@
             </div>
             <form id="gatePassForm" onsubmit="submitGatePassRequest(event)">
                 <div class="form-grid">
+                    <!-- Family Member Selector (hidden if only one member) -->
+                    <div class="form-group" id="familyMemberFormGroup" style="display: none;">
+                        <label class="form-label" data-i18n="family_member">Family Member</label>
+                        <select id="familyMemberSelect" class="form-select" onchange="onGatePassFamilyMemberChange()">
+                            <option value="" data-i18n="all_members">All Members</option>
+                        </select>
+                    </div>
                     <div class="form-group">
                         <label class="form-label" data-i18n="select_truck">Select Truck</label>
                         <select id="thockSelect" class="form-select" required>
@@ -1248,6 +1255,10 @@
             await renderPaymentSection();
         }
 
+        // Store family member data for gate pass form
+        let gatePassFamilyMembers = [];
+        let allTrucksForGatePass = [];
+
         async function renderTrucks() {
             const trucksContainer = document.getElementById('trucksContainer');
             const thockSelect = document.getElementById('thockSelect');
@@ -1266,6 +1277,9 @@
                 return;
             }
 
+            // Store all trucks for filtering
+            allTrucksForGatePass = dashboardData.trucks;
+
             // Group by family member
             const groupedTrucks = {};
             dashboardData.trucks.forEach(truck => {
@@ -1275,10 +1289,13 @@
                 }
                 groupedTrucks[memberName].push(truck);
 
-                thockSelect.innerHTML += `<option value="${truck.thock_number}" data-max="${truck.can_take_out}">
+                thockSelect.innerHTML += `<option value="${truck.thock_number}" data-max="${truck.can_take_out}" data-family-member-id="${truck.family_member_id || ''}" data-family-member-name="${truck.family_member_name || ''}">
                     ${truck.thock_number} (${maxText}: ${truck.can_take_out})
                 </option>`;
             });
+
+            // Setup family member selector for gate pass form
+            await setupGatePassFamilyMemberSelector(groupedTrucks);
 
             const memberNames = Object.keys(groupedTrucks);
 
@@ -1442,6 +1459,74 @@
             return parseFloat(num || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
         }
 
+        // Setup family member selector for gate pass form
+        async function setupGatePassFamilyMemberSelector(groupedTrucks) {
+            const memberNames = Object.keys(groupedTrucks);
+            const familyMemberFormGroup = document.getElementById('familyMemberFormGroup');
+            const familyMemberSelect = document.getElementById('familyMemberSelect');
+
+            // Only show if there are multiple family members
+            if (memberNames.length <= 1) {
+                familyMemberFormGroup.style.display = 'none';
+                gatePassFamilyMembers = [];
+                return;
+            }
+
+            familyMemberFormGroup.style.display = '';
+
+            // Store family members for later use
+            gatePassFamilyMembers = memberNames.map(name => ({
+                name: name,
+                trucks: groupedTrucks[name],
+                family_member_id: groupedTrucks[name][0]?.family_member_id || null
+            }));
+
+            // Build dropdown options
+            let optionsHtml = '<option value="">' + i18n.t('all_members', 'All Members') + '</option>';
+
+            for (const member of gatePassFamilyMembers) {
+                const displayName = await getDisplayText(member.name);
+                optionsHtml += `<option value="${member.name}" data-family-member-id="${member.family_member_id || ''}">${displayName} (${member.trucks.length} trucks)</option>`;
+            }
+
+            familyMemberSelect.innerHTML = optionsHtml;
+        }
+
+        // Handle family member selection change for gate pass form
+        function onGatePassFamilyMemberChange() {
+            const familyMemberSelect = document.getElementById('familyMemberSelect');
+            const selectedMemberName = familyMemberSelect.value;
+
+            updateGatePassTruckSelect(selectedMemberName);
+
+            // Clear quantity
+            document.getElementById('quantity').value = '';
+            document.getElementById('maxQuantity').textContent = '0';
+        }
+
+        // Update truck dropdown based on selected family member
+        function updateGatePassTruckSelect(selectedMemberName) {
+            const thockSelect = document.getElementById('thockSelect');
+            const maxText = i18n.t('max', 'Max');
+
+            thockSelect.innerHTML = '<option value="">' + i18n.t('select_truck_option', '-- Select Truck --') + '</option>';
+
+            let trucksToShow = allTrucksForGatePass;
+
+            if (selectedMemberName) {
+                trucksToShow = allTrucksForGatePass.filter(truck => {
+                    const truckMemberName = truck.family_member_name || dashboardData.customer.name || 'Unknown';
+                    return truckMemberName === selectedMemberName;
+                });
+            }
+
+            trucksToShow.forEach(truck => {
+                thockSelect.innerHTML += `<option value="${truck.thock_number}" data-max="${truck.can_take_out}" data-family-member-id="${truck.family_member_id || ''}" data-family-member-name="${truck.family_member_name || ''}">
+                    ${truck.thock_number} (${maxText}: ${truck.can_take_out})
+                </option>`;
+            });
+        }
+
         function selectThock(truckNumber, maxQty) {
             document.getElementById('thockSelect').value = truckNumber;
             document.getElementById('maxQuantity').textContent = maxQty;
@@ -1465,7 +1550,8 @@
         async function submitGatePassRequest(event) {
             event.preventDefault();
 
-            const truck = document.getElementById('thockSelect').value;
+            const thockSelect = document.getElementById('thockSelect');
+            const truck = thockSelect.value;
             const quantity = parseInt(document.getElementById('quantity').value);
             const recipientName = document.getElementById('recipientName').value.trim();
             const remarks = document.getElementById('remarks').value;
@@ -1479,6 +1565,11 @@
                 alert(i18n.t('please_enter_recipient', 'Please enter recipient name'));
                 return;
             }
+
+            // Get family member info from selected truck option
+            const selectedOption = thockSelect.options[thockSelect.selectedIndex];
+            const familyMemberId = selectedOption.dataset.familyMemberId ? parseInt(selectedOption.dataset.familyMemberId) : null;
+            const familyMemberName = selectedOption.dataset.familyMemberName || '';
 
             let finalRemarks = `Recipient: ${recipientName}`;
             if (remarks) {
@@ -1496,6 +1587,8 @@
                     body: JSON.stringify({
                         thock_number: truck,
                         requested_quantity: quantity,
+                        family_member_id: familyMemberId,
+                        family_member_name: familyMemberName,
                         remarks: finalRemarks
                     })
                 });

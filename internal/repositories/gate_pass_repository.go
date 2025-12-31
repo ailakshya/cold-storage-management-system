@@ -47,15 +47,16 @@ func (r *GatePassRepository) CreateGatePass(ctx context.Context, gatePass *model
 
 	query := `
 		INSERT INTO gate_passes (
-			customer_id, thock_number, entry_id, requested_quantity,
-			payment_verified, payment_amount, issued_by_user_id, remarks,
+			customer_id, thock_number, entry_id, family_member_id, family_member_name,
+			requested_quantity, payment_verified, payment_amount, issued_by_user_id, remarks,
 			expires_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP + INTERVAL '30 hours')
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP + INTERVAL '30 hours')
 		RETURNING id, issued_at, expires_at, created_at, updated_at
 	`
 
 	return r.DB.QueryRow(ctx, query,
 		gatePass.CustomerID, gatePass.ThockNumber, gatePass.EntryID,
+		gatePass.FamilyMemberID, gatePass.FamilyMemberName,
 		gatePass.RequestedQuantity, gatePass.PaymentVerified,
 		gatePass.PaymentAmount, gatePass.IssuedByUserID, gatePass.Remarks,
 	).Scan(&gatePass.ID, &gatePass.IssuedAt, &gatePass.ExpiresAt, &gatePass.CreatedAt, &gatePass.UpdatedAt)
@@ -64,8 +65,8 @@ func (r *GatePassRepository) CreateGatePass(ctx context.Context, gatePass *model
 // GetGatePass retrieves a gate pass by ID
 func (r *GatePassRepository) GetGatePass(ctx context.Context, id int) (*models.GatePass, error) {
 	query := `
-		SELECT id, customer_id, thock_number, entry_id, requested_quantity,
-		       approved_quantity, gate_no, status, payment_verified, payment_amount,
+		SELECT id, customer_id, thock_number, entry_id, family_member_id, family_member_name,
+		       requested_quantity, approved_quantity, gate_no, status, payment_verified, payment_amount,
 		       issued_by_user_id, approved_by_user_id, issued_at, expires_at, completed_at,
 		       remarks, created_at, updated_at, total_picked_up, approval_expires_at, final_approved_quantity
 		FROM gate_passes
@@ -75,6 +76,7 @@ func (r *GatePassRepository) GetGatePass(ctx context.Context, id int) (*models.G
 	gatePass := &models.GatePass{}
 	err := r.DB.QueryRow(ctx, query, id).Scan(
 		&gatePass.ID, &gatePass.CustomerID, &gatePass.ThockNumber, &gatePass.EntryID,
+		&gatePass.FamilyMemberID, &gatePass.FamilyMemberName,
 		&gatePass.RequestedQuantity, &gatePass.ApprovedQuantity, &gatePass.GateNo,
 		&gatePass.Status, &gatePass.PaymentVerified, &gatePass.PaymentAmount,
 		&gatePass.IssuedByUserID, &gatePass.ApprovedByUserID, &gatePass.IssuedAt,
@@ -99,6 +101,7 @@ func (r *GatePassRepository) ListAllGatePasses(ctx context.Context) ([]map[strin
 			gp.total_picked_up, gp.approval_expires_at, gp.final_approved_quantity,
 			COALESCE(gp.request_source, 'employee') as request_source,
 			gp.created_by_customer_id,
+			gp.family_member_id, gp.family_member_name,
 			c.id as customer_id, c.name as customer_name, c.phone as customer_phone,
 			c.village as customer_village,
 			e.id as entry_id, e.expected_quantity as entry_quantity,
@@ -126,8 +129,8 @@ func (r *GatePassRepository) ListAllGatePasses(ctx context.Context) ([]map[strin
 			id, customerID, totalPickedUp int
 			thockNumber, status, customerName, customerPhone, customerVillage, requestSource string
 			requestedQty int
-			approvedQty, gateNo, remarks, approvedByName, issuedByName *string
-			entryID, approvedByID, entryQty, finalApprovedQty, createdByCustomerID, issuedByID *int
+			approvedQty, gateNo, remarks, approvedByName, issuedByName, familyMemberName *string
+			entryID, approvedByID, entryQty, finalApprovedQty, createdByCustomerID, issuedByID, familyMemberID *int
 			paymentVerified bool
 			paymentAmount *float64
 			issuedAt interface{}
@@ -140,6 +143,7 @@ func (r *GatePassRepository) ListAllGatePasses(ctx context.Context) ([]map[strin
 			&paymentVerified, &paymentAmount, &issuedAt, &expiresAt, &completedAt, &remarks,
 			&totalPickedUp, &approvalExpiresAt, &finalApprovedQty,
 			&requestSource, &createdByCustomerID,
+			&familyMemberID, &familyMemberName,
 			&customerID, &customerName, &customerPhone, &customerVillage,
 			&entryID, &entryQty,
 			&issuedByID, &issuedByName,
@@ -162,6 +166,12 @@ func (r *GatePassRepository) ListAllGatePasses(ctx context.Context) ([]map[strin
 		gatePass["total_picked_up"] = totalPickedUp
 		gatePass["request_source"] = requestSource
 
+		if familyMemberID != nil {
+			gatePass["family_member_id"] = *familyMemberID
+		}
+		if familyMemberName != nil {
+			gatePass["family_member_name"] = *familyMemberName
+		}
 		if issuedByID != nil {
 			gatePass["issued_by_id"] = *issuedByID
 		}
@@ -222,6 +232,7 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 			(gp.expires_at IS NOT NULL AND CURRENT_TIMESTAMP > gp.expires_at) as is_expired,
 			COALESCE(gp.request_source, 'employee') as request_source,
 			gp.created_by_customer_id,
+			gp.family_member_id, gp.family_member_name,
 			c.id as customer_id, c.name as customer_name, c.phone as customer_phone,
 			c.village as customer_village,
 			e.id as entry_id, e.expected_quantity as entry_quantity,
@@ -254,8 +265,8 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 			id, customerID int
 			thockNumber, customerName, customerPhone, requestSource string
 			requestedQty int
-			gateNo, remarks, issuedByName, customerVillage, rooms, floors, gatars, qtyBreakdown, remark *string
-			entryID, entryQty, createdByCustomerID, totalQty *int
+			gateNo, remarks, issuedByName, customerVillage, rooms, floors, gatars, qtyBreakdown, remark, familyMemberName *string
+			entryID, entryQty, createdByCustomerID, totalQty, familyMemberID *int
 			paymentVerified, isExpired bool
 			paymentAmount *float64
 			issuedAt, expiresAt interface{}
@@ -265,6 +276,7 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 			&id, &thockNumber, &requestedQty, &gateNo,
 			&paymentVerified, &paymentAmount, &issuedAt, &expiresAt, &remarks, &isExpired,
 			&requestSource, &createdByCustomerID,
+			&familyMemberID, &familyMemberName,
 			&customerID, &customerName, &customerPhone, &customerVillage,
 			&entryID, &entryQty, &issuedByName,
 			&rooms, &floors, &gatars, &totalQty, &qtyBreakdown, &remark,
@@ -285,6 +297,12 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 		gatePass["customer_phone"] = customerPhone
 		gatePass["request_source"] = requestSource
 
+		if familyMemberID != nil {
+			gatePass["family_member_id"] = *familyMemberID
+		}
+		if familyMemberName != nil {
+			gatePass["family_member_name"] = *familyMemberName
+		}
 		if issuedByName != nil {
 			gatePass["issued_by_name"] = *issuedByName
 		}
@@ -479,7 +497,7 @@ func (r *GatePassRepository) CompleteGatePass(ctx context.Context, id int) error
 }
 
 // CreateCustomerGatePass creates a gate pass from customer portal (status = pending, no expiration)
-func (r *GatePassRepository) CreateCustomerGatePass(ctx context.Context, customerID int, thockNumber string, requestedQuantity int, remarks string, entryID int) (*models.GatePass, error) {
+func (r *GatePassRepository) CreateCustomerGatePass(ctx context.Context, customerID int, thockNumber string, requestedQuantity int, remarks string, entryID int, familyMemberID *int, familyMemberName string) (*models.GatePass, error) {
 	// Check for duplicate gate pass (same customer, same thock, same quantity within 10 seconds)
 	isDuplicate, err := r.CheckDuplicateGatePass(ctx, customerID, thockNumber, requestedQuantity)
 	if err != nil {
@@ -491,9 +509,9 @@ func (r *GatePassRepository) CreateCustomerGatePass(ctx context.Context, custome
 
 	query := `
 		INSERT INTO gate_passes (
-			customer_id, thock_number, entry_id, requested_quantity,
+			customer_id, thock_number, entry_id, family_member_id, family_member_name, requested_quantity,
 			payment_verified, status, created_by_customer_id, request_source, remarks
-		) VALUES ($1, $2, $3, $4, false, 'pending', $5, 'customer_portal', $6)
+		) VALUES ($1, $2, $3, $4, $5, $6, false, 'pending', $7, 'customer_portal', $8)
 		RETURNING id, issued_at, created_at, updated_at
 	`
 
@@ -505,13 +523,15 @@ func (r *GatePassRepository) CreateCustomerGatePass(ctx context.Context, custome
 		PaymentVerified:     false,
 		CreatedByCustomerID: &customerID,
 		RequestSource:       "customer_portal",
+		FamilyMemberID:      familyMemberID,
+		FamilyMemberName:    familyMemberName,
 	}
 
 	if remarks != "" {
 		gatePass.Remarks = &remarks
 	}
 
-	err = r.DB.QueryRow(ctx, query, customerID, thockNumber, entryID, requestedQuantity, customerID, remarks).Scan(
+	err = r.DB.QueryRow(ctx, query, customerID, thockNumber, entryID, familyMemberID, familyMemberName, requestedQuantity, customerID, remarks).Scan(
 		&gatePass.ID, &gatePass.IssuedAt, &gatePass.CreatedAt, &gatePass.UpdatedAt,
 	)
 
@@ -531,6 +551,7 @@ func (r *GatePassRepository) ListByCustomerID(ctx context.Context, customerID in
 			gp.issued_at, gp.expires_at, gp.completed_at, gp.remarks,
 			gp.total_picked_up, gp.approval_expires_at, gp.final_approved_quantity,
 			gp.request_source,
+			gp.family_member_id, gp.family_member_name,
 			e.id as entry_id, e.expected_quantity as entry_quantity,
 			au.name as approved_by_name
 		FROM gate_passes gp
@@ -553,8 +574,8 @@ func (r *GatePassRepository) ListByCustomerID(ctx context.Context, customerID in
 		var (
 			id, requestedQty, totalPickedUp int
 			thockNumber, status, requestSource string
-			approvedQty, gateNo, remarks, approvedByName *string
-			entryID, entryQty, finalApprovedQty *int
+			approvedQty, gateNo, remarks, approvedByName, familyMemberName *string
+			entryID, entryQty, finalApprovedQty, familyMemberID *int
 			paymentVerified bool
 			paymentAmount *float64
 			issuedAt interface{}
@@ -565,6 +586,7 @@ func (r *GatePassRepository) ListByCustomerID(ctx context.Context, customerID in
 			&id, &thockNumber, &requestedQty, &approvedQty, &gateNo, &status,
 			&paymentVerified, &paymentAmount, &issuedAt, &expiresAt, &completedAt, &remarks,
 			&totalPickedUp, &approvalExpiresAt, &finalApprovedQty, &requestSource,
+			&familyMemberID, &familyMemberName,
 			&entryID, &entryQty, &approvedByName,
 		)
 		if err != nil {
@@ -580,6 +602,12 @@ func (r *GatePassRepository) ListByCustomerID(ctx context.Context, customerID in
 		gatePass["total_picked_up"] = totalPickedUp
 		gatePass["request_source"] = requestSource
 
+		if familyMemberID != nil {
+			gatePass["family_member_id"] = *familyMemberID
+		}
+		if familyMemberName != nil {
+			gatePass["family_member_name"] = *familyMemberName
+		}
 		if approvedQty != nil {
 			gatePass["approved_quantity"] = *approvedQty
 		}

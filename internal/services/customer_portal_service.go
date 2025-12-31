@@ -340,6 +340,8 @@ func (s *CustomerPortalService) CreateGatePassRequest(ctx context.Context, custo
 		request.RequestedQuantity,
 		request.Remarks,
 		entry.ID,
+		request.FamilyMemberID,
+		request.FamilyMemberName,
 	)
 
 	if err != nil {

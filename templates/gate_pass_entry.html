@@ -188,6 +188,18 @@
                             <p class="text-sm text-gray-600"><span data-i18n="village">Village</span>: <span id="customerVillage"></span></p>
                         </div>
 
+                        <!-- Family Member Selector -->
+                        <div id="familyMemberSection" class="hidden">
+                            <label class="block text-sm font-semibold text-gray-700 mb-2">
+                                <span data-i18n="family_member">Family Member</span>
+                            </label>
+                            <select id="familyMemberSelect" class="w-full neu-input" onchange="onFamilyMemberChange()">
+                                <option value="">All Family Members</option>
+                            </select>
+                            <input type="hidden" id="familyMemberId">
+                            <input type="hidden" id="familyMemberName">
+                        </div>
+
                         <div class="relative">
                             <label class="block text-sm font-semibold text-gray-700 mb-2" data-i18n="thock_no_required">
                                 Thok NO *
@@ -629,8 +641,13 @@
             document.getElementById('customerDropdown').classList.add('hidden');
             document.getElementById('customerInfo').classList.remove('hidden');
 
-            // Clear truck number to show new dropdown
+            // Clear truck number and family member selection
             document.getElementById('thockNumber').value = '';
+            document.getElementById('familyMemberId').value = '';
+            document.getElementById('familyMemberName').value = '';
+
+            // Load family members for this customer
+            await loadFamilyMembers(customer.id);
 
             // Calculate available inventory for this customer
             calculateAvailableInventory(customer.id);
@@ -640,6 +657,64 @@
 
             // Check and display debt request status for this customer
             await checkAndDisplayDebtRequestStatus(customer.phone);
+        }
+
+        // Store customer's family members
+        let customerFamilyMembers = [];
+
+        // Load family members for a customer
+        async function loadFamilyMembers(customerId) {
+            try {
+                const response = await fetch(`/api/family-members/${customerId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    customerFamilyMembers = [];
+                    document.getElementById('familyMemberSection').classList.add('hidden');
+                    return;
+                }
+
+                customerFamilyMembers = await response.json();
+
+                // Show family member section if customer has family members
+                const familyMemberSection = document.getElementById('familyMemberSection');
+                const familyMemberSelect = document.getElementById('familyMemberSelect');
+
+                if (customerFamilyMembers && customerFamilyMembers.length > 0) {
+                    familyMemberSection.classList.remove('hidden');
+
+                    // Populate dropdown
+                    let optionsHtml = '<option value="">All Family Members</option>';
+                    customerFamilyMembers.forEach(fm => {
+                        const entryCount = fm.entry_count || 0;
+                        optionsHtml += `<option value="${fm.id}" data-name="${fm.name}">${fm.name} (${entryCount} entries)</option>`;
+                    });
+                    familyMemberSelect.innerHTML = optionsHtml;
+                } else {
+                    familyMemberSection.classList.add('hidden');
+                }
+            } catch (error) {
+                console.error('Error loading family members:', error);
+                customerFamilyMembers = [];
+                document.getElementById('familyMemberSection').classList.add('hidden');
+            }
+        }
+
+        // Handle family member selection change
+        function onFamilyMemberChange() {
+            const select = document.getElementById('familyMemberSelect');
+            const selectedOption = select.options[select.selectedIndex];
+
+            document.getElementById('familyMemberId').value = select.value || '';
+            document.getElementById('familyMemberName').value = selectedOption.dataset.name || '';
+
+            // Clear thock number when family member changes
+            document.getElementById('thockNumber').value = '';
+            selectedThockEntry = null;
+
+            // Update availability displays
+            updateAvailabilityDisplay();
         }
 
         // Calculate available inventory for customer (from accounts summary - same as rent management)
@@ -882,6 +957,7 @@
         function filterThockNumbers() {
             const searchTerm = document.getElementById('thockNumber').value;
             const customerId = document.getElementById('customerId').value;
+            const familyMemberId = document.getElementById('familyMemberId').value;
 
             if (!customerId) {
                 document.getElementById('truckList').innerHTML =
@@ -890,7 +966,12 @@
             }
 
             // Filter entries by selected customer
-            const customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+            let customerEntries = allEntries.filter(entry => entry.customer_id == customerId);
+
+            // Further filter by family member if selected
+            if (familyMemberId) {
+                customerEntries = customerEntries.filter(entry => entry.family_member_id == familyMemberId);
+            }
 
             // Further filter by search term if provided
             const filtered = customerEntries.filter(entry =>
@@ -1185,10 +1266,16 @@
                 finalRemarks += (finalRemarks ? ' | ' : '') + remarks;
             }
 
+            // Get family member if selected
+            const familyMemberId = document.getElementById('familyMemberId').value;
+            const familyMemberName = document.getElementById('familyMemberName').value;
+
             const gatePassData = {
                 customer_id: customerId,
                 thock_number: document.getElementById('thockNumber').value.trim(),
                 entry_id: null,
+                family_member_id: familyMemberId ? parseInt(familyMemberId) : null,
+                family_member_name: familyMemberName || '',
                 requested_quantity: requestedQty,
                 payment_verified: true, // Always true now
                 payment_amount: paymentAmount,
@@ -1261,9 +1348,13 @@
             document.getElementById('customerDropdown').classList.add('hidden');
             document.getElementById('truckDropdown').classList.add('hidden');
             document.getElementById('validationMessage').classList.add('hidden');
+            document.getElementById('familyMemberSection').classList.add('hidden');
+            document.getElementById('familyMemberId').value = '';
+            document.getElementById('familyMemberName').value = '';
             document.getElementById('availableQuantity').textContent = '-';
             document.getElementById('paymentAllowedQuantity').textContent = '-';
             customerPayments = [];
+            customerFamilyMembers = [];
             selectedThockEntry = null; // Clear selected truck
 
             // Reset submit button state
