@@ -665,7 +665,7 @@
         // Load family members for a customer
         async function loadFamilyMembers(customerId) {
             try {
-                const response = await fetch(`/api/family-members/${customerId}`, {
+                const response = await fetch(`/api/customers/${customerId}/family-members`, {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
 
