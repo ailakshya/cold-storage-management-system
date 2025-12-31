@@ -200,8 +200,8 @@ th:last-child {
     border: 1px solid var(--border-color) !important;
 }
 
-/* Only set white background on cards without gradient backgrounds */
-.neu-border:not([class*="bg-gradient"]):not([class*="from-"]) {
+/* Only set white background on cards without colored backgrounds */
+.neu-border:not([class*="bg-gradient"]):not([class*="from-"]):not([class*="bg-green"]):not([class*="bg-orange"]):not([class*="bg-red"]):not([class*="bg-blue"]):not([class*="bg-yellow"]) {
     background: var(--white);
 }
 
