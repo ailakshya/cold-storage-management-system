@@ -160,80 +160,100 @@
             </div>
         </div>
 
-        <!-- Tabs - Organized by Sections -->
+        <!-- Tabs - Organized by Operations -->
         <div class="mb-6">
-            <!-- Section A: By User Type -->
-            <div class="mb-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">By User Type</span>
-                <div class="flex gap-2 mt-2 flex-wrap">
-                    <button class="tab-button active" onclick="switchTab('activity')">
-                        <i class="bi bi-activity"></i> Overview
-                    </button>
-                    <button class="tab-button" onclick="switchTab('adminactions')">
-                        <i class="bi bi-shield-check text-red-600"></i> Admin Actions
-                    </button>
-                    <button class="tab-button" onclick="switchTab('employeeactions')">
-                        <i class="bi bi-person-gear text-blue-600"></i> Employee Actions
-                    </button>
-                    <button class="tab-button" onclick="switchTab('customerrequests')">
-                        <i class="bi bi-person-plus text-green-600"></i> Customer Actions
-                    </button>
+            <!-- Main Operations Row -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <!-- ITEM IN -->
+                <div class="neu-border bg-green-50 p-3 rounded-lg">
+                    <span class="text-xs font-bold text-green-700 uppercase tracking-wider flex items-center gap-1">
+                        <i class="bi bi-box-arrow-in-down"></i> ITEM IN
+                    </span>
+                    <div class="flex flex-col gap-1 mt-2">
+                        <button class="tab-button text-xs py-1" onclick="switchTab('unloading')">
+                            <i class="bi bi-truck text-green-600"></i> Entry Logs
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('editlogs')">
+                            <i class="bi bi-pencil text-green-600"></i> Edit Logs
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('entrymanagement')">
+                            <i class="bi bi-arrow-left-right text-green-600"></i> Transfer
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ROOM CONFIG -->
+                <div class="neu-border bg-blue-50 p-3 rounded-lg">
+                    <span class="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
+                        <i class="bi bi-grid-3x3-gap"></i> ROOM CONFIG
+                    </span>
+                    <div class="flex flex-col gap-1 mt-2">
+                        <button class="tab-button text-xs py-1" onclick="switchTab('rooms')">
+                            <i class="bi bi-door-closed text-blue-600"></i> Room Logs
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('entries')">
+                            <i class="bi bi-box text-blue-600"></i> Inventory
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ITEM OUT -->
+                <div class="neu-border bg-purple-50 p-3 rounded-lg">
+                    <span class="text-xs font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1">
+                        <i class="bi bi-box-arrow-up-right"></i> ITEM OUT
+                    </span>
+                    <div class="flex flex-col gap-1 mt-2">
+                        <button class="tab-button text-xs py-1" onclick="switchTab('gatepasses')">
+                            <i class="bi bi-pass text-purple-600"></i> Gate Pass
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('expired')">
+                            <i class="bi bi-x-octagon text-red-600"></i> Expired
+                        </button>
+                    </div>
+                </div>
+
+                <!-- UNLOADING TICKETS -->
+                <div class="neu-border bg-orange-50 p-3 rounded-lg">
+                    <span class="text-xs font-bold text-orange-700 uppercase tracking-wider flex items-center gap-1">
+                        <i class="bi bi-list-check"></i> PROCESS
+                    </span>
+                    <div class="flex flex-col gap-1 mt-2">
+                        <button class="tab-button text-xs py-1 active" onclick="switchTab('activity')">
+                            <i class="bi bi-activity text-orange-600"></i> Overview
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('adminactions')">
+                            <i class="bi bi-shield text-orange-600"></i> Admin
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('employeeactions')">
+                            <i class="bi bi-person-gear text-orange-600"></i> Employee
+                        </button>
+                    </div>
+                </div>
+
+                <!-- CUSTOMER ACTIONS -->
+                <div class="neu-border bg-teal-50 p-3 rounded-lg">
+                    <span class="text-xs font-bold text-teal-700 uppercase tracking-wider flex items-center gap-1">
+                        <i class="bi bi-person-circle"></i> CUSTOMER
+                    </span>
+                    <div class="flex flex-col gap-1 mt-2">
+                        <button class="tab-button text-xs py-1" onclick="switchTab('customerrequests')">
+                            <i class="bi bi-person-plus text-teal-600"></i> Requests
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('loginlogs')">
+                            <i class="bi bi-clock-history text-teal-600"></i> Sessions
+                        </button>
+                        <button class="tab-button text-xs py-1" onclick="switchTab('payments')">
+                            <i class="bi bi-cash text-teal-600"></i> Payments
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <!-- Section B: By Action Type -->
-            <div class="mb-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Gate Pass</span>
-                <div class="flex gap-2 mt-2 flex-wrap">
-                    <button class="tab-button" onclick="switchTab('gatepasses')">
-                        <i class="bi bi-pass text-purple-600"></i> Gate Pass Logs
-                    </button>
-                    <button class="tab-button" onclick="switchTab('expired')">
-                        <i class="bi bi-x-octagon-fill text-red-600"></i> Expired
-                    </button>
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Entry & Inventory</span>
-                <div class="flex gap-2 mt-2 flex-wrap">
-                    <button class="tab-button" onclick="switchTab('unloading')">
-                        <i class="bi bi-truck text-blue-600"></i> Unloading Tickets
-                    </button>
-                    <button class="tab-button" onclick="switchTab('rooms')">
-                        <i class="bi bi-door-closed text-teal-600"></i> Room Assignments
-                    </button>
-                    <button class="tab-button" onclick="switchTab('entrymanagement')">
-                        <i class="bi bi-arrow-left-right text-purple-600"></i> Transfer/Merge
-                    </button>
-                    <button class="tab-button" onclick="switchTab('editlogs')">
-                        <i class="bi bi-pencil-square text-orange-600"></i> Edit Logs
-                    </button>
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Users & Sessions</span>
-                <div class="flex gap-2 mt-2 flex-wrap">
-                    <button class="tab-button" onclick="switchTab('loginlogs')">
-                        <i class="bi bi-clock-history text-green-600"></i> Login/Logout
-                    </button>
-                    <button class="tab-button" onclick="switchTab('users')">
-                        <i class="bi bi-person-badge text-indigo-600"></i> User Management
-                    </button>
-                </div>
-            </div>
-
-            <div class="mb-3">
-                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Financial</span>
-                <div class="flex gap-2 mt-2 flex-wrap">
-                    <button class="tab-button" onclick="switchTab('payments')">
-                        <i class="bi bi-cash text-green-600"></i> Payment Logs
-                    </button>
-                    <button class="tab-button" onclick="switchTab('entries')">
-                        <i class="bi bi-box text-yellow-600"></i> Entry Records
-                    </button>
-                </div>
+            <!-- Quick Access Row -->
+            <div class="flex gap-2 flex-wrap">
+                <button class="tab-button text-xs" onclick="switchTab('users')">
+                    <i class="bi bi-person-badge text-indigo-600"></i> User Management
+                </button>
             </div>
         </div>
 
