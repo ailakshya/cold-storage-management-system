@@ -13,28 +13,30 @@
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <link href="/static/css/fonts.css" rel="stylesheet">
     <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <link href="/static/css/inventory-theme.css" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css">
     <style>
         * {
             font-family: 'Space Grotesk', sans-serif;
         }
         .neu-brutal {
-            border: 3px solid #000;
-            box-shadow: 5px 5px 0px #000;
+            border: 1px solid #e0e6ed;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             transition: all 0.2s ease;
         }
         .neu-brutal:hover {
-            transform: translate(-2px, -2px);
-            box-shadow: 7px 7px 0px #000;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         .neu-brutal:active {
-            transform: translate(2px, 2px);
-            box-shadow: 3px 3px 0px #000;
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         }
         .loader {
             display: none;
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #1b75b1;
+            border-top: 4px solid #4a90a4;
             border-radius: 50%;
             width: 24px;
             height: 24px;
@@ -45,13 +47,19 @@
             100% { transform: rotate(360deg); }
         }
         .lang-selector {
-            border: 2px solid #000;
-            box-shadow: 3px 3px 0px #000;
+            border: 1px solid #e0e6ed;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+        .login-card {
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e0e6ed;
         }
     </style>
     <script src="/static/js/theme.js"></script>
 </head>
-<body class="bg-[#ecf0f1] min-h-screen relative">
+<body class="bg-gradient-to-br from-[#e8f4f8] to-[#e8f5e9] min-h-screen relative">
     <!-- Language Selector -->
     <div class="absolute top-4 right-4">
         <select id="langSelector" onchange="i18n.setLanguage(this.value)"
@@ -60,7 +68,7 @@
             <option value="hi">हिंदी</option>
         </select>
                 <!-- Theme Toggle -->
-                <button onclick="theme.toggle()" class="neu-border bg-gray-200 px-3 py-2" title="Toggle Dark Mode">
+                <button onclick="theme.toggle()" class="bg-white px-3 py-2 rounded-lg border border-gray-200 shadow-sm hover:shadow-md transition-all" title="Toggle Dark Mode">
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
                 </button>
@@ -68,14 +76,14 @@
     </div>
 
     <main class="container mx-auto px-4 py-8 flex flex-col items-center justify-center min-h-screen">
-        <div class="w-full max-w-md bg-white p-6 md:p-8 neu-brutal">
+        <div class="w-full max-w-md bg-white p-6 md:p-8 login-card">
             <div class="text-center mb-6 md:mb-8">
                 <i class="bi bi-snow2 text-4xl md:text-6xl text-[#3498db]"></i>
                 <h1 class="text-2xl md:text-3xl font-bold mt-4" data-i18n="login_title">Cold Storage</h1>
                 <p class="text-gray-600 text-sm md:text-base" data-i18n="login_subtitle">Management System</p>
             </div>
 
-            <div id="errorMessage" style="display:none; background-color: #e74c3c; color: white; padding: 1rem; border: 3px solid #000; box-shadow: 4px 4px 0 #000; margin-bottom: 1rem;"></div>
+            <div id="errorMessage" style="display:none; background-color: #fef2f2; color: #991b1b; padding: 1rem; border: 1px solid #fecaca; border-radius: 12px; margin-bottom: 1rem;"></div>
 
             <!-- Login Form (Step 1) -->
             <form id="loginForm" class="space-y-6">
@@ -103,7 +111,7 @@
                 </div>
 
                 <button type="submit"
-                    class="w-full bg-[#3498db] text-white py-3 px-4 neu-brutal flex items-center justify-center">
+                    class="w-full bg-gradient-to-r from-[#4a90a4] to-[#3d7a8c] text-white py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center">
                     <span data-i18n="sign_in">Sign In</span>
                     <div class="loader ml-3" id="loader"></div>
                 </button>
@@ -133,13 +141,13 @@
                 </p>
 
                 <button type="submit"
-                    class="w-full bg-[#27ae60] text-white py-3 px-4 neu-brutal flex items-center justify-center">
+                    class="w-full bg-gradient-to-r from-[#5cb85c] to-[#4a9f4a] text-white py-3 px-4 rounded-xl shadow-md hover:shadow-lg transition-all flex items-center justify-center">
                     <span>Verify</span>
                     <div class="loader ml-3" id="twoFALoader"></div>
                 </button>
 
                 <button type="button" id="backToLogin"
-                    class="w-full bg-gray-200 text-gray-700 py-2 px-4 neu-brutal flex items-center justify-center text-sm">
+                    class="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-xl border border-gray-200 hover:bg-gray-200 transition-all flex items-center justify-center text-sm">
                     <i class="bi bi-arrow-left mr-2"></i>
                     <span>Back to Login</span>
                 </button>
