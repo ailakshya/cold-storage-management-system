@@ -51,15 +51,23 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
+            align-items: center;
+            justify-content: center;
             padding: 1rem;
         }
 
         .header-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.5rem 0;
-            margin-bottom: 1rem;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            z-index: 100;
         }
 
         .logo-small {
@@ -89,11 +97,9 @@
             background: var(--white);
             border-radius: 24px;
             box-shadow: 0 10px 40px rgba(0,0,0,0.08);
-            flex: 1;
             display: flex;
             flex-direction: column;
             max-width: 420px;
-            margin: 0 auto;
             width: 100%;
         }
 
@@ -375,8 +381,8 @@
                 <div id="errorMessage" class="error-message"></div>
                 <div id="successMessage" class="success-message"></div>
 
-                <!-- Step 1: Phone Number -->
-                <div id="step1">
+                <!-- Step 1A: Phone Number (OTP Login) -->
+                <div id="step1-otp" class="hidden">
                     <form id="phoneForm" onsubmit="handleSendOTP(event)">
                         <div class="form-group">
                             <label class="form-label" data-i18n="phone_number">Phone Number</label>
@@ -396,6 +402,33 @@
 
                         <button type="submit" class="neu-button" id="sendOtpBtn" data-i18n="send_otp">
                             Send OTP
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Step 1B: Thock Number Login -->
+                <div id="step1-thock" class="hidden">
+                    <form id="thockForm" onsubmit="handleThockLogin(event)">
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="thock_number">Thock Number</label>
+                            <input
+                                type="text"
+                                id="thockNumber"
+                                class="neu-input"
+                                data-i18n-placeholder="enter_thock"
+                                placeholder="Enter your Thock number"
+                                required
+                            />
+                            <p class="input-hint" data-i18n="enter_thock_hint">Enter the Thock number registered to your account</p>
+                        </div>
+
+                        <div class="remember-me">
+                            <input type="checkbox" id="rememberMeThock">
+                            <label for="rememberMeThock" data-i18n="remember_30_days">Remember me for 30 days</label>
+                        </div>
+
+                        <button type="submit" class="neu-button" id="thockLoginBtn" data-i18n="login">
+                            Login
                         </button>
                     </form>
                 </div>
@@ -453,9 +486,11 @@
     <script>
         let countdownInterval;
         let savedPhone = '';
+        let currentLoginMethod = 'otp';
 
-        // Check if already logged in
+        // Check if already logged in and load login method
         window.addEventListener('load', async function() {
+            // Check existing session
             try {
                 const response = await fetch('/auth/validate-session', {
                     credentials: 'include'
@@ -467,12 +502,88 @@
                         localStorage.setItem('customer_token', data.token);
                         localStorage.setItem('customer_info', JSON.stringify(data.customer));
                         window.location.href = '/dashboard';
+                        return;
                     }
                 }
             } catch (error) {
                 console.log('No active session');
             }
+
+            // Load login method setting
+            await loadLoginMethod();
         });
+
+        // Load login method from settings
+        async function loadLoginMethod() {
+            try {
+                const response = await fetch('/api/customer-login-method');
+                if (response.ok) {
+                    const data = await response.json();
+                    currentLoginMethod = data.login_method || 'otp';
+                }
+            } catch (error) {
+                console.log('Using default OTP login');
+                currentLoginMethod = 'otp';
+            }
+
+            // Show appropriate login form
+            if (currentLoginMethod === 'thock') {
+                document.getElementById('step1-otp').classList.add('hidden');
+                document.getElementById('step1-thock').classList.remove('hidden');
+            } else {
+                document.getElementById('step1-otp').classList.remove('hidden');
+                document.getElementById('step1-thock').classList.add('hidden');
+            }
+        }
+
+        // Handle Thock Number Login
+        async function handleThockLogin(event) {
+            event.preventDefault();
+            hideMessages();
+
+            const thockNumber = document.getElementById('thockNumber').value.trim();
+            const rememberMe = document.getElementById('rememberMeThock').checked;
+            const loginBtn = document.getElementById('thockLoginBtn');
+
+            if (!thockNumber) {
+                showError(i18n ? i18n.t('enter_thock_number', 'Please enter your Thock number') : 'Please enter your Thock number');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = i18n ? i18n.t('logging_in', 'Logging in...') : 'Logging in...';
+
+            try {
+                const response = await fetch('/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        thock_number: thockNumber,
+                        remember_me: rememberMe
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    localStorage.setItem('customer_token', data.token);
+                    localStorage.setItem('customer_info', JSON.stringify(data.customer));
+                    showSuccess(i18n ? i18n.t('login_successful', 'Login successful! Redirecting...') : 'Login successful! Redirecting...');
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 500);
+                } else {
+                    showError(data.error || (i18n ? i18n.t('invalid_thock', 'Invalid Thock number') : 'Invalid Thock number'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError(i18n ? i18n.t('network_error', 'Network error. Please try again.') : 'Network error. Please try again.');
+            } finally {
+                loginBtn.disabled = false;
+                loginBtn.textContent = i18n ? i18n.t('login', 'Login') : 'Login';
+            }
+        }
 
         function showError(message) {
             const errorEl = document.getElementById('errorMessage');

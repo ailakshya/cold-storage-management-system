@@ -409,3 +409,20 @@ func (h *CustomerPortalHandler) TranslateText(w http.ResponseWriter, r *http.Req
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"result": result})
 }
+
+// GetLoginMethod returns the customer portal login method setting (public, no auth required)
+func (h *CustomerPortalHandler) GetLoginMethod(w http.ResponseWriter, r *http.Request) {
+	ctx := context.Background()
+
+	loginMethod := "otp" // default
+
+	setting, err := h.CustomerPortalService.SystemSettingRepo.Get(ctx, models.SettingCustomerLoginMethod)
+	if err == nil && setting != nil && setting.SettingValue != "" {
+		loginMethod = setting.SettingValue
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"login_method": loginMethod,
+	})
+}

@@ -265,6 +265,22 @@ func (h *SMSHandler) SendPaymentReminders(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// GetCustomerLoginMethod returns the customer portal login method (public, no auth required)
+func (h *SMSHandler) GetCustomerLoginMethod(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	setting, err := h.SettingRepo.Get(ctx, models.SettingCustomerLoginMethod)
+	loginMethod := "otp" // default
+	if err == nil && setting != nil && setting.SettingValue != "" {
+		loginMethod = setting.SettingValue
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"login_method": loginMethod,
+	})
+}
+
 // GetNotificationSettings returns SMS notification settings
 func (h *SMSHandler) GetNotificationSettings(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
