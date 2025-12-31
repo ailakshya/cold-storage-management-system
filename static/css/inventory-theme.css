@@ -151,7 +151,6 @@ th:last-child {
 
 .nav-btn-back {
     background: var(--light);
-    color: var(--dark);
     border: 1px solid var(--border-color);
 }
 
@@ -226,7 +225,6 @@ button[type="submit"]:hover {
 
 .btn-cancel {
     background: var(--light) !important;
-    color: var(--dark) !important;
     border: 1px solid var(--border-color) !important;
     border-radius: 10px !important;
 }
@@ -330,7 +328,6 @@ textarea {
     padding: 0.75rem !important;
     transition: all 0.2s ease;
     background: var(--white) !important;
-    color: var(--dark) !important;
 }
 
 .neu-input:focus,
