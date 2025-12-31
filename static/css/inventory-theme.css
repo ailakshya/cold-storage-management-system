@@ -45,31 +45,6 @@ button,
     border-radius: var(--radius-md) !important;
 }
 
-/* ===========================================
-   GLOBAL FIX: Dark text on all white/light backgrounds
-   =========================================== */
-.bg-white,
-.bg-gray-50,
-.bg-gray-100,
-.bg-gray-200,
-.bg-yellow-50,
-.bg-yellow-100,
-.neu-border,
-[class*="bg-[#FFF"],
-[class*="bg-[#fff"] {
-    color: #1a1a1a !important;
-}
-
-/* Ensure all text inside white boxes is dark */
-.neu-border *:not([class*="text-white"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-red"]):not([class*="bg-purple"]):not([class*="bg-orange"]):not([class*="bg-pink"]):not([class*="bg-gradient"]) {
-    color: inherit;
-}
-
-.neu-border h1:not([class*="text-"]), .neu-border h2:not([class*="text-"]), .neu-border h3:not([class*="text-"]), .neu-border h4:not([class*="text-"]), .neu-border h5:not([class*="text-"]), .neu-border h6:not([class*="text-"]),
-.neu-border p:not([class*="text-"]), .neu-border span:not([class*="text-"]), .neu-border label:not([class*="text-"]), .neu-border div:not([class*="text-"]), .neu-border td:not([class*="text-"]) {
-    color: #1a1a1a;
-}
-
 /* Preserve Tailwind text color classes */
 .text-green-600 { color: #16a34a !important; }
 .text-orange-600 { color: #ea580c !important; }
@@ -77,10 +52,6 @@ button,
 .text-blue-600 { color: #2563eb !important; }
 .text-gray-600 { color: #4b5563 !important; }
 .text-gray-700 { color: #374151 !important; }
-
-.neu-border i:not([class*="text-"]) {
-    color: #333 !important;
-}
 
 /* All cards and containers */
 .card,
