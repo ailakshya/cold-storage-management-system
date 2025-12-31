@@ -1240,13 +1240,14 @@
                             });
                             if (gpResponse.ok) {
                                 const allGatePasses = await gpResponse.json();
-                                const thockGatePasses = allGatePasses.filter(gp =>
-                                    (gp.status === 'completed' || gp.status === 'partially_completed') &&
-                                    gp.thock_number === selectedThockEntry.thock_number &&
-                                    (gp.customer_phone === customerPhone || gp.customer_id === parseInt(customerId))
-                                );
+                                const thockGatePasses = allGatePasses.filter(gp => {
+                                    const st = (gp.status || '').toLowerCase();
+                                    return (st === 'completed' || st === 'partially_completed') &&
+                                        gp.thock_number === selectedThockEntry.thock_number &&
+                                        (gp.customer_phone === customerPhone || gp.customer_id === parseInt(customerId));
+                                });
                                 thockOutgoing = thockGatePasses.reduce((sum, gp) =>
-                                    sum + (gp.total_picked_up || (gp.status === 'completed' ? gp.requested_quantity : 0) || 0), 0);
+                                    sum + (gp.total_picked_up || ((gp.status || '').toLowerCase() === 'completed' ? gp.requested_quantity : 0) || 0), 0);
                             }
 
                             availableInventory = Math.max(0, thockQty - thockOutgoing);
@@ -1675,7 +1676,8 @@
                     'partially_completed': 'bg-orange-100 text-orange-700'
                 };
 
-                const statusColor = statusColors[gp.status] || 'bg-gray-100 text-gray-700';
+                const statusLower = (gp.status || '').toLowerCase();
+                const statusColor = statusColors[statusLower] || 'bg-gray-100 text-gray-700';
 
                 const date = new Date(gp.issued_at);
                 const formattedDate = date.toLocaleString('en-IN', {
@@ -1694,14 +1696,14 @@
                 }
 
                 // Calculate remaining time for pending gate passes
-                const remaining = gp.status === 'pending' ? getRemainingTime(gp.expires_at) : { text: '-', color: 'text-gray-400' };
+                const remaining = statusLower === 'pending' ? getRemainingTime(gp.expires_at) : { text: '-', color: 'text-gray-400' };
 
                 // Color code truck number based on expiration time
-                const truckColor = gp.status === 'pending' ? remaining.color : 'text-gray-700';
+                const truckColor = statusLower === 'pending' ? remaining.color : 'text-gray-700';
 
                 // Action buttons for pending gate passes
                 let actionButtons = '-';
-                if (gp.status === 'pending') {
+                if (statusLower === 'pending') {
                     actionButtons = `
                         <div class="flex gap-1">
                             <button onclick='acceptGatePass(${gp.id}, "${gp.thock_number}", ${gp.requested_quantity})'
@@ -1760,7 +1762,7 @@
 
                 // Filter only pending customer requests
                 const customerRequests = gatePasses.filter(gp =>
-                    gp.status === 'pending' && gp.request_source === 'customer_portal'
+                    (gp.status || '').toLowerCase() === 'pending' && gp.request_source === 'customer_portal'
                 );
 
                 displayCustomerRequests(customerRequests || []);
@@ -2170,16 +2172,17 @@
 
                 // Show the most recent request status
                 const latestRequest = requests[0]; // API returns sorted by date DESC
+                const latestStatus = (latestRequest.status || '').toLowerCase();
                 let statusHtml = '';
                 let statusClass = '';
 
-                if (latestRequest.status === 'pending') {
+                if (latestStatus === 'pending') {
                     statusHtml = `⏳ <span class="font-bold text-yellow-600">Debt Request Pending</span> - Waiting for admin approval (${latestRequest.requested_quantity} items)`;
                     statusClass = 'text-yellow-600';
-                } else if (latestRequest.status === 'approved') {
+                } else if (latestStatus === 'approved') {
                     statusHtml = `✅ <span class="font-bold text-green-600">Debt Request Approved</span> - Can take ${latestRequest.requested_quantity} items (Thock: ${latestRequest.thock_number})`;
                     statusClass = 'text-green-600';
-                } else if (latestRequest.status === 'rejected') {
+                } else if (latestStatus === 'rejected') {
                     statusHtml = `❌ <span class="font-bold text-red-600">Debt Request Rejected</span> - ${latestRequest.rejection_reason || 'No reason provided'}`;
                     statusClass = 'text-red-600';
                 }

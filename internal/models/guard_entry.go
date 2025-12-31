@@ -6,6 +6,8 @@ import "time"
 type GuardEntry struct {
 	ID                int        `json:"id"`
 	TokenNumber       int        `json:"token_number"`    // Daily token number for colored token
+	CustomerID        *int       `json:"customer_id,omitempty"` // Linked customer ID (optional)
+	FamilyMemberID    *int       `json:"family_member_id,omitempty"` // Linked family member ID (optional)
 	CustomerName      string     `json:"customer_name"`
 	SO                string     `json:"so"`              // Son Of / Father name (optional)
 	Village           string     `json:"village"`
@@ -45,22 +47,24 @@ type GuardEntry struct {
 
 // CreateGuardEntryRequest represents the request body for creating a guard entry
 type CreateGuardEntryRequest struct {
-	CustomerName string `json:"customer_name"`
-	SO           string `json:"so"`            // Son Of / Father name (optional)
-	Village      string `json:"village"`
-	Mobile       string `json:"mobile"`
-	DriverNo     string `json:"driver_no"`
-	SeedQuantity int    `json:"seed_quantity"` // Number of seed bags
-	SellQuantity int    `json:"sell_quantity"` // Number of sell bags
-	SeedQty1     int    `json:"seed_qty_1"`    // Individual seed quantity 1
-	SeedQty2     int    `json:"seed_qty_2"`    // Individual seed quantity 2
-	SeedQty3     int    `json:"seed_qty_3"`    // Individual seed quantity 3
-	SeedQty4     int    `json:"seed_qty_4"`    // Individual seed quantity 4
-	SellQty1     int    `json:"sell_qty_1"`    // Individual sell quantity 1
-	SellQty2     int    `json:"sell_qty_2"`    // Individual sell quantity 2
-	SellQty3     int    `json:"sell_qty_3"`    // Individual sell quantity 3
-	SellQty4     int    `json:"sell_qty_4"`    // Individual sell quantity 4
-	Remarks      string `json:"remarks"`
+	CustomerID     *int   `json:"customer_id"`     // Linked customer ID (optional - for existing customers)
+	FamilyMemberID *int   `json:"family_member_id"` // Linked family member ID (optional)
+	CustomerName   string `json:"customer_name"`
+	SO             string `json:"so"`            // Son Of / Father name (optional)
+	Village        string `json:"village"`
+	Mobile         string `json:"mobile"`
+	DriverNo       string `json:"driver_no"`
+	SeedQuantity   int    `json:"seed_quantity"` // Number of seed bags
+	SellQuantity   int    `json:"sell_quantity"` // Number of sell bags
+	SeedQty1       int    `json:"seed_qty_1"`    // Individual seed quantity 1
+	SeedQty2       int    `json:"seed_qty_2"`    // Individual seed quantity 2
+	SeedQty3       int    `json:"seed_qty_3"`    // Individual seed quantity 3
+	SeedQty4       int    `json:"seed_qty_4"`    // Individual seed quantity 4
+	SellQty1       int    `json:"sell_qty_1"`    // Individual sell quantity 1
+	SellQty2       int    `json:"sell_qty_2"`    // Individual sell quantity 2
+	SellQty3       int    `json:"sell_qty_3"`    // Individual sell quantity 3
+	SellQty4       int    `json:"sell_qty_4"`    // Individual sell quantity 4
+	Remarks        string `json:"remarks"`
 }
 
 // TotalQuantity returns the total bags (seed + sell)

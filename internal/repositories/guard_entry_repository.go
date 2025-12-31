@@ -18,16 +18,60 @@ func NewGuardEntryRepository(db *pgxpool.Pool) *GuardEntryRepository {
 	return &GuardEntryRepository{DB: db}
 }
 
-// getNextTokenNumber gets the next token number for today
+// getNextTokenNumber gets the next token number for today, skipping any lost tokens
 func (r *GuardEntryRepository) getNextTokenNumber(ctx context.Context) (int, error) {
+	// Get the max token number used today (from entries or skipped)
 	query := `
-		SELECT COALESCE(MAX(token_number), 0) + 1
-		FROM guard_entries
-		WHERE DATE(created_at) = CURRENT_DATE
+		SELECT COALESCE(
+			GREATEST(
+				(SELECT COALESCE(MAX(token_number), 0) FROM guard_entries WHERE DATE(created_at) = CURRENT_DATE),
+				(SELECT COALESCE(MAX(token_number), 0) FROM skipped_tokens WHERE skip_date = CURRENT_DATE)
+			), 0
+		) + 1
 	`
 	var tokenNumber int
 	err := r.DB.QueryRow(ctx, query).Scan(&tokenNumber)
 	return tokenNumber, err
+}
+
+// SkipToken marks a token number as skipped (lost physical token)
+func (r *GuardEntryRepository) SkipToken(ctx context.Context, tokenNumber int, reason string, userID int) error {
+	query := `
+		INSERT INTO skipped_tokens (token_number, skip_date, reason, skipped_by_user_id)
+		VALUES ($1, CURRENT_DATE, $2, $3)
+		ON CONFLICT (token_number, skip_date) DO NOTHING
+	`
+	_, err := r.DB.Exec(ctx, query, tokenNumber, reason, userID)
+	return err
+}
+
+// GetNextAvailableToken returns the next token number that will be assigned
+func (r *GuardEntryRepository) GetNextAvailableToken(ctx context.Context) (int, error) {
+	return r.getNextTokenNumber(ctx)
+}
+
+// GetTodaySkippedTokens returns all skipped tokens for today
+func (r *GuardEntryRepository) GetTodaySkippedTokens(ctx context.Context) ([]int, error) {
+	query := `
+		SELECT token_number FROM skipped_tokens
+		WHERE skip_date = CURRENT_DATE
+		ORDER BY token_number
+	`
+	rows, err := r.DB.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tokens []int
+	for rows.Next() {
+		var token int
+		if err := rows.Scan(&token); err != nil {
+			return nil, err
+		}
+		tokens = append(tokens, token)
+	}
+	return tokens, nil
 }
 
 // Create creates a new guard entry with auto-generated token number
@@ -39,14 +83,16 @@ func (r *GuardEntryRepository) Create(ctx context.Context, entry *models.GuardEn
 	}
 
 	query := `
-		INSERT INTO guard_entries (token_number, customer_name, so, village, mobile, driver_no, seed_quantity, sell_quantity,
+		INSERT INTO guard_entries (token_number, customer_id, family_member_id, customer_name, so, village, mobile, driver_no, seed_quantity, sell_quantity,
 			seed_qty_1, seed_qty_2, seed_qty_3, seed_qty_4, sell_qty_1, sell_qty_2, sell_qty_3, sell_qty_4,
 			remarks, created_by_user_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING id, arrival_time, status, created_at, updated_at
 	`
 	err = r.DB.QueryRow(ctx, query,
 		tokenNumber,
+		entry.CustomerID,
+		entry.FamilyMemberID,
 		entry.CustomerName,
 		entry.SO,
 		entry.Village,

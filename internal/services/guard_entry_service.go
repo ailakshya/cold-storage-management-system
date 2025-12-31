@@ -46,6 +46,8 @@ func (s *GuardEntryService) CreateGuardEntry(ctx context.Context, req *models.Cr
 	}
 
 	entry := &models.GuardEntry{
+		CustomerID:      req.CustomerID,
+		FamilyMemberID:  req.FamilyMemberID,
 		CustomerName:    req.CustomerName,
 		SO:              req.SO,
 		Village:         req.Village,
@@ -110,6 +112,24 @@ func (s *GuardEntryService) GetTodayCountByUser(ctx context.Context, userID int)
 // DeleteGuardEntry deletes a guard entry (admin only)
 func (s *GuardEntryService) DeleteGuardEntry(ctx context.Context, id int) error {
 	return s.GuardEntryRepo.Delete(ctx, id)
+}
+
+// SkipToken skips a token number (for lost physical tokens)
+func (s *GuardEntryService) SkipToken(ctx context.Context, tokenNumber int, reason string, userID int) error {
+	if tokenNumber <= 0 {
+		return errors.New("invalid token number")
+	}
+	return s.GuardEntryRepo.SkipToken(ctx, tokenNumber, reason, userID)
+}
+
+// GetNextAvailableToken returns the next token number that will be assigned
+func (s *GuardEntryService) GetNextAvailableToken(ctx context.Context) (int, error) {
+	return s.GuardEntryRepo.GetNextAvailableToken(ctx)
+}
+
+// GetTodaySkippedTokens returns all skipped tokens for today
+func (s *GuardEntryService) GetTodaySkippedTokens(ctx context.Context) ([]int, error) {
+	return s.GuardEntryRepo.GetTodaySkippedTokens(ctx)
 }
 
 // MarkPortionProcessed marks seed or sell portion as processed

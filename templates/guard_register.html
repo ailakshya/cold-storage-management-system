@@ -155,10 +155,54 @@
             </nav>
         </header>
 
-        <!-- Token Color Display -->
-        <div id="tokenColorBanner" class="neu-border p-3 mb-6 text-center flex items-center justify-center gap-4">
-            <span class="font-bold" data-i18n="token_color">Token Color:</span>
-            <span id="tokenColorDisplay" class="text-xl font-bold py-2 px-6 border-2 border-black">Loading...</span>
+        <!-- Token Color and Next Token Display -->
+        <div id="tokenColorBanner" class="neu-border p-3 mb-6 flex flex-wrap items-center justify-center gap-4 md:gap-8">
+            <div class="flex items-center gap-2">
+                <span class="font-bold" data-i18n="token_color">Token Color:</span>
+                <span id="tokenColorDisplay" class="text-xl font-bold py-2 px-6 border-2 border-black">Loading...</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="font-bold" data-i18n="next_token">Next Token:</span>
+                <span id="nextTokenDisplay" class="text-2xl font-bold py-2 px-6 border-2 border-black bg-green-100">#1</span>
+                <button type="button" onclick="openSkipTokenModal()" class="neu-border bg-red-100 hover:bg-red-200 px-3 py-2 text-sm font-bold" title="Skip Token (खो गया)">
+                    <i class="bi bi-skip-forward"></i> Skip
+                </button>
+            </div>
+        </div>
+
+        <!-- Skip Token Modal -->
+        <div id="skipTokenModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" style="display: none;">
+            <div class="bg-white neu-border p-6 w-full max-w-md mx-4">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold flex items-center gap-2">
+                        <i class="bi bi-skip-forward text-red-600"></i>
+                        <span data-i18n="skip_token">Skip Token (टोकन छोड़ें)</span>
+                    </h2>
+                    <button onclick="closeSkipTokenModal()" class="text-2xl text-gray-500 hover:text-black">&times;</button>
+                </div>
+                <p class="text-gray-600 mb-4" data-i18n="skip_token_info">If a physical token is lost, skip that number to continue with the next available token.</p>
+                <div class="mb-4">
+                    <label class="form-label" data-i18n="token_to_skip">Token Number to Skip</label>
+                    <input type="number" id="skipTokenNumber" class="form-input text-2xl text-center font-bold" min="1" readonly>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label" data-i18n="skip_reason">Reason (कारण)</label>
+                    <select id="skipTokenReason" class="form-input">
+                        <option value="Token Lost">Token Lost (टोकन खो गया)</option>
+                        <option value="Token Damaged">Token Damaged (टोकन टूट गया)</option>
+                        <option value="Token Reserved">Token Reserved (टोकन आरक्षित)</option>
+                        <option value="Other">Other (अन्य)</option>
+                    </select>
+                </div>
+                <div class="flex gap-4">
+                    <button type="button" onclick="confirmSkipToken()" class="flex-1 neu-border bg-red-500 text-white py-3 font-bold">
+                        <i class="bi bi-skip-forward"></i> <span data-i18n="confirm_skip">Skip Token</span>
+                    </button>
+                    <button type="button" onclick="closeSkipTokenModal()" class="flex-1 neu-border bg-gray-300 py-3 font-bold">
+                        <i class="bi bi-x"></i> <span data-i18n="cancel">Cancel</span>
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Registration Form -->
@@ -169,6 +213,8 @@
             </h3>
 
             <form id="registerForm" onsubmit="submitEntry(event)">
+                <input type="hidden" id="customerId" value="">
+                <input type="hidden" id="selectedFamilyMemberId" value="">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <!-- Customer Search with Fuzzy Search -->
                     <div class="relative">
@@ -188,7 +234,7 @@
                         <label class="form-label" data-i18n="customer_name">Customer Name (नाम)</label>
                         <input type="text" id="customerName" class="form-input" required
                                placeholder="Enter customer name" data-i18n-placeholder="enter_customer_name"
-                               oninput="capitalizeFirstLetter(this)">
+                               oninput="capitalizeFirstLetter(this); checkNameForFamilyMember()">
                     </div>
 
                     <!-- S/O (Son Of) - Optional -->
@@ -208,6 +254,47 @@
                                onfocus="showVillageDropdown()"
                                oninput="filterVillages()">
                         <div id="villageDropdown" class="village-dropdown hidden"></div>
+                    </div>
+
+                    <!-- Family Member Section (shown when existing customer selected) -->
+                    <div id="familyMemberSection" class="hidden md:col-span-2">
+                        <label class="form-label">
+                            <span data-i18n="family_member">Family Member (परिवार का सदस्य)</span>
+                            <span class="text-xs text-gray-500 ml-1">(Select or Add New)</span>
+                        </label>
+                        <div class="flex flex-wrap gap-2 mb-2 p-3 bg-gray-50 border border-gray-200 rounded-lg" id="familyMemberChips">
+                            <!-- Family member chips will be loaded here -->
+                        </div>
+                        <!-- Add New Family Member Option -->
+                        <div id="addFamilyMemberOption" class="hidden mt-2 p-3 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
+                            <p class="text-sm font-semibold text-yellow-800 mb-2">
+                                <i class="bi bi-person-plus"></i> Add "<span id="newFamilyMemberName"></span>" as family member?
+                            </p>
+                            <div class="flex gap-2 items-center flex-wrap">
+                                <select id="newFamilyMemberRelation" class="form-input py-2 px-3 text-sm flex-1 min-w-[150px]">
+                                    <option value="">Select Relation</option>
+                                    <option value="Self">Self (स्वयं)</option>
+                                    <option value="Son">Son (पुत्र)</option>
+                                    <option value="Daughter">Daughter (पुत्री)</option>
+                                    <option value="Wife">Wife (पत्नी)</option>
+                                    <option value="Husband">Husband (पति)</option>
+                                    <option value="Father">Father (पिता)</option>
+                                    <option value="Mother">Mother (माता)</option>
+                                    <option value="Brother">Brother (भाई)</option>
+                                    <option value="Sister">Sister (बहन)</option>
+                                    <option value="Other">Other (अन्य)</option>
+                                </select>
+                                <button type="button" onclick="addNewFamilyMember()" class="neu-border bg-green-500 text-white py-2 px-4 text-sm font-bold">
+                                    <i class="bi bi-plus"></i> Add
+                                </button>
+                                <button type="button" onclick="cancelAddFamilyMember()" class="neu-border bg-gray-300 py-2 px-4 text-sm font-bold">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1" data-i18n="family_member_hint">
+                            Select who this entry is for, or type a different name above to add a new family member.
+                        </p>
                     </div>
 
                     <!-- Driver Same as Customer Checkbox -->
@@ -543,6 +630,10 @@
             }
         }
 
+        // Store selected customer for family member operations
+        let selectedCustomer = null;
+        let loadedFamilyMembers = [];
+
         // Select customer from dropdown
         function selectCustomer(idx) {
             const customer = customerSearchResults[idx];
@@ -556,8 +647,233 @@
                 statusEl.textContent = i18n.t('customer_found', 'Customer found! Details auto-filled.');
                 statusEl.className = 'text-xs mt-1 text-green-600 font-semibold';
                 statusEl.classList.remove('hidden');
+
+                // Store customer ID and load family members
+                if (customer.id) {
+                    document.getElementById('customerId').value = customer.id;
+                    selectedCustomer = {
+                        id: customer.id,
+                        name: customer.name,
+                        phone: customer.phone,
+                        village: customer.village,
+                        so: customer.so || ''
+                    };
+                    loadFamilyMembers(customer.id);
+                } else {
+                    selectedCustomer = null;
+                    document.getElementById('customerId').value = '';
+                    document.getElementById('familyMemberSection').classList.add('hidden');
+                    document.getElementById('selectedFamilyMemberId').value = '';
+                }
             }
             document.getElementById('customerDropdown').classList.add('hidden');
+        }
+
+        // Load family members for a customer
+        async function loadFamilyMembers(customerId) {
+            const section = document.getElementById('familyMemberSection');
+            const chipsContainer = document.getElementById('familyMemberChips');
+            loadedFamilyMembers = [];
+
+            try {
+                const response = await fetch(`/api/customers/${customerId}/family-members`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    section.classList.add('hidden');
+                    return;
+                }
+
+                const data = await response.json();
+                const members = data.family_members || [];
+                loadedFamilyMembers = members;
+
+                // Always show family member section for existing customers
+                section.classList.remove('hidden');
+
+                if (members.length === 0) {
+                    chipsContainer.innerHTML = `<span class="text-gray-500 text-sm">No family members yet. Type a different name above to add one.</span>`;
+                    document.getElementById('selectedFamilyMemberId').value = '';
+                    return;
+                }
+
+                // Build chips for each family member
+                chipsContainer.innerHTML = members.map(member => {
+                    const isDefault = member.is_default;
+                    const relationText = member.relation !== 'Self' ? ` (${member.relation})` : '';
+                    return `<button type="button"
+                        onclick="selectFamilyMember(${member.id}, '${member.name.replace(/'/g, "\\'")}')"
+                        class="family-chip px-3 py-2 text-sm font-medium rounded-full border-2 transition-colors
+                            ${isDefault ? 'border-blue-500 bg-blue-100 text-blue-800' : 'border-gray-300 bg-white hover:bg-gray-100'}"
+                        data-member-id="${member.id}">
+                        ${member.name}${relationText}
+                        ${member.entry_count > 0 ? `<span class="text-xs ml-1 text-gray-500">(${member.entry_count})</span>` : ''}
+                    </button>`;
+                }).join('');
+
+                document.getElementById('selectedFamilyMemberId').value = '';
+
+            } catch (error) {
+                console.error('Error loading family members:', error);
+                section.classList.add('hidden');
+            }
+        }
+
+        // Select a family member
+        function selectFamilyMember(memberId, memberName) {
+            const input = document.getElementById('selectedFamilyMemberId');
+            const chips = document.querySelectorAll('.family-chip');
+
+            // Toggle selection
+            if (input.value == memberId) {
+                // Deselect
+                input.value = '';
+                chips.forEach(chip => {
+                    chip.classList.remove('border-green-500', 'bg-green-100', 'text-green-800');
+                    if (chip.classList.contains('border-blue-500')) {
+                        chip.classList.add('bg-blue-100', 'text-blue-800');
+                    } else {
+                        chip.classList.add('border-gray-300', 'bg-white');
+                    }
+                });
+            } else {
+                // Select this one
+                input.value = memberId;
+                chips.forEach(chip => {
+                    if (chip.dataset.memberId == memberId) {
+                        chip.classList.remove('border-gray-300', 'bg-white', 'border-blue-500', 'bg-blue-100', 'text-blue-800');
+                        chip.classList.add('border-green-500', 'bg-green-100', 'text-green-800');
+                    } else {
+                        chip.classList.remove('border-green-500', 'bg-green-100', 'text-green-800');
+                        if (chip.classList.contains('border-blue-500')) {
+                            chip.classList.add('bg-blue-100', 'text-blue-800');
+                        } else {
+                            chip.classList.add('border-gray-300', 'bg-white');
+                        }
+                    }
+                });
+
+                // Auto-fill name if different from current
+                const nameInput = document.getElementById('customerName');
+                if (nameInput.value !== memberName) {
+                    nameInput.value = memberName;
+                    capitalizeFirstLetter(nameInput);
+                }
+
+                // Hide add family member option when selecting existing member
+                document.getElementById('addFamilyMemberOption').classList.add('hidden');
+            }
+        }
+
+        // Check if entered name matches any existing family member
+        function checkNameForFamilyMember() {
+            const nameInput = document.getElementById('customerName');
+            const enteredName = nameInput.value.trim().toLowerCase();
+            const addOption = document.getElementById('addFamilyMemberOption');
+            const newNameSpan = document.getElementById('newFamilyMemberName');
+
+            // Only check if we have a selected customer (existing customer)
+            if (!selectedCustomer) {
+                addOption.classList.add('hidden');
+                return;
+            }
+
+            // Check if name matches customer name
+            if (enteredName === selectedCustomer.name.toLowerCase()) {
+                addOption.classList.add('hidden');
+                return;
+            }
+
+            // Check if name matches any existing family member
+            const matchingMember = loadedFamilyMembers.find(m =>
+                m.name.toLowerCase() === enteredName
+            );
+
+            if (matchingMember) {
+                // Name matches existing family member - auto-select them
+                addOption.classList.add('hidden');
+                selectFamilyMember(matchingMember.id, matchingMember.name);
+                return;
+            }
+
+            // Name is different - show option to add as new family member
+            if (enteredName.length > 0) {
+                newNameSpan.textContent = nameInput.value.trim();
+                addOption.classList.remove('hidden');
+            } else {
+                addOption.classList.add('hidden');
+            }
+        }
+
+        // Add new family member for the selected customer
+        async function addNewFamilyMember() {
+            if (!selectedCustomer) {
+                alert('Please select a customer first');
+                return;
+            }
+
+            const nameInput = document.getElementById('customerName');
+            const relationSelect = document.getElementById('newFamilyMemberRelation');
+            const name = nameInput.value.trim();
+            const relation = relationSelect.value;
+
+            if (!name) {
+                alert('Please enter a name');
+                return;
+            }
+
+            if (!relation) {
+                alert('Please select a relation');
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/customers/${selectedCustomer.id}/family-members`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        relation: relation
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                const newMember = await response.json();
+
+                // Hide the add option
+                document.getElementById('addFamilyMemberOption').classList.add('hidden');
+
+                // Reload family members and select the new one
+                await loadFamilyMembers(selectedCustomer.id);
+
+                // Select the newly added family member
+                if (newMember.id) {
+                    selectFamilyMember(newMember.id, newMember.name);
+                }
+
+                const statusEl = document.getElementById('customerStatus');
+                statusEl.textContent = `Added "${name}" as family member (${relation})`;
+                statusEl.className = 'text-xs mt-1 text-green-600 font-semibold';
+                statusEl.classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Error adding family member:', error);
+                alert('Error adding family member: ' + error.message);
+            }
+        }
+
+        // Cancel adding new family member
+        function cancelAddFamilyMember() {
+            document.getElementById('addFamilyMemberOption').classList.add('hidden');
+            document.getElementById('newFamilyMemberRelation').value = '';
         }
 
         // Hide customer dropdown on blur
@@ -598,6 +914,81 @@
         // Close success modal
         function closeSuccessModal() {
             document.getElementById('successModal').classList.add('hidden');
+        }
+
+        // Next token number
+        let currentNextToken = 1;
+
+        // Fetch and display next token number
+        async function loadNextToken() {
+            try {
+                const res = await fetch('/api/guard/next-token', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    currentNextToken = data.next_token || 1;
+                    document.getElementById('nextTokenDisplay').textContent = `#${currentNextToken}`;
+                }
+            } catch (error) {
+                console.error('Error loading next token:', error);
+            }
+        }
+
+        // Open skip token modal
+        function openSkipTokenModal() {
+            document.getElementById('skipTokenNumber').value = currentNextToken;
+            document.getElementById('skipTokenReason').value = 'Token Lost';
+            document.getElementById('skipTokenModal').style.display = 'flex';
+            document.getElementById('skipTokenModal').classList.remove('hidden');
+        }
+
+        // Close skip token modal
+        function closeSkipTokenModal() {
+            document.getElementById('skipTokenModal').style.display = 'none';
+            document.getElementById('skipTokenModal').classList.add('hidden');
+        }
+
+        // Confirm skip token
+        async function confirmSkipToken() {
+            const tokenNumber = parseInt(document.getElementById('skipTokenNumber').value);
+            const reason = document.getElementById('skipTokenReason').value;
+
+            if (!tokenNumber || tokenNumber <= 0) {
+                alert('Invalid token number');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/guard/skip-token', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        token_number: tokenNumber,
+                        reason: reason
+                    })
+                });
+
+                if (!res.ok) {
+                    const error = await res.text();
+                    throw new Error(error);
+                }
+
+                const data = await res.json();
+
+                // Update next token display
+                currentNextToken = data.next_token || (tokenNumber + 1);
+                document.getElementById('nextTokenDisplay').textContent = `#${currentNextToken}`;
+
+                closeSkipTokenModal();
+                alert(`Token #${tokenNumber} skipped. Next token: #${currentNextToken}`);
+
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
         }
 
         // Show success modal with token number
@@ -699,7 +1090,13 @@
             const driverSame = document.getElementById('driverSameAsCustomer').checked;
             const driverNo = driverSame ? '' : document.getElementById('driverNo').value.trim();
 
+            // Get customer_id and family_member_id if available
+            const customerIdValue = document.getElementById('customerId').value;
+            const familyMemberIdValue = document.getElementById('selectedFamilyMemberId').value;
+
             const data = {
+                customer_id: customerIdValue ? parseInt(customerIdValue) : null,
+                family_member_id: familyMemberIdValue ? parseInt(familyMemberIdValue) : null,
                 customer_name: document.getElementById('customerName').value.trim(),
                 so: document.getElementById('soField').value.trim(),
                 village: document.getElementById('village').value.trim(),
@@ -749,8 +1146,17 @@
                 document.getElementById('driverNoContainer').classList.add('hidden');
                 document.getElementById('customerStatus').classList.add('hidden');
 
-                // Reload entries list
+                // Reset customer and family member data
+                selectedCustomer = null;
+                loadedFamilyMembers = [];
+                document.getElementById('customerId').value = '';
+                document.getElementById('selectedFamilyMemberId').value = '';
+                document.getElementById('familyMemberSection').classList.add('hidden');
+                document.getElementById('addFamilyMemberOption').classList.add('hidden');
+
+                // Reload entries list and update next token
                 loadEntries();
+                loadNextToken();
 
             } catch (error) {
                 alert(i18n.t('error', 'Error') + ': ' + error.message);
@@ -912,6 +1318,7 @@
 
         window.addEventListener('load', () => {
             displayTokenColor();
+            loadNextToken();
             loadEntries();
 
             // Start 5-second auto-refresh

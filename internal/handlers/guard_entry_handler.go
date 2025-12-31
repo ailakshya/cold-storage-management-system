@@ -236,6 +236,70 @@ func (h *GuardEntryHandler) DeleteGuardEntry(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(map[string]string{"message": "Guard entry deleted"})
 }
 
+// SkipToken handles POST /api/guard/skip-token
+func (h *GuardEntryHandler) SkipToken(w http.ResponseWriter, r *http.Request) {
+	var req models.SkipTokenRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.Service.SkipToken(context.Background(), req.TokenNumber, req.Reason, userID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Get next available token
+	nextToken, _ := h.Service.GetNextAvailableToken(context.Background())
+
+	// Log token skip
+	ipAddress := r.Header.Get("X-Forwarded-For")
+	if ipAddress == "" {
+		ipAddress = r.RemoteAddr
+	}
+	description := fmt.Sprintf("Guard skipped token #%d - Reason: %s", req.TokenNumber, req.Reason)
+	h.AdminActionRepo.CreateActionLog(context.Background(), &models.AdminActionLog{
+		AdminUserID: userID,
+		ActionType:  "SKIP",
+		TargetType:  "token",
+		Description: description,
+		IPAddress:   &ipAddress,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":    "Token skipped successfully",
+		"skipped":    req.TokenNumber,
+		"next_token": nextToken,
+	})
+}
+
+// GetNextToken handles GET /api/guard/next-token
+func (h *GuardEntryHandler) GetNextToken(w http.ResponseWriter, r *http.Request) {
+	nextToken, err := h.Service.GetNextAvailableToken(context.Background())
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	skippedTokens, _ := h.Service.GetTodaySkippedTokens(context.Background())
+	if skippedTokens == nil {
+		skippedTokens = []int{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"next_token":     nextToken,
+		"skipped_tokens": skippedTokens,
+	})
+}
+
 // ProcessPortion handles PUT /api/guard/entries/{id}/process/{portion}
 // portion can be "seed" or "sell"
 func (h *GuardEntryHandler) ProcessPortion(w http.ResponseWriter, r *http.Request) {

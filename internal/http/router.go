@@ -386,6 +386,16 @@ func NewRouter(
 		guardAPI.HandleFunc("/entries/{id}", authMiddleware.RequireRole("admin")(
 			http.HandlerFunc(guardEntryHandler.DeleteGuardEntry),
 		).ServeHTTP).Methods("DELETE")
+
+		// Skip token - guard, employee, admin can skip lost tokens
+		guardAPI.HandleFunc("/skip-token", authMiddleware.RequireRole("guard", "employee", "admin")(
+			http.HandlerFunc(guardEntryHandler.SkipToken),
+		).ServeHTTP).Methods("POST")
+
+		// Get next available token - guard, employee, admin
+		guardAPI.HandleFunc("/next-token", authMiddleware.RequireRole("guard", "employee", "admin")(
+			http.HandlerFunc(guardEntryHandler.GetNextToken),
+		).ServeHTTP).Methods("GET")
 	}
 
 	// Token Color API routes
