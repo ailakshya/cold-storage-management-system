@@ -61,7 +61,7 @@ button,
 }
 
 /* Ensure all text inside white boxes is dark */
-.neu-border *:not([class*="text-white"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-red"]):not([class*="bg-purple"]):not([class*="bg-orange"]):not([class*="bg-pink"]):not([class*="bg-gradient"]) {
+.neu-border *:not([class*="text-white"]):not([class*="text-green"]):not([class*="text-orange"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="bg-red"]):not([class*="bg-purple"]):not([class*="bg-orange"]):not([class*="bg-pink"]):not([class*="bg-gradient"]) {
     color: inherit;
 }
 
