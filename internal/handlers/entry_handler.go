@@ -19,14 +19,16 @@ type EntryHandler struct {
 	Service           *services.EntryService
 	EditLogRepo       *repositories.EntryEditLogRepository
 	ManagementLogRepo *repositories.EntryManagementLogRepository
+	AdminActionRepo   *repositories.AdminActionLogRepository
 	SettingService    *services.SystemSettingService
 }
 
-func NewEntryHandler(s *services.EntryService, editLogRepo *repositories.EntryEditLogRepository, managementLogRepo *repositories.EntryManagementLogRepository) *EntryHandler {
+func NewEntryHandler(s *services.EntryService, editLogRepo *repositories.EntryEditLogRepository, managementLogRepo *repositories.EntryManagementLogRepository, adminActionRepo *repositories.AdminActionLogRepository) *EntryHandler {
 	return &EntryHandler{
 		Service:           s,
 		EditLogRepo:       editLogRepo,
 		ManagementLogRepo: managementLogRepo,
+		AdminActionRepo:   adminActionRepo,
 	}
 }
 
@@ -54,6 +56,19 @@ func (h *EntryHandler) CreateEntry(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	// Log entry creation
+	description := "Created unloading ticket " + entry.ThockNumber + " for " + req.Name + " (" + req.Village + ") - Qty: " + strconv.Itoa(req.ExpectedQuantity)
+	if req.Remark != "" {
+		description += " | Remark: " + req.Remark
+	}
+	h.AdminActionRepo.CreateActionLog(context.Background(), &models.AdminActionLog{
+		AdminUserID: userID,
+		ActionType:  "CREATE",
+		TargetType:  "entry",
+		TargetID:    &entry.ID,
+		Description: description,
+	})
 
 	// Invalidate entries cache
 	cache.InvalidateEntryCaches(r.Context())
@@ -477,6 +492,16 @@ func (h *EntryHandler) SoftDeleteEntry(w http.ResponseWriter, r *http.Request) {
 		}
 		h.ManagementLogRepo.CreateReassignLog(context.Background(), managementLog)
 	}
+
+	// Log entry deletion to admin action log
+	description := "Deleted entry " + entry.ThockNumber + " - " + entry.Name + " (" + entry.Village + ") - Qty: " + strconv.Itoa(entry.ExpectedQuantity)
+	h.AdminActionRepo.CreateActionLog(context.Background(), &models.AdminActionLog{
+		AdminUserID: userID,
+		ActionType:  "DELETE",
+		TargetType:  "entry",
+		TargetID:    &id,
+		Description: description,
+	})
 
 	// Invalidate caches
 	cache.InvalidateEntryCaches(r.Context())

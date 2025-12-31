@@ -160,50 +160,81 @@
             </div>
         </div>
 
-        <!-- Tabs -->
-        <div class="flex gap-2 mb-6 flex-wrap">
-            <button class="tab-button active" onclick="switchTab('activity')">
-                <i class="bi bi-activity"></i> Employee Activity
-            </button>
-            <button class="tab-button" onclick="switchTab('loginlogs')">
-                <i class="bi bi-clock-history"></i> Login/Logout Logs
-            </button>
-            <button class="tab-button" onclick="switchTab('editlogs')">
-                <i class="bi bi-pencil-square"></i> Edit Logs
-            </button>
-            <button class="tab-button" onclick="switchTab('adminactions')">
-                <i class="bi bi-shield-check"></i> Admin Actions
-            </button>
-            <button class="tab-button" onclick="switchTab('employeeactions')">
-                <i class="bi bi-person-gear"></i> Employee Actions
-            </button>
-            <button class="tab-button" onclick="switchTab('entries')">
-                <i class="bi bi-box"></i> Entry Logs
-            </button>
-            <button class="tab-button" onclick="switchTab('rooms')">
-                <i class="bi bi-door-closed"></i> Room Assignment Logs
-            </button>
-            <button class="tab-button" onclick="switchTab('payments')">
-                <i class="bi bi-cash"></i> Payment Logs
-            </button>
-            <button class="tab-button" onclick="switchTab('gatepasses')">
-                <i class="bi bi-pass"></i> Gate Pass Logs
-            </button>
-            <button class="tab-button" onclick="switchTab('expired')">
-                <i class="bi bi-x-octagon-fill text-red-600"></i> Expired Gate Passes
-            </button>
-            <button class="tab-button" onclick="switchTab('users')">
-                <i class="bi bi-person-badge"></i> User Management
-            </button>
-            <button class="tab-button" onclick="switchTab('entrymanagement')">
-                <i class="bi bi-arrow-left-right text-purple-600"></i> Entry Management
-            </button>
-            <button class="tab-button" onclick="switchTab('unloading')">
-                <i class="bi bi-truck text-blue-600"></i> Unloading Tickets
-            </button>
-            <button class="tab-button" onclick="switchTab('customerrequests')">
-                <i class="bi bi-person-plus text-green-600"></i> Customer Requests
-            </button>
+        <!-- Tabs - Organized by Sections -->
+        <div class="mb-6">
+            <!-- Section A: By User Type -->
+            <div class="mb-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">By User Type</span>
+                <div class="flex gap-2 mt-2 flex-wrap">
+                    <button class="tab-button active" onclick="switchTab('activity')">
+                        <i class="bi bi-activity"></i> Overview
+                    </button>
+                    <button class="tab-button" onclick="switchTab('adminactions')">
+                        <i class="bi bi-shield-check text-red-600"></i> Admin Actions
+                    </button>
+                    <button class="tab-button" onclick="switchTab('employeeactions')">
+                        <i class="bi bi-person-gear text-blue-600"></i> Employee Actions
+                    </button>
+                    <button class="tab-button" onclick="switchTab('customerrequests')">
+                        <i class="bi bi-person-plus text-green-600"></i> Customer Actions
+                    </button>
+                </div>
+            </div>
+
+            <!-- Section B: By Action Type -->
+            <div class="mb-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Gate Pass</span>
+                <div class="flex gap-2 mt-2 flex-wrap">
+                    <button class="tab-button" onclick="switchTab('gatepasses')">
+                        <i class="bi bi-pass text-purple-600"></i> Gate Pass Logs
+                    </button>
+                    <button class="tab-button" onclick="switchTab('expired')">
+                        <i class="bi bi-x-octagon-fill text-red-600"></i> Expired
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Entry & Inventory</span>
+                <div class="flex gap-2 mt-2 flex-wrap">
+                    <button class="tab-button" onclick="switchTab('unloading')">
+                        <i class="bi bi-truck text-blue-600"></i> Unloading Tickets
+                    </button>
+                    <button class="tab-button" onclick="switchTab('rooms')">
+                        <i class="bi bi-door-closed text-teal-600"></i> Room Assignments
+                    </button>
+                    <button class="tab-button" onclick="switchTab('entrymanagement')">
+                        <i class="bi bi-arrow-left-right text-purple-600"></i> Transfer/Merge
+                    </button>
+                    <button class="tab-button" onclick="switchTab('editlogs')">
+                        <i class="bi bi-pencil-square text-orange-600"></i> Edit Logs
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Users & Sessions</span>
+                <div class="flex gap-2 mt-2 flex-wrap">
+                    <button class="tab-button" onclick="switchTab('loginlogs')">
+                        <i class="bi bi-clock-history text-green-600"></i> Login/Logout
+                    </button>
+                    <button class="tab-button" onclick="switchTab('users')">
+                        <i class="bi bi-person-badge text-indigo-600"></i> User Management
+                    </button>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Financial</span>
+                <div class="flex gap-2 mt-2 flex-wrap">
+                    <button class="tab-button" onclick="switchTab('payments')">
+                        <i class="bi bi-cash text-green-600"></i> Payment Logs
+                    </button>
+                    <button class="tab-button" onclick="switchTab('entries')">
+                        <i class="bi bi-box text-yellow-600"></i> Entry Records
+                    </button>
+                </div>
+            </div>
         </div>
 
         <!-- Employee Activity Tab -->

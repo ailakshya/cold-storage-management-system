@@ -529,7 +529,7 @@ func main() {
 		userHandler := handlers.NewUserHandler(userService, adminActionLogRepo)
 		authHandler := handlers.NewAuthHandler(userService, loginLogRepo)
 		customerHandler := handlers.NewCustomerHandler(customerService, entryManagementLogRepo)
-		entryHandler := handlers.NewEntryHandler(entryService, entryEditLogRepo, entryManagementLogRepo)
+		entryHandler := handlers.NewEntryHandler(entryService, entryEditLogRepo, entryManagementLogRepo, adminActionLogRepo)
 		roomEntryHandler := handlers.NewRoomEntryHandler(roomEntryService, roomEntryEditLogRepo)
 		entryEventHandler := handlers.NewEntryEventHandler(entryEventRepo)
 		systemSettingHandler := handlers.NewSystemSettingHandler(systemSettingService)
