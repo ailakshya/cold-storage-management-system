@@ -45,13 +45,17 @@ button,
     border-radius: var(--radius-md) !important;
 }
 
-/* Preserve Tailwind text color classes */
-.text-green-600 { color: #16a34a !important; }
-.text-orange-600 { color: #ea580c !important; }
-.text-red-600 { color: #dc2626 !important; }
-.text-blue-600 { color: #2563eb !important; }
+/* Preserve Tailwind text color classes - Force on all elements including td */
+.text-green-600, td.text-green-600, span.text-green-600, div.text-green-600 { color: #16a34a !important; }
+.text-orange-600, td.text-orange-600, span.text-orange-600, div.text-orange-600 { color: #ea580c !important; }
+.text-red-600, td.text-red-600, span.text-red-600, div.text-red-600 { color: #dc2626 !important; }
+.text-blue-600, td.text-blue-600, span.text-blue-600, div.text-blue-600 { color: #2563eb !important; }
 .text-gray-600 { color: #4b5563 !important; }
 .text-gray-700 { color: #374151 !important; }
+
+/* Thock number color coding - high specificity */
+[class*="text-green-600"] { color: #16a34a !important; }
+[class*="text-orange-600"] { color: #ea580c !important; }
 
 /* All cards and containers */
 .card,
