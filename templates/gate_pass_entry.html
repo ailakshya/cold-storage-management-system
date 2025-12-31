@@ -427,16 +427,17 @@
                             <span data-i18n="pickup_expiration">Pickup Expiration</span>
                         </label>
                         <!-- Quick hour buttons -->
-                        <div class="flex flex-wrap gap-2 mb-3">
-                            <button type="button" onclick="setExpirationHours(24)" class="px-3 py-1 text-sm neu-border bg-white hover:bg-orange-100">24h</button>
-                            <button type="button" onclick="setExpirationHours(40)" class="px-3 py-1 text-sm neu-border bg-orange-200 hover:bg-orange-300">40h</button>
-                            <button type="button" onclick="setExpirationHours(48)" class="px-3 py-1 text-sm neu-border bg-white hover:bg-orange-100">48h</button>
-                            <button type="button" onclick="setExpirationHours(72)" class="px-3 py-1 text-sm neu-border bg-white hover:bg-orange-100">72h</button>
+                        <div id="expirationButtons" class="flex flex-wrap gap-2 mb-3">
+                            <button type="button" data-hours="24" class="exp-btn px-3 py-1 text-sm neu-border bg-white">24h</button>
+                            <button type="button" data-hours="40" class="exp-btn px-3 py-1 text-sm neu-border bg-orange-200 active">40h</button>
+                            <button type="button" data-hours="48" class="exp-btn px-3 py-1 text-sm neu-border bg-white">48h</button>
+                            <button type="button" data-hours="72" class="exp-btn px-3 py-1 text-sm neu-border bg-white">72h</button>
+                            <button type="button" data-hours="custom" class="exp-btn px-3 py-1 text-sm neu-border bg-white">Custom</button>
                         </div>
                         <!-- Date and Time in row -->
                         <div class="flex gap-2">
-                            <input type="date" id="approvalExpiresDate" class="flex-1 neu-input text-sm" onchange="updateExpiresAtHidden()">
-                            <input type="time" id="approvalExpiresTime" class="w-28 neu-input text-sm" onchange="updateExpiresAtHidden()">
+                            <input type="date" id="approvalExpiresDate" class="flex-1 neu-input text-sm" onchange="onCustomExpiration()">
+                            <input type="time" id="approvalExpiresTime" class="w-28 neu-input text-sm" onchange="onCustomExpiration()">
                         </div>
                         <input type="hidden" id="approvalExpiresAt">
                     </div>
@@ -1849,6 +1850,26 @@
             document.getElementById('approvalExpiresDate').value = `${year}-${month}-${day}`;
             document.getElementById('approvalExpiresTime').value = `${hrs}:${mins}`;
             updateExpiresAtHidden();
+            highlightExpButton(hours);
+        }
+
+        // Highlight the selected expiration button
+        function highlightExpButton(hours) {
+            document.querySelectorAll('.exp-btn').forEach(btn => {
+                btn.classList.remove('bg-orange-200', 'active');
+                btn.classList.add('bg-white');
+            });
+            const activeBtn = document.querySelector(`.exp-btn[data-hours="${hours}"]`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-white');
+                activeBtn.classList.add('bg-orange-200', 'active');
+            }
+        }
+
+        // Called when user manually changes date/time
+        function onCustomExpiration() {
+            updateExpiresAtHidden();
+            highlightExpButton('custom');
         }
 
         // Update hidden field when date/time changes
@@ -1859,6 +1880,22 @@
                 document.getElementById('approvalExpiresAt').value = `${date}T${time}`;
             }
         }
+
+        // Initialize expiration button click handlers
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.exp-btn').forEach(btn => {
+                btn.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const hours = this.getAttribute('data-hours');
+                    if (hours !== 'custom') {
+                        setExpirationHours(parseInt(hours));
+                    } else {
+                        highlightExpButton('custom');
+                        document.getElementById('approvalExpiresDate').focus();
+                    }
+                });
+            });
+        });
 
         async function openApprovalModal(request) {
             document.getElementById('approvalGatePassId').value = request.id;
