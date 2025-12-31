@@ -178,6 +178,7 @@
         let allEntries = [];
         let allRoomEntries = [];
         let allPayments = [];
+        let allFamilyMembers = []; // Family members with relations
         let userMap = {};
 
         // Get thock color based on seed/sell range - returns inline style
@@ -267,6 +268,7 @@
                     customerMap[entry.phone] = {
                         phone: entry.phone,
                         name: entry.name || entry.phone,
+                        so: entry.so || '',
                         village: entry.village || '',
                         thock_count: 0,
                         total_quantity: 0,
@@ -275,6 +277,9 @@
                         balance: 0,
                         thocks: []
                     };
+                } else if (entry.so && !customerMap[entry.phone].so) {
+                    // Update S/O if not set but entry has it
+                    customerMap[entry.phone].so = entry.so;
                 }
 
                 const customer = customerMap[entry.phone];
@@ -383,8 +388,24 @@
                     customerThockNumbers.includes(re.thock_number)
                 );
 
+                // Load family members for this customer to get relations
+                let familyMembers = [];
+                const firstEntry = customerEntries[0];
+                if (firstEntry && firstEntry.customer_id) {
+                    try {
+                        const fmRes = await fetch(`/api/customers/${firstEntry.customer_id}/family-members`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        });
+                        if (fmRes.ok) {
+                            familyMembers = await fmRes.json();
+                        }
+                    } catch (e) {
+                        console.log('Could not load family members:', e);
+                    }
+                }
+
                 // Render single customer
-                const html = renderCustomerSection(customer, customerEntries, customerRoomEntries, payments);
+                const html = renderCustomerSection(customer, customerEntries, customerRoomEntries, payments, null, familyMembers);
                 document.getElementById('mainContent').innerHTML = html;
 
                 document.getElementById('loadingState').classList.add('hidden');
@@ -443,6 +464,7 @@
                                 <tr>
                                     <th class="p-2 text-left border-b-2 border-black">#</th>
                                     <th class="p-2 text-left border-b-2 border-black">Name</th>
+                                    <th class="p-2 text-left border-b-2 border-black">S/O</th>
                                     <th class="p-2 text-left border-b-2 border-black">Phone</th>
                                     <th class="p-2 text-left border-b-2 border-black">Village</th>
                                     <th class="p-2 text-right border-b-2 border-black">Thoks</th>
@@ -458,6 +480,7 @@
                                     <tr class="border-b hover:bg-gray-50">
                                         <td class="p-2">${i + 1}</td>
                                         <td class="p-2 font-medium">${a.name}</td>
+                                        <td class="p-2">${a.so || '-'}</td>
                                         <td class="p-2">${a.phone}</td>
                                         <td class="p-2">${a.village || '-'}</td>
                                         <td class="p-2 text-right">${a.thock_count || 0}</td>
@@ -475,7 +498,7 @@
                             </tbody>
                             <tfoot class="bg-gray-100 font-bold">
                                 <tr class="border-t-2 border-black">
-                                    <td class="p-2" colspan="5">TOTAL</td>
+                                    <td class="p-2" colspan="6">TOTAL</td>
                                     <td class="p-2 text-right">${filteredAccounts.reduce((s, a) => s + (a.total_quantity || 0), 0)}</td>
                                     <td class="p-2 text-right">${formatCurrency(filteredAccounts.reduce((s, a) => s + (a.total_rent || 0), 0))}</td>
                                     <td class="p-2 text-right text-green-600">${formatCurrency(filteredAccounts.reduce((s, a) => s + (a.total_paid || 0), 0))}</td>
@@ -518,7 +541,7 @@
             }
         }
 
-        function renderCustomerSection(customer, entries, roomEntries, payments, index = null) {
+        function renderCustomerSection(customer, entries, roomEntries, payments, index = null, familyMembers = []) {
             const reportDate = new Date().toLocaleString('en-IN', { dateStyle: 'full', timeStyle: 'short' });
             const balance = customer.balance || 0;
             const statusBadge = balance <= 0
@@ -531,6 +554,15 @@
             // Storage table - Group by family member
             let storageRows = '';
             let storageTotalQty = 0;
+
+            // Build family member name -> relation map
+            const familyRelationMap = {};
+            (familyMembers || []).forEach(fm => {
+                if (fm.name) {
+                    familyRelationMap[fm.name] = fm.relation || '';
+                }
+            });
+
             if (roomEntries && roomEntries.length > 0) {
                 // Group room entries by family member
                 const groupedByFamily = {};
@@ -553,12 +585,16 @@
                     const familyQty = familyEntries.reduce((sum, re) => sum + (re.quantity || 0), 0);
                     const familyRent = familyQty * rentRate;
 
+                    // Get relation for this family member
+                    const relation = familyRelationMap[familyName] || '';
+                    const relationDisplay = relation ? ` (${relation})` : '';
+
                     // Add family header if multiple families
                     if (hasMultipleFamilies) {
                         storageRows += `
                             <tr class="bg-purple-100 border-t-2 border-purple-400">
                                 <td colspan="8" class="p-2 font-bold text-purple-800">
-                                    <i class="bi bi-person-fill"></i> ${familyName}
+                                    <i class="bi bi-person-fill"></i> ${familyName}${relationDisplay}
                                     <span class="text-sm font-normal">(${familyEntries.length} entries, ${familyQty} qty, ₹${familyRent.toLocaleString('en-IN')})</span>
                                 </td>
                             </tr>

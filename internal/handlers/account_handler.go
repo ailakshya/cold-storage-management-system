@@ -38,6 +38,7 @@ type AccountHandler struct {
 type FamilyMemberAccount struct {
 	ID         int                   `json:"id,omitempty"`
 	Name       string                `json:"name"`
+	Relation   string                `json:"relation,omitempty"`
 	Quantity   int                   `json:"quantity"`
 	Outgoing   int                   `json:"outgoing"`
 	Rent       float64               `json:"rent"`
@@ -187,6 +188,7 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 		payments            []*models.RentPayment
 		completedGatePasses []CompletedGatePass
 		usedDebtRequests    []UsedDebtRequest
+		familyMemberMap     map[int]map[string]string // customer_id -> name -> relation
 		rentPerItem         float64
 		wg                  sync.WaitGroup
 		entriesErr          error
@@ -194,10 +196,10 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 		paymentsErr         error
 		gatePassErr         error
 		debtErr             error
-		settingsErr         error
+		settingsErr error
 	)
 
-	wg.Add(6)
+	wg.Add(7)
 
 	// Fetch entries
 	go func() {
@@ -245,6 +247,31 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 				fmt.Sscanf(setting.SettingValue, "%f", &val)
 			}
 			rentPerItem = val
+		}
+	}()
+
+	// Fetch all family members to get relations
+	go func() {
+		defer wg.Done()
+		familyMemberMap = make(map[int]map[string]string)
+		rows, err := h.DB.Query(ctx,
+			`SELECT customer_id, name, relation FROM family_members`)
+		if err != nil {
+			// Non-fatal error, just skip family member relations
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var customerID int
+			var name, relation string
+			if err := rows.Scan(&customerID, &name, &relation); err != nil {
+				continue
+			}
+			if familyMemberMap[customerID] == nil {
+				familyMemberMap[customerID] = make(map[string]string)
+			}
+			familyMemberMap[customerID][name] = relation
 		}
 	}()
 
@@ -401,6 +428,9 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 		familyMembers := make([]FamilyMemberAccount, 0)
 		processedFamilyMembers := make(map[string]bool)
 
+		// Get family member relations for this customer
+		customerFamilyRelations := familyMemberMap[customer.CustomerID]
+
 		// Process family members from thocks
 		for fmName := range familyMemberThocks {
 			processedFamilyMembers[fmName] = true
@@ -426,8 +456,15 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 				}
 			}
 
+			// Get relation for this family member
+			fmRelation := ""
+			if customerFamilyRelations != nil {
+				fmRelation = customerFamilyRelations[fmName]
+			}
+
 			familyMembers = append(familyMembers, FamilyMemberAccount{
 				Name:       fmName,
+				Relation:   fmRelation,
 				Quantity:   familyMemberQty[fmName],
 				Outgoing:   fmOutgoing,
 				Rent:       fmRent,
@@ -451,8 +488,15 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 					fmCanTakeOut = itemsPaidFor // No outgoing since no thocks
 				}
 
+				// Get relation for this family member
+				fmRelation := ""
+				if customerFamilyRelations != nil {
+					fmRelation = customerFamilyRelations[fmName]
+				}
+
 				familyMembers = append(familyMembers, FamilyMemberAccount{
 					Name:       fmName,
+					Relation:   fmRelation,
 					Quantity:   0,
 					Outgoing:   0,
 					Rent:       0,

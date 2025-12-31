@@ -881,6 +881,7 @@
                     familyMembers: (customer.family_members || []).map(fm => ({
                         id: fm.id,
                         name: fm.name,
+                        relation: fm.relation || '',
                         quantity: fm.quantity,
                         rent: fm.rent,
                         paid: fm.paid,
@@ -1117,7 +1118,7 @@
                                         ${customer.familyMembers.map(fm => `
                                             <div class="p-2 ${fm.balance > 0 ? 'bg-red-100 border-red-300' : 'bg-green-100 border-green-300'} border-2 rounded flex justify-between items-center">
                                                 <div>
-                                                    <p class="font-bold text-sm">${capitalizeText(fm.name)}</p>
+                                                    <p class="font-bold text-sm">${capitalizeText(fm.name)}${fm.relation ? ` <span class="font-normal text-purple-600">(${fm.relation})</span>` : ''}</p>
                                                     <p class="text-xs text-gray-600">${fm.quantity} items | ₹${fm.rent.toLocaleString('en-IN')}</p>
                                                     <p class="text-sm ${fm.balance > 0 ? 'text-red-600' : 'text-green-600'} font-bold">
                                                         ${fm.balance > 0 ? 'Due: ₹' + fm.balance.toLocaleString('en-IN', {minimumFractionDigits: 2}) : '✓ Paid'}
