@@ -200,6 +200,18 @@ func (s *GatePassService) ApproveGatePass(ctx context.Context, id int, req *mode
 		return err
 	}
 
+	// Log GATE_PASS_REJECTED event if status is rejected
+	if req.Status == "rejected" && gatePass.EntryID != nil {
+		event := &models.EntryEvent{
+			EntryID:         *gatePass.EntryID,
+			EventType:       "GATE_PASS_REJECTED",
+			Status:          "rejected",
+			Notes:           "Gate pass rejected by employee. " + req.Remarks,
+			CreatedByUserID: userID,
+		}
+		s.EntryEventRepo.Create(ctx, event)
+	}
+
 	return nil
 }
 

@@ -454,6 +454,48 @@
             </div>
         </div>
 
+        <!-- Reject Modal -->
+        <div id="rejectModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="neu-border bg-white p-6 max-w-md w-full mx-4">
+                <h3 class="text-xl font-bold mb-4 flex items-center gap-2 text-red-600">
+                    <i class="bi bi-x-circle"></i>
+                    <span data-i18n="reject_customer_request">Reject Customer Request</span>
+                </h3>
+                <form id="rejectForm" onsubmit="submitReject(event)">
+                    <input type="hidden" id="rejectGatePassId">
+
+                    <div class="mb-4 p-3 bg-red-50 neu-border">
+                        <p class="text-sm text-gray-600">Customer:</p>
+                        <p class="font-bold" id="rejectCustomerName"></p>
+                        <p class="text-sm text-gray-600 mt-1">Truck:</p>
+                        <p class="font-bold" id="rejectThockNumber"></p>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-semibold text-gray-700 mb-2">
+                            <span data-i18n="rejection_reason">Rejection Reason *</span>
+                        </label>
+                        <textarea
+                            id="rejectRemark"
+                            required
+                            class="w-full neu-input"
+                            rows="3"
+                            placeholder="Enter reason for rejection"
+                        ></textarea>
+                    </div>
+
+                    <div class="flex gap-4">
+                        <button type="submit" id="submitRejectBtn" class="neu-button bg-red-500 text-white flex-1">
+                            <i class="bi bi-x-circle"></i> <span data-i18n="reject">Reject</span>
+                        </button>
+                        <button type="button" onclick="closeRejectModal()" class="neu-button bg-gray-300">
+                            <i class="bi bi-arrow-left"></i> <span data-i18n="cancel">Cancel</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Success Message -->
         <div id="successMessage" class="hidden mt-6 neu-border bg-green-100 p-8">
             <h3 class="text-2xl font-bold text-green-700 mb-4 flex items-center gap-2">
@@ -1759,7 +1801,10 @@
                         <td class="p-2 font-semibold text-purple-600">${recipient}</td>
                         <td class="p-2 font-bold">${gp.requested_quantity}</td>
                         <td class="p-2 ${pickedUpColor}">${pickedUp > 0 ? pickedUp : '-'}</td>
-                        <td class="p-2"><span class="px-2 py-1 rounded text-xs font-bold ${statusColor}">${gp.status.toUpperCase()}</span></td>
+                        <td class="p-2">
+                            <span class="px-2 py-1 rounded text-xs font-bold ${statusColor}">${gp.status.toUpperCase()}</span>
+                            ${gp.request_source === 'customer_portal' ? '<span class="ml-1 px-1 py-0.5 rounded text-xs bg-purple-100 text-purple-700">Customer</span>' : ''}
+                        </td>
                         <td class="p-2 text-xs font-semibold">${issuedBy}</td>
                         <td class="p-2 text-xs ${remaining.color}">${remaining.text}</td>
                         <td class="p-2 text-xs">${formattedDate}</td>
@@ -1782,9 +1827,12 @@
 
                 const gatePasses = await response.json();
 
-                // Filter only pending customer requests
+                // Filter only UNVERIFIED pending customer requests
+                // (verified requests have approval_expires_at set and move to Recent Gate Passes)
                 const customerRequests = gatePasses.filter(gp =>
-                    (gp.status || '').toLowerCase() === 'pending' && gp.request_source === 'customer_portal'
+                    (gp.status || '').toLowerCase() === 'pending' &&
+                    gp.request_source === 'customer_portal' &&
+                    !gp.approval_expires_at
                 );
 
                 displayCustomerRequests(customerRequests || []);
@@ -1828,10 +1876,16 @@
                         <td class="p-2 text-xs font-bold ${remaining.color}">${remaining.text}</td>
                         <td class="p-2 text-sm">${req.remarks || '-'}</td>
                         <td class="p-2">
-                            <button onclick='openApprovalModal(${JSON.stringify(req)})'
-                                    class="neu-button bg-green-500 text-white text-xs px-3 py-1">
-                                <i class="bi bi-check-circle"></i> Approve
-                            </button>
+                            <div class="flex gap-1">
+                                <button onclick='openApprovalModal(${JSON.stringify(req)})'
+                                        class="neu-button bg-green-500 text-white text-xs px-2 py-1">
+                                    <i class="bi bi-check-circle"></i> Approve
+                                </button>
+                                <button onclick='openRejectModal(${req.id}, "${req.thock_number}", "${req.customer_name}")'
+                                        class="neu-button bg-red-500 text-white text-xs px-2 py-1">
+                                    <i class="bi bi-x-circle"></i> Reject
+                                </button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -2035,6 +2089,68 @@
             isSubmittingApproval = false;
         }
 
+        // Reject modal functions
+        function openRejectModal(gatePassId, thockNumber, customerName) {
+            document.getElementById('rejectGatePassId').value = gatePassId;
+            document.getElementById('rejectCustomerName').textContent = customerName;
+            document.getElementById('rejectThockNumber').textContent = thockNumber;
+            document.getElementById('rejectRemark').value = '';
+            document.getElementById('rejectModal').classList.remove('hidden');
+        }
+
+        function closeRejectModal() {
+            document.getElementById('rejectModal').classList.add('hidden');
+            document.getElementById('rejectForm').reset();
+        }
+
+        async function submitReject(event) {
+            event.preventDefault();
+
+            const gatePassId = document.getElementById('rejectGatePassId').value;
+            const remark = document.getElementById('rejectRemark').value.trim();
+
+            if (!remark) {
+                alert(i18n.t('enter_rejection_reason', 'Please enter a rejection reason'));
+                return;
+            }
+
+            const submitBtn = document.getElementById('submitRejectBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Rejecting...';
+
+            try {
+                const response = await fetch(`/api/gate-passes/${gatePassId}/approve`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        approved_quantity: 0,
+                        gate_no: 'REJECTED',
+                        status: 'rejected',
+                        remarks: 'Rejected: ' + remark
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error);
+                }
+
+                alert(i18n.t('request_rejected', 'Customer request rejected successfully'));
+                closeRejectModal();
+                loadCustomerRequests();
+                loadRecentGatePasses();
+
+            } catch (error) {
+                alert(i18n.t('error_rejecting', 'Error rejecting request') + ': ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-x-circle"></i> <span data-i18n="reject">Reject</span>';
+            }
+        }
+
         async function submitApproval(event) {
             event.preventDefault();
 
@@ -2086,7 +2202,7 @@
                     body: JSON.stringify({
                         approved_quantity: approvedQty,
                         gate_no: gateNo || 'PICKUP',
-                        status: 'approved',
+                        status: 'pending',
                         request_source: 'customer_portal',
                         remarks: remarks,
                         expires_at: expiresAtInput || null
