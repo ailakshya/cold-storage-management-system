@@ -1568,7 +1568,8 @@
             // Get family member info from selected truck option
             const selectedOption = thockSelect.options[thockSelect.selectedIndex];
             const familyMemberId = selectedOption.dataset.familyMemberId ? parseInt(selectedOption.dataset.familyMemberId) : null;
-            const familyMemberName = selectedOption.dataset.familyMemberName || '';
+            // Use the recipient name entered by user as family_member_name
+            const familyMemberName = recipientName;
 
             let finalRemarks = `Recipient: ${recipientName}`;
             if (remarks) {
