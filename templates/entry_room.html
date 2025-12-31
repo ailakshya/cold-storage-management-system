@@ -1914,13 +1914,19 @@
                 nextSeedNum = data.next_seed_num;
                 nextSellNum = data.next_sell_num;
 
-                // Display based on selected category
+                // Display based on selected category with color coding
                 if (category === 'seed') {
-                    document.getElementById('seedCount').textContent = `Current: ${seedCount} | Next number: ${data.next_seed}`;
-                    document.getElementById('seedCount').classList.remove('hidden');
+                    const seedEl = document.getElementById('seedCount');
+                    seedEl.textContent = `Current: ${seedCount} | Next number: ${data.next_seed}`;
+                    seedEl.style.color = '#16a34a';
+                    seedEl.style.fontWeight = 'bold';
+                    seedEl.classList.remove('hidden');
                 } else if (category === 'sell') {
-                    document.getElementById('sellCount').textContent = `Current: ${sellCount} | Next number: ${data.next_sell}`;
-                    document.getElementById('sellCount').classList.remove('hidden');
+                    const sellEl = document.getElementById('sellCount');
+                    sellEl.textContent = `Current: ${sellCount} | Next number: ${data.next_sell}`;
+                    sellEl.style.color = '#ea580c';
+                    sellEl.style.fontWeight = 'bold';
+                    sellEl.classList.remove('hidden');
                 }
 
                 // Update truck preview
