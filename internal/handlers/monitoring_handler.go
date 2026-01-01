@@ -162,26 +162,23 @@ func runR2Backup() {
 	cleanupOldBackups(ctx, client)
 }
 
-// cleanupOldBackups deletes backups older than 1 day and keeps only 1 backup per hour
+// cleanupOldBackups: keeps all backups for 1 day, then only 1 per hour after that
 func cleanupOldBackups(ctx context.Context, client *s3.Client) {
-	maxAge := 24 * time.Hour // Keep backups for 1 day only
-	// Use UTC time since R2/S3 LastModified is always in UTC
-	cutoff := time.Now().UTC().Add(-maxAge)
+	oneDayAgo := time.Now().UTC().Add(-24 * time.Hour)
 	minValidSize := int64(1024) // 1KB minimum for valid backup
 
-	deletedOld := 0
 	deletedFailed := 0
 	deletedDuplicates := 0
 	var continuationToken *string
 
-	// Track backups per hour folder to keep only the latest one
+	// Track backups per hour folder (only for backups older than 1 day)
 	// Key: hour folder path (e.g., "base/2024/01/15/10"), Value: latest backup in that hour
 	hourlyBackups := make(map[string]struct {
 		key          string
 		lastModified time.Time
 	})
 
-	// First pass: collect all backups and identify duplicates
+	// First pass: collect all backups
 	var allObjects []struct {
 		key          string
 		lastModified time.Time
@@ -220,8 +217,13 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 		continuationToken = result.NextContinuationToken
 	}
 
-	// Build map of latest backup per hour folder
+	// Build map of latest backup per hour folder (only for old backups > 1 day)
 	for _, obj := range allObjects {
+		// Skip recent backups (< 1 day) - keep all of them
+		if obj.lastModified.After(oneDayAgo) {
+			continue
+		}
+
 		// Extract hour folder from path: base/YYYY/MM/DD/HH/filename.sql -> base/YYYY/MM/DD/HH
 		parts := strings.Split(obj.key, "/")
 		if len(parts) < 5 {
@@ -238,21 +240,9 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 		}
 	}
 
-	// Second pass: delete old, failed, and duplicate backups
+	// Second pass: delete failed backups and duplicates (for old backups only)
 	for _, obj := range allObjects {
-		// Delete old backups (> 1 day)
-		if obj.lastModified.Before(cutoff) {
-			_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
-				Bucket: aws.String(config.R2BucketName),
-				Key:    aws.String(obj.key),
-			})
-			if err == nil {
-				deletedOld++
-			}
-			continue
-		}
-
-		// Delete failed/empty backups (< 1KB)
+		// Delete failed/empty backups (< 1KB) - any age
 		if obj.size < minValidSize {
 			_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
 				Bucket: aws.String(config.R2BucketName),
@@ -264,7 +254,12 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 			continue
 		}
 
-		// Delete duplicate backups (keep only latest per hour)
+		// Skip recent backups (< 1 day) - keep all of them
+		if obj.lastModified.After(oneDayAgo) {
+			continue
+		}
+
+		// For old backups (> 1 day): delete duplicates, keep only latest per hour
 		parts := strings.Split(obj.key, "/")
 		if len(parts) >= 5 {
 			hourFolder := strings.Join(parts[:5], "/")
@@ -280,8 +275,8 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 		}
 	}
 
-	if deletedOld > 0 || deletedFailed > 0 || deletedDuplicates > 0 {
-		log.Printf("[R2 Cleanup] Deleted %d old (>1 day), %d failed, %d duplicates (keeping 1/hour)", deletedOld, deletedFailed, deletedDuplicates)
+	if deletedFailed > 0 || deletedDuplicates > 0 {
+		log.Printf("[R2 Cleanup] Deleted %d failed, %d duplicates (keeping all <1day, 1/hour after)", deletedFailed, deletedDuplicates)
 	}
 }
 
