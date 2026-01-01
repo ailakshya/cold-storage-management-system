@@ -1171,7 +1171,7 @@ func (h *InfrastructureHandler) GetBackupHistory(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(response)
 }
 
-// DownloadDatabase creates a pg_dump and streams it as a downloadable file
+// DownloadDatabase creates a SQL backup and streams it as a downloadable file
 func (h *InfrastructureHandler) DownloadDatabase(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -1182,51 +1182,21 @@ func (h *InfrastructureHandler) DownloadDatabase(w http.ResponseWriter, r *http.
 	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	filename := fmt.Sprintf("cold_db_backup_%s.sql", timestamp)
 
+	// Create backup using the shared database pool (same as R2 backup)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	backupData, err := createR2DatabaseBackup(ctx)
+	if err != nil {
+		log.Printf("[DownloadDatabase] Failed to create backup: %v", err)
+		http.Error(w, "Failed to create database backup: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	// Set headers for file download
 	w.Header().Set("Content-Type", "application/sql")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(backupData)))
 
-	// Try Docker first (local backup server)
-	cmd := exec.Command("docker", "exec", "cold-storage-postgres", "pg_dump", "-U", "postgres", "cold_db")
-	output, err := cmd.Output()
-	if err == nil && len(output) > 0 {
-		w.Write(output)
-		return
-	}
-
-	// Fallback: Try CNPG primary pod
-	// Find the primary pod
-	findPrimaryCmd := exec.Command("kubectl", "get", "pods", "-n", "default",
-		"-l", "cnpg.io/cluster=cold-postgres",
-		"-o", "jsonpath={.items[?(@.metadata.labels.role=='primary')].metadata.name}")
-	primaryPodBytes, err := findPrimaryCmd.Output()
-	if err != nil {
-		http.Error(w, "Failed to find database: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	primaryPod := strings.TrimSpace(string(primaryPodBytes))
-	if primaryPod == "" {
-		// Try to find any running postgres pod
-		findAnyCmd := exec.Command("kubectl", "get", "pods", "-n", "default",
-			"-l", "cnpg.io/cluster=cold-postgres",
-			"-o", "jsonpath={.items[0].metadata.name}")
-		anyPodBytes, err := findAnyCmd.Output()
-		if err != nil || len(anyPodBytes) == 0 {
-			http.Error(w, "No PostgreSQL pod found", http.StatusInternalServerError)
-			return
-		}
-		primaryPod = strings.TrimSpace(string(anyPodBytes))
-	}
-
-	// Run pg_dump on the pod
-	dumpCmd := exec.Command("kubectl", "exec", primaryPod, "-n", "default", "-c", "postgres",
-		"--", "pg_dump", "-U", "postgres", "cold_db")
-	dumpOutput, err := dumpCmd.Output()
-	if err != nil {
-		http.Error(w, "Failed to dump database: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Write(dumpOutput)
+	w.Write(backupData)
 }
