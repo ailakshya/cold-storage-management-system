@@ -370,6 +370,7 @@ func (s *CustomerPortalService) CreateGatePassRequest(ctx context.Context, custo
 
 	// Calculate total paid by this family member
 	var fmTotalPaid float64
+	var generalPaid float64 // Online payments (fmID=0)
 	for _, payment := range allPayments {
 		paymentFmID := 0
 		if payment.FamilyMemberID != nil {
@@ -378,26 +379,67 @@ func (s *CustomerPortalService) CreateGatePassRequest(ctx context.Context, custo
 		if paymentFmID == fmID {
 			fmTotalPaid += payment.AmountPaid
 		}
+		if paymentFmID == 0 {
+			generalPaid += payment.AmountPaid
+		}
+	}
+
+	// Add online payments from ledger (they don't have family member info, so they're general)
+	if s.LedgerRepo != nil {
+		ledgerPayments, err := s.LedgerRepo.GetPaymentHistory(ctx, customer.Phone, 1000)
+		if err == nil {
+			for _, lp := range ledgerPayments {
+				if lp.EntryType == "ONLINE_PAYMENT" {
+					generalPaid += lp.Amount
+				}
+			}
+		}
+	}
+
+	// Include general/online payments for family members
+	if fmID != 0 {
+		fmTotalPaid += generalPaid
+	} else {
+		// For entries without family member, generalPaid is already in fmTotalPaid
+		// but we need to add online payments separately
+		if s.LedgerRepo != nil {
+			ledgerPayments, err := s.LedgerRepo.GetPaymentHistory(ctx, customer.Phone, 1000)
+			if err == nil {
+				for _, lp := range ledgerPayments {
+					if lp.EntryType == "ONLINE_PAYMENT" {
+						fmTotalPaid += lp.Amount
+					}
+				}
+			}
+		}
 	}
 
 	// Calculate total picked up by this family member (across all their thocks)
 	entries, _ := s.EntryRepo.ListByCustomer(ctx, customerID)
 	var fmTotalPickedUp int
+	var generalPickedUp int
 	for _, e := range entries {
 		entryFmID := 0
 		if e.FamilyMemberID != nil {
 			entryFmID = *e.FamilyMemberID
 		}
-		if entryFmID == fmID {
-			if s.GatePassPickupRepo != nil {
-				pickups, pickupErr := s.GatePassPickupRepo.GetPickupsByThockNumber(ctx, e.ThockNumber)
-				if pickupErr == nil {
-					for _, p := range pickups {
+		if s.GatePassPickupRepo != nil {
+			pickups, pickupErr := s.GatePassPickupRepo.GetPickupsByThockNumber(ctx, e.ThockNumber)
+			if pickupErr == nil {
+				for _, p := range pickups {
+					if entryFmID == fmID {
 						fmTotalPickedUp += p.PickupQuantity
+					}
+					if entryFmID == 0 {
+						generalPickedUp += p.PickupQuantity
 					}
 				}
 			}
 		}
+	}
+	// Include general pickups for family members (since general payments cover all)
+	if fmID != 0 {
+		fmTotalPickedUp += generalPickedUp
 	}
 
 	// Check if family member has paid enough
