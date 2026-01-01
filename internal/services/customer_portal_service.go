@@ -196,11 +196,20 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 
 		// Calculate canTakeOut based on FAMILY MEMBER's total paid and picked up
 		fmTotalPaid := familyMemberPaid[fmID]
+		// Also include general/online payments (fmID=0) if this is a specific family member
+		// Online payments don't track family members, so they apply to entire account
+		if fmID != 0 {
+			fmTotalPaid += familyMemberPaid[0]
+		}
 		fmTotalPickedUp := familyMemberPickedUp[fmID]
+		// Also include pickups from general account
+		if fmID != 0 {
+			fmTotalPickedUp += familyMemberPickedUp[0]
+		}
 
 		canTakeOut := effectiveInventory
 		if rentPerItem > 0 {
-			// Items paid for by this family member
+			// Items paid for by this family member (including general/online payments)
 			itemsPaidFor := int(fmTotalPaid / rentPerItem)
 			// Remaining allowance = items paid for - already picked up by family member
 			remainingAllowance := itemsPaidFor - fmTotalPickedUp
