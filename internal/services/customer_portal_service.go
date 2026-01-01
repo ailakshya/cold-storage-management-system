@@ -115,6 +115,19 @@ func (s *CustomerPortalService) GetDashboardData(ctx context.Context, customerID
 		familyMemberPaid[fmID] += payment.AmountPaid
 	}
 
+	// Add online payments from ledger (attributed to family_member_id = 0 since online payments don't track family members)
+	if s.LedgerRepo != nil {
+		ledgerPayments, err := s.LedgerRepo.GetPaymentHistory(ctx, customer.Phone, 1000)
+		if err == nil {
+			for _, lp := range ledgerPayments {
+				// Only add ONLINE_PAYMENT entries to avoid double counting with rent_payments
+				if lp.EntryType == "ONLINE_PAYMENT" {
+					familyMemberPaid[0] += lp.Amount // 0 = customer level (no family member)
+				}
+			}
+		}
+	}
+
 	// Calculate total picked up per family member
 	familyMemberPickedUp := make(map[int]int)
 	for _, entry := range entries {

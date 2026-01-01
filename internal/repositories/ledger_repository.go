@@ -389,6 +389,61 @@ func (r *LedgerRepository) GetTotalCredit(ctx context.Context, customerPhone str
 	return total, err
 }
 
+// GetAllTotalCredits returns total credits for all customers (bulk query)
+func (r *LedgerRepository) GetAllTotalCredits(ctx context.Context) (map[string]float64, error) {
+	query := `
+		SELECT customer_phone, COALESCE(SUM(credit), 0) as total_credit
+		FROM ledger_entries
+		GROUP BY customer_phone
+	`
+
+	rows, err := r.DB.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string]float64)
+	for rows.Next() {
+		var phone string
+		var total float64
+		if err := rows.Scan(&phone, &total); err != nil {
+			return nil, err
+		}
+		result[phone] = total
+	}
+
+	return result, nil
+}
+
+// GetAllPaymentHistory returns payment history for all customers (bulk query)
+func (r *LedgerRepository) GetAllPaymentHistory(ctx context.Context) (map[string][]PaymentHistoryItem, error) {
+	query := `
+		SELECT customer_phone, id, credit, entry_type, COALESCE(description, ''), COALESCE(notes, ''), created_at
+		FROM ledger_entries
+		WHERE credit > 0
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.DB.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[string][]PaymentHistoryItem)
+	for rows.Next() {
+		var phone string
+		var p PaymentHistoryItem
+		if err := rows.Scan(&phone, &p.ID, &p.Amount, &p.EntryType, &p.Description, &p.Notes, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		result[phone] = append(result[phone], p)
+	}
+
+	return result, nil
+}
+
 // PaymentHistoryItem represents a payment in the history
 type PaymentHistoryItem struct {
 	ID          int       `json:"id"`
