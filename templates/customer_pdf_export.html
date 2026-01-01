@@ -134,6 +134,9 @@
                         <button onclick="loadAllCustomers()" class="neu-button bg-green-500 text-white w-full">
                             <i class="bi bi-download"></i> Load All Customers
                         </button>
+                        <button onclick="exportCustomersCSV()" class="neu-button bg-gray-700 text-white w-full mt-2">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                        </button>
                         <p id="customerCount" class="text-sm text-gray-500 mt-2 text-center"></p>
                     </div>
 
@@ -149,6 +152,9 @@
                         </div>
                         <button onclick="loadDailySummary()" class="neu-button bg-purple-500 text-white w-full">
                             <i class="bi bi-file-text"></i> Generate Daily Summary
+                        </button>
+                        <button onclick="exportDailySummaryCSV()" class="neu-button bg-gray-700 text-white w-full mt-2">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
                         </button>
                     </div>
                 </div>
@@ -986,6 +992,71 @@
         }
 
         // ==================== END DAILY SUMMARY FUNCTIONS ====================
+
+        // ==================== CSV EXPORT FUNCTIONS ====================
+
+        function exportCustomersCSV() {
+            const filter = document.getElementById('statusFilter')?.value || 'all';
+            const url = `/api/reports/customers/csv?filter=${filter}`;
+
+            // Create a temporary link to trigger download
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', `customers_${filter}_${new Date().toISOString().split('T')[0]}.csv`);
+
+            // Add auth header by fetching with credentials
+            fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Export failed');
+                return response.blob();
+            })
+            .then(blob => {
+                const blobUrl = window.URL.createObjectURL(blob);
+                link.href = blobUrl;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+            })
+            .catch(error => {
+                alert('Failed to export CSV: ' + error.message);
+            });
+        }
+
+        function exportDailySummaryCSV() {
+            const date = document.getElementById('summaryDate').value;
+            if (!date) {
+                alert('Please select a date first');
+                return;
+            }
+
+            const url = `/api/reports/daily-summary/csv?date=${date}`;
+
+            fetch(url, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => {
+                if (!response.ok) throw new Error('Export failed');
+                return response.blob();
+            })
+            .then(blob => {
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.setAttribute('download', `daily_summary_${date}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(blobUrl);
+            })
+            .catch(error => {
+                alert('Failed to export CSV: ' + error.message);
+            });
+        }
+
+        // ==================== END CSV EXPORT FUNCTIONS ====================
 
         // Initialize
         init();
