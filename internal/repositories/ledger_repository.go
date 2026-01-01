@@ -499,6 +499,18 @@ func (r *LedgerRepository) GetCreditsByFamilyMember(ctx context.Context, custome
 	return results, nil
 }
 
+// UpdateCustomerPhone updates the phone number in all ledger entries for a customer
+// Used when customer phone changes or when customers are merged
+func (r *LedgerRepository) UpdateCustomerPhone(ctx context.Context, oldPhone, newPhone string) (int64, error) {
+	result, err := r.DB.Exec(ctx,
+		"UPDATE ledger_entries SET customer_phone = $1 WHERE customer_phone = $2",
+		newPhone, oldPhone)
+	if err != nil {
+		return 0, fmt.Errorf("failed to update ledger entries phone: %w", err)
+	}
+	return result.RowsAffected(), nil
+}
+
 // GetPaymentHistory returns recent payments (credits) for a customer
 func (r *LedgerRepository) GetPaymentHistory(ctx context.Context, customerPhone string, limit int) ([]PaymentHistoryItem, error) {
 	if limit <= 0 {

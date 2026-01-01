@@ -22,6 +22,7 @@ const customersCacheKey = "customers:list"
 type CustomerHandler struct {
 	Service           *services.CustomerService
 	ManagementLogRepo *repositories.EntryManagementLogRepository
+	LedgerRepo        *repositories.LedgerRepository
 }
 
 func NewCustomerHandler(s *services.CustomerService, managementLogRepo *repositories.EntryManagementLogRepository) *CustomerHandler {
@@ -37,6 +38,11 @@ func NewCustomerHandler(s *services.CustomerService, managementLogRepo *reposito
 	})
 
 	return h
+}
+
+// SetLedgerRepo sets the ledger repository for cascading phone updates to ledger
+func (h *CustomerHandler) SetLedgerRepo(ledgerRepo *repositories.LedgerRepository) {
+	h.LedgerRepo = ledgerRepo
 }
 
 func (h *CustomerHandler) CreateCustomer(w http.ResponseWriter, r *http.Request) {
@@ -155,10 +161,22 @@ func (h *CustomerHandler) UpdateCustomer(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Get old phone before update (for cascading to ledger)
+	oldCustomer, _ := h.Service.GetCustomer(context.Background(), id)
+	oldPhone := ""
+	if oldCustomer != nil {
+		oldPhone = oldCustomer.Phone
+	}
+
 	customer, err := h.Service.UpdateCustomer(context.Background(), id, &req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Cascade phone change to ledger entries if phone changed
+	if h.LedgerRepo != nil && oldPhone != "" && oldPhone != customer.Phone {
+		_, _ = h.LedgerRepo.UpdateCustomerPhone(context.Background(), oldPhone, customer.Phone)
 	}
 
 	// Invalidate customers cache
@@ -274,6 +292,11 @@ func (h *CustomerHandler) MergeCustomers(w http.ResponseWriter, r *http.Request)
 			MergeDetails:          response.MergeDetails,
 		}
 		h.ManagementLogRepo.CreateMergeLog(context.Background(), managementLog)
+	}
+
+	// Cascade phone change to ledger entries (source phone -> target phone)
+	if h.LedgerRepo != nil && sourceCustomer.Phone != targetCustomer.Phone {
+		_, _ = h.LedgerRepo.UpdateCustomerPhone(context.Background(), sourceCustomer.Phone, targetCustomer.Phone)
 	}
 
 	// Invalidate caches

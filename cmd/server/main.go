@@ -581,6 +581,7 @@ func main() {
 		userHandler := handlers.NewUserHandler(userService, adminActionLogRepo)
 		authHandler := handlers.NewAuthHandler(userService, loginLogRepo)
 		customerHandler := handlers.NewCustomerHandler(customerService, entryManagementLogRepo)
+		customerHandler.SetLedgerRepo(ledgerRepo) // Cascade phone changes to ledger
 		entryHandler := handlers.NewEntryHandler(entryService, entryEditLogRepo, entryManagementLogRepo, adminActionLogRepo)
 		roomEntryHandler := handlers.NewRoomEntryHandler(roomEntryService, roomEntryEditLogRepo)
 		entryEventHandler := handlers.NewEntryEventHandler(entryEventRepo)
