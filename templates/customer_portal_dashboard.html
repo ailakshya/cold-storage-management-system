@@ -1426,12 +1426,19 @@
         async function renderPayments() {
             const container = document.getElementById('paymentsContainer');
 
-            // Get offline payments from dashboard data
-            const offlinePayments = (dashboardData.payments || []).map(p => ({
-                ...p,
-                is_online: false,
-                display_date: p.payment_date || p.created_at
-            }));
+            // Get offline payments from dashboard data (filter out online payments to avoid duplicates)
+            const offlinePayments = (dashboardData.payments || [])
+                .filter(p => {
+                    // Exclude online payments - they're fetched separately from transactions API
+                    const desc = (p.thock_number || '').toLowerCase();
+                    const isOnline = desc.includes('razorpay') || desc.includes('online payment') || desc.includes('utr:');
+                    return !isOnline;
+                })
+                .map(p => ({
+                    ...p,
+                    is_online: false,
+                    display_date: p.payment_date || p.created_at
+                }));
 
             // Fetch online transactions
             let onlinePayments = [];

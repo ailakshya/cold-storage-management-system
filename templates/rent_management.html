@@ -1288,34 +1288,41 @@
                                     </h4>
                                     <div id="paymentHistory${index}" class="space-y-2">
                                         ${(() => {
-                                            // Combine rent_payments and ledger_payments
-                                            const rentPayments = (customer.payments || []).map(p => ({
-                                                type: 'rent',
-                                                amount: p.amount_paid,
-                                                date: new Date(p.payment_date),
-                                                isOnline: p.notes && p.notes.toLowerCase().includes('online'),
-                                                processedBy: p.processed_by_name || 'Unknown',
-                                                receiptNumber: p.receipt_number,
-                                                notes: p.notes || ''
-                                            }));
-
                                             // Get ledger payments from all family members
                                             const ledgerPayments = [];
                                             (customer.familyMembers || []).forEach(fm => {
                                                 (fm.ledgerPayments || []).forEach(lp => {
-                                                    // Skip PAYMENT type (already in rent_payments)
-                                                    if (lp.entry_type !== 'PAYMENT') {
-                                                        ledgerPayments.push({
-                                                            type: 'ledger',
-                                                            amount: lp.amount,
-                                                            date: new Date(lp.created_at),
-                                                            isOnline: lp.entry_type === 'ONLINE_PAYMENT',
-                                                            processedBy: 'System',
-                                                            notes: lp.notes || lp.description || ''
-                                                        });
-                                                    }
+                                                    ledgerPayments.push({
+                                                        type: 'ledger',
+                                                        amount: lp.amount,
+                                                        date: new Date(lp.created_at),
+                                                        isOnline: lp.entry_type === 'ONLINE_PAYMENT',
+                                                        processedBy: 'System',
+                                                        notes: lp.notes || lp.description || '',
+                                                        entryType: lp.entry_type
+                                                    });
                                                 });
                                             });
+
+                                            // Filter rent_payments to exclude online payments (they're already in ledger)
+                                            const rentPayments = (customer.payments || [])
+                                                .filter(p => {
+                                                    // Exclude if it looks like an online payment
+                                                    const notes = (p.notes || '').toLowerCase();
+                                                    const isOnlinePayment = notes.includes('razorpay') ||
+                                                        notes.includes('online payment') ||
+                                                        notes.includes('utr:');
+                                                    return !isOnlinePayment;
+                                                })
+                                                .map(p => ({
+                                                    type: 'rent',
+                                                    amount: p.amount_paid,
+                                                    date: new Date(p.payment_date),
+                                                    isOnline: false,
+                                                    processedBy: p.processed_by_name || 'Unknown',
+                                                    receiptNumber: p.receipt_number,
+                                                    notes: p.notes || ''
+                                                }));
 
                                             // Combine and sort by date (newest first)
                                             const allPayments = [...rentPayments, ...ledgerPayments]
