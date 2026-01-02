@@ -113,16 +113,18 @@ func (s *RazorpayService) IsEnabled(ctx context.Context) bool {
 	return setting.SettingValue == "true"
 }
 
-// GetFeePercent returns the configured fee percentage
+// GetFeePercent returns the configured fee percentage (default 2.5%)
 func (s *RazorpayService) GetFeePercent(ctx context.Context) float64 {
+	const defaultFee = 2.5
+
 	setting, err := s.systemSettingRepo.Get(ctx, "online_payment_fee_percent")
 	if err != nil || setting == nil {
-		return 2.5 // Default 2.5%
+		return defaultFee
 	}
 
 	fee, err := strconv.ParseFloat(setting.SettingValue, 64)
-	if err != nil {
-		return 2.5
+	if err != nil || fee <= 0 {
+		return defaultFee
 	}
 
 	return fee
