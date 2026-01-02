@@ -112,7 +112,18 @@ func (s *RoomEntryService) CreateRoomEntry(ctx context.Context, req *models.Crea
 }
 
 func (s *RoomEntryService) GetRoomEntry(ctx context.Context, id int) (*models.RoomEntry, error) {
-	return s.RoomEntryRepo.Get(ctx, id)
+	roomEntry, err := s.RoomEntryRepo.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch gatars for this room entry
+	gatars, err := s.RoomEntryGatarRepo.GetByRoomEntryID(ctx, id)
+	if err == nil && len(gatars) > 0 {
+		roomEntry.Gatars = gatars
+	}
+
+	return roomEntry, nil
 }
 
 func (s *RoomEntryService) ListRoomEntries(ctx context.Context) ([]*models.RoomEntry, error) {

@@ -109,6 +109,38 @@
                             <p class="text-sm text-gray-600 mt-1" id="customerName">-</p>
                         </div>
 
+                        <!-- Old Details (Current Values) -->
+                        <div class="mb-6 p-4 bg-blue-50 neu-border">
+                            <h3 class="text-lg font-bold text-blue-800 mb-3 flex items-center gap-2">
+                                <i class="bi bi-info-circle"></i> Current Details (Before Edit)
+                            </h3>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                <div>
+                                    <p class="text-xs text-gray-600">Room</p>
+                                    <p class="font-bold text-lg" id="oldRoom">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600">Floor</p>
+                                    <p class="font-bold text-lg" id="oldFloor">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600">Gatar</p>
+                                    <p class="font-bold text-lg" id="oldGatar">-</p>
+                                </div>
+                                <div>
+                                    <p class="text-xs text-gray-600">Qty</p>
+                                    <p class="font-bold text-lg" id="oldQty">-</p>
+                                </div>
+                            </div>
+                            <div class="mt-3 pt-3 border-t border-blue-200">
+                                <p class="text-xs text-gray-600">Remark</p>
+                                <p class="font-bold" id="oldRemark">-</p>
+                            </div>
+                            <div class="mt-2" id="oldGatarDetails">
+                                <!-- Gatar Details will be shown here if available -->
+                            </div>
+                        </div>
+
                         <form id="roomEntryForm" onsubmit="updateRoomEntry(event)">
                 <!-- Room and Floor Selection Side by Side -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 mb-6">
@@ -481,6 +513,26 @@
                 const thockElement = document.getElementById('thockNumber');
                 thockElement.textContent = roomEntryData.thock_number;
                 thockElement.className = 'text-2xl font-bold ' + getThockColor(roomEntryData.thock_number);
+
+                // Populate Old Details section
+                document.getElementById('oldRoom').textContent = roomEntryData.room_no === 'G' ? 'Gallery' : roomEntryData.room_no;
+                document.getElementById('oldFloor').textContent = roomEntryData.floor;
+                document.getElementById('oldGatar').textContent = roomEntryData.gate_no || '-';
+                const breakdownText = roomEntryData.quantity_breakdown ? ` (${roomEntryData.quantity_breakdown})` : '';
+                document.getElementById('oldQty').textContent = roomEntryData.quantity + breakdownText;
+                document.getElementById('oldRemark').textContent = roomEntryData.remark ?
+                    roomEntryData.remark.charAt(0).toUpperCase() + roomEntryData.remark.slice(1) : '-';
+
+                // Show Gatar Details if available
+                if (roomEntryData.gatars && roomEntryData.gatars.length > 0) {
+                    const gatarDetailsHtml = roomEntryData.gatars.map(g =>
+                        `<span class="inline-block bg-blue-100 px-2 py-1 rounded mr-1 mb-1 text-sm">G${g.gatar_no}: ${g.quantity}-${g.quality || 'N'}</span>`
+                    ).join('');
+                    document.getElementById('oldGatarDetails').innerHTML = `
+                        <p class="text-xs text-gray-600 mt-2">Gatar Details</p>
+                        <div class="mt-1">${gatarDetailsHtml}</div>
+                    `;
+                }
 
                 // Set hidden input values
                 document.getElementById('roomNo').value = roomEntryData.room_no;
