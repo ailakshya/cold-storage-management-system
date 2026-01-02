@@ -1456,6 +1456,7 @@
                             is_online: true,
                             display_date: tx.completed_at || tx.created_at,
                             utr_number: tx.utr_number || '',
+                            razorpay_payment_id: tx.razorpay_payment_id || '',
                             payment_method: tx.payment_method || 'Online'
                         }));
                 }
@@ -1493,6 +1494,10 @@
                     ? `<span class="payment-utr">UTR: ${payment.utr_number}</span>`
                     : '';
 
+                const razorpayInfo = payment.razorpay_payment_id
+                    ? `<span class="payment-utr" style="font-size: 0.7rem; opacity: 0.7;">ID: ${payment.razorpay_payment_id}</span>`
+                    : '';
+
                 return `
                     <div class="payment-item">
                         <div class="payment-info">
@@ -1503,6 +1508,7 @@
                         <div class="payment-details">
                             <div class="payment-amount">+₹${formatNumber(payment.amount)}</div>
                             ${utrInfo}
+                            ${razorpayInfo}
                         </div>
                     </div>
                 `;

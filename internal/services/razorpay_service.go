@@ -334,37 +334,9 @@ func (s *RazorpayService) VerifyWebhookSignature(ctx context.Context, body []byt
 	return hmac.Equal([]byte(expectedSignature), []byte(signature))
 }
 
-// createRentPaymentAndLedgerEntry creates linked records after successful payment
+// createRentPaymentAndLedgerEntry creates ledger entry after successful payment
+// Note: We skip rent_payment creation since ledger is now the single source of truth
 func (s *RazorpayService) createRentPaymentAndLedgerEntry(ctx context.Context, tx *models.OnlineTransaction, utr string) error {
-	// Determine entry_id for rent payment
-	entryID := 0
-	if tx.EntryID != nil {
-		entryID = *tx.EntryID
-	}
-
-	// Create rent payment record
-	rentPayment := &models.RentPayment{
-		EntryID:       entryID,
-		CustomerName:  tx.CustomerName,
-		CustomerPhone: tx.CustomerPhone,
-		TotalRent:     0, // Will be calculated based on entry
-		AmountPaid:    tx.Amount,
-		Balance:       0,
-		Notes:         fmt.Sprintf("Online Payment via Razorpay | UTR: %s | Fee: ₹%.2f", utr, tx.FeeAmount),
-	}
-
-	if tx.FamilyMemberID != nil {
-		rentPayment.FamilyMemberID = tx.FamilyMemberID
-	}
-	if tx.FamilyMemberName != "" {
-		rentPayment.FamilyMemberName = tx.FamilyMemberName
-	}
-
-	err := s.rentPaymentRepo.Create(ctx, rentPayment)
-	if err != nil {
-		return fmt.Errorf("failed to create rent payment: %w", err)
-	}
-
 	// Get customer S/O for ledger entry
 	customer, _ := s.customerRepo.Get(ctx, tx.CustomerID)
 	customerSO := ""
@@ -387,7 +359,6 @@ func (s *RazorpayService) createRentPaymentAndLedgerEntry(ctx context.Context, t
 		EntryType:        models.LedgerEntryTypeOnlinePayment,
 		Description:      description,
 		Credit:           tx.Amount,
-		ReferenceID:      &rentPayment.ID,
 		ReferenceType:    "online_transaction",
 		FamilyMemberID:   tx.FamilyMemberID,
 		FamilyMemberName: tx.FamilyMemberName,
@@ -395,15 +366,11 @@ func (s *RazorpayService) createRentPaymentAndLedgerEntry(ctx context.Context, t
 		CreatedByUserID:  0, // System - Online payment
 	})
 	if err != nil {
-		log.Printf("[Razorpay] Failed to create ledger entry: %v", err)
+		return fmt.Errorf("failed to create ledger entry: %w", err)
 	}
 
-	// Link transaction to created records
-	ledgerEntryID := 0
-	if ledgerEntry != nil {
-		ledgerEntryID = ledgerEntry.ID
-	}
-	_ = s.transactionRepo.LinkToRentPayment(ctx, tx.RazorpayOrderID, rentPayment.ID, ledgerEntryID)
+	// Link transaction to ledger entry
+	_ = s.transactionRepo.LinkToRentPayment(ctx, tx.RazorpayOrderID, 0, ledgerEntry.ID)
 
 	return nil
 }
