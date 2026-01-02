@@ -296,7 +296,7 @@ func (s *RazorpayService) VerifyPayment(ctx context.Context, req *models.VerifyP
 	}
 
 	// Create rent payment and ledger entry
-	err = s.createRentPaymentAndLedgerEntry(ctx, tx, utr)
+	err = s.createRentPaymentAndLedgerEntry(ctx, tx, utr, req.RazorpayPaymentID)
 	if err != nil {
 		log.Printf("[Razorpay] Failed to create rent payment: %v", err)
 		// Don't fail the verification, payment is still successful
@@ -336,7 +336,7 @@ func (s *RazorpayService) VerifyWebhookSignature(ctx context.Context, body []byt
 
 // createRentPaymentAndLedgerEntry creates ledger entry after successful payment
 // Note: We skip rent_payment creation since ledger is now the single source of truth
-func (s *RazorpayService) createRentPaymentAndLedgerEntry(ctx context.Context, tx *models.OnlineTransaction, utr string) error {
+func (s *RazorpayService) createRentPaymentAndLedgerEntry(ctx context.Context, tx *models.OnlineTransaction, utr string, paymentID string) error {
 	// Get customer S/O for ledger entry
 	customer, _ := s.customerRepo.Get(ctx, tx.CustomerID)
 	customerSO := ""
@@ -362,7 +362,7 @@ func (s *RazorpayService) createRentPaymentAndLedgerEntry(ctx context.Context, t
 		ReferenceType:    "online_transaction",
 		FamilyMemberID:   tx.FamilyMemberID,
 		FamilyMemberName: tx.FamilyMemberName,
-		Notes:            fmt.Sprintf("Razorpay Payment ID: %s, Fee: ₹%.2f", tx.RazorpayPaymentID, tx.FeeAmount),
+		Notes:            fmt.Sprintf("Razorpay Payment ID: %s, Fee: ₹%.2f", paymentID, tx.FeeAmount),
 		CreatedByUserID:  0, // System - Online payment
 	})
 	if err != nil {
@@ -450,7 +450,7 @@ func (s *RazorpayService) handlePaymentCaptured(ctx context.Context, paymentData
 	}
 
 	// Create rent payment and ledger entry
-	return s.createRentPaymentAndLedgerEntry(ctx, tx, utr)
+	return s.createRentPaymentAndLedgerEntry(ctx, tx, utr, paymentID)
 }
 
 func (s *RazorpayService) handlePaymentFailed(ctx context.Context, paymentData map[string]interface{}) error {
@@ -507,7 +507,7 @@ func (s *RazorpayService) ReconcilePayments(ctx context.Context) (int, error) {
 			utr = tx.RazorpayPaymentID
 		}
 
-		err := s.createRentPaymentAndLedgerEntry(ctx, tx, utr)
+		err := s.createRentPaymentAndLedgerEntry(ctx, tx, utr, tx.RazorpayPaymentID)
 		if err != nil {
 			log.Printf("[Razorpay] Failed to reconcile transaction %s: %v", tx.RazorpayOrderID, err)
 			continue
