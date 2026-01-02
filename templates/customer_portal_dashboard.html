@@ -1594,8 +1594,11 @@
             }).join('');
         }
 
-        function formatNumber(num) {
-            return parseFloat(num || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+        function formatNumber(num, decimals = 0) {
+            return parseFloat(num || 0).toLocaleString('en-IN', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals
+            });
         }
 
         // Setup family member selector for gate pass form
@@ -1858,8 +1861,8 @@
             const totalAmount = amount + feeAmount;
 
             document.getElementById('feeBaseAmount').textContent = '₹' + formatNumber(amount);
-            document.getElementById('feeAmount').textContent = '₹' + formatNumber(feeAmount);
-            document.getElementById('totalPayAmount').textContent = '₹' + formatNumber(totalAmount);
+            document.getElementById('feeAmount').textContent = '₹' + formatNumber(feeAmount, 2);
+            document.getElementById('totalPayAmount').textContent = '₹' + formatNumber(totalAmount, 2);
         }
 
         function copyUPI() {
