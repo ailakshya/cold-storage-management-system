@@ -7,17 +7,22 @@ import (
 	"strings"
 
 	"cold-backend/internal/cache"
+	"cold-backend/internal/repositories"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // RoomVisualizationHandler handles room visualization endpoints
 type RoomVisualizationHandler struct {
-	DB *pgxpool.Pool
+	DB              *pgxpool.Pool
+	GatarRepository *repositories.RoomEntryGatarRepository
 }
 
 // NewRoomVisualizationHandler creates a new room visualization handler
 func NewRoomVisualizationHandler(db *pgxpool.Pool) *RoomVisualizationHandler {
-	return &RoomVisualizationHandler{DB: db}
+	return &RoomVisualizationHandler{
+		DB:              db,
+		GatarRepository: repositories.NewRoomEntryGatarRepository(db),
+	}
 }
 
 // FloorStats contains statistics for a single floor
@@ -606,4 +611,97 @@ func distributeQuantity(totalQty int, gatars []string, breakdown []int) []int {
 	}
 
 	return result
+}
+
+// GetPerGatarStock returns per-gatar stock data from the room_entry_gatars table
+// This endpoint uses the new per-gatar quantity tracking system
+func (h *RoomVisualizationHandler) GetPerGatarStock(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	ctx := r.Context()
+
+	roomNo := r.URL.Query().Get("room")
+	floor := r.URL.Query().Get("floor")
+
+	if roomNo == "" || floor == "" {
+		http.Error(w, "Missing room or floor parameter", http.StatusBadRequest)
+		return
+	}
+
+	// Get per-gatar stock from the new table
+	stocks, err := h.GatarRepository.GetStockByRoomFloor(ctx, roomNo, floor)
+	if err != nil {
+		http.Error(w, "Failed to query gatar stock: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to response format
+	type GatarStockResponse struct {
+		GatarNo     int    `json:"gatar_no"`
+		Quantity    int    `json:"quantity"`
+		Variety     string `json:"variety"`
+		ThockNumber string `json:"thock_number"`
+		Quality     string `json:"quality"`
+	}
+
+	var response []GatarStockResponse
+	for _, s := range stocks {
+		response = append(response, GatarStockResponse{
+			GatarNo:     s.GatarNo,
+			Quantity:    s.Quantity,
+			Variety:     s.Variety,
+			ThockNumber: s.ThockNumber,
+			Quality:     s.Quality,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"room_no": roomNo,
+		"floor":   floor,
+		"gatars":  response,
+		"count":   len(response),
+	})
+}
+
+// SearchByGatar searches for entries by gatar location using the new per-gatar table
+func (h *RoomVisualizationHandler) SearchByGatar(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+
+	ctx := r.Context()
+
+	roomNo := r.URL.Query().Get("room")
+	floor := r.URL.Query().Get("floor")
+	gatarNoStr := r.URL.Query().Get("gatar")
+
+	if roomNo == "" || floor == "" || gatarNoStr == "" {
+		http.Error(w, "Missing room, floor, or gatar parameter", http.StatusBadRequest)
+		return
+	}
+
+	gatarNo, err := strconv.Atoi(gatarNoStr)
+	if err != nil {
+		http.Error(w, "Invalid gatar number", http.StatusBadRequest)
+		return
+	}
+
+	// Search by gatar using the new table
+	results, err := h.GatarRepository.SearchByGatar(ctx, roomNo, floor, gatarNo)
+	if err != nil {
+		http.Error(w, "Failed to search gatar: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"gatar_no": gatarNo,
+		"room_no":  roomNo,
+		"floor":    floor,
+		"results":  results,
+		"count":    len(results),
+	})
 }

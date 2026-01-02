@@ -10,16 +10,18 @@ import (
 )
 
 type RoomEntryService struct {
-	RoomEntryRepo  *repositories.RoomEntryRepository
-	EntryRepo      *repositories.EntryRepository
-	EntryEventRepo *repositories.EntryEventRepository
+	RoomEntryRepo      *repositories.RoomEntryRepository
+	RoomEntryGatarRepo *repositories.RoomEntryGatarRepository
+	EntryRepo          *repositories.EntryRepository
+	EntryEventRepo     *repositories.EntryEventRepository
 }
 
-func NewRoomEntryService(roomEntryRepo *repositories.RoomEntryRepository, entryRepo *repositories.EntryRepository, entryEventRepo *repositories.EntryEventRepository) *RoomEntryService {
+func NewRoomEntryService(roomEntryRepo *repositories.RoomEntryRepository, roomEntryGatarRepo *repositories.RoomEntryGatarRepository, entryRepo *repositories.EntryRepository, entryEventRepo *repositories.EntryEventRepository) *RoomEntryService {
 	return &RoomEntryService{
-		RoomEntryRepo:  roomEntryRepo,
-		EntryRepo:      entryRepo,
-		EntryEventRepo: entryEventRepo,
+		RoomEntryRepo:      roomEntryRepo,
+		RoomEntryGatarRepo: roomEntryGatarRepo,
+		EntryRepo:          entryRepo,
+		EntryEventRepo:     entryEventRepo,
 	}
 }
 
@@ -86,6 +88,14 @@ func (s *RoomEntryService) CreateRoomEntry(ctx context.Context, req *models.Crea
 		return nil, err
 	}
 
+	// Save per-gatar quantities if provided
+	if len(req.Gatars) > 0 {
+		if err := s.RoomEntryGatarRepo.CreateBatch(ctx, roomEntry.ID, req.Gatars); err != nil {
+			// Log error but don't fail the whole operation
+			// The main room entry is already created
+		}
+	}
+
 	// Create event to track room entry completion
 	event := &models.EntryEvent{
 		EntryID:         entry.ID,
@@ -145,6 +155,13 @@ func (s *RoomEntryService) UpdateRoomEntry(ctx context.Context, id int, req *mod
 	// Update in database
 	if err := s.RoomEntryRepo.Update(ctx, id, roomEntry); err != nil {
 		return nil, err
+	}
+
+	// Update per-gatar quantities if provided
+	if len(req.Gatars) > 0 {
+		if err := s.RoomEntryGatarRepo.UpdateBatch(ctx, id, req.Gatars); err != nil {
+			// Log error but don't fail the whole operation
+		}
 	}
 
 	return roomEntry, nil

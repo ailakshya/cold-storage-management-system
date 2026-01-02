@@ -497,6 +497,7 @@
         let noRemarkConfirmed = false;
         let pendingQuantity = null;  // Holds quantity while waiting for quality selection
         let qualityRemarks = [];     // Stores {quantity, quality} pairs
+        let gatarQuantities = {};    // Per-gatar quantity: {gatarNo: {quantity, quality}}
 
         // Gatar ranges mapping: room -> floor -> {start, end, cols, rows}
         // Layout pattern: Column pairs where each pair has 20 gatars (10 rows × 2 cols)
@@ -694,30 +695,121 @@
             });
         }
 
-        // Function to update selection summary display
+        // Function to update selection summary display with per-gatar quantity inputs
         function updateSelectionSummary() {
             const summaryDiv = document.getElementById('selectionSummary');
             if (!summaryDiv) return;
 
             if (selectedGatars.length === 0) {
                 summaryDiv.innerHTML = `
-                    <p class="text-gray-500 text-sm">No gatars selected</p>
+                    <p class="text-gray-500 text-sm">No gatars selected - Click on numbers below to select gatars</p>
                 `;
             } else {
-                // Format display - show ranges if consecutive
-                const display = formatGatarSelection(selectedGatars);
-                summaryDiv.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <span class="font-bold text-green-700">${selectedGatars.length} Gatar${selectedGatars.length > 1 ? 's' : ''} Selected:</span>
-                            <span class="ml-2 font-mono text-green-800">${display}</span>
+                // Show per-gatar quantity input for each selected gatar
+                let html = `
+                    <div class="space-y-2">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-bold text-green-700">${selectedGatars.length} Gatar${selectedGatars.length > 1 ? 's' : ''} Selected</span>
+                            <div class="flex gap-2">
+                                <span class="text-lg font-bold text-purple-700 bg-purple-100 px-3 py-1 rounded">Total: <span id="gatarTotalQty">0</span></span>
+                                <button onclick="clearGatarSelection()" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-sm font-bold">
+                                    <i class="bi bi-x-circle mr-1"></i>Clear
+                                </button>
+                            </div>
                         </div>
-                        <button onclick="clearGatarSelection()" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-sm font-bold">
-                            <i class="bi bi-x-circle mr-1"></i>Clear All
-                        </button>
+                        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                `;
+
+                selectedGatars.forEach(gatarNo => {
+                    const qty = gatarQuantities[gatarNo]?.quantity || '';
+                    const quality = gatarQuantities[gatarNo]?.quality || 'N';
+                    html += `
+                        <div class="flex items-center gap-1 p-2 bg-green-50 border border-green-300 rounded">
+                            <span class="font-bold text-green-800 w-10">${gatarNo}</span>
+                            <input type="number" id="gqty-${gatarNo}" value="${qty}" min="1" max="999"
+                                onchange="updateGatarQuantity(${gatarNo})"
+                                class="w-16 p-1 text-sm border border-gray-300 rounded text-center font-bold"
+                                placeholder="Qty">
+                            <select id="gqual-${gatarNo}" onchange="updateGatarQuality(${gatarNo})"
+                                class="p-1 text-xs border border-gray-300 rounded font-bold">
+                                <option value="N" ${quality === 'N' ? 'selected' : ''} class="text-green-600">N</option>
+                                <option value="U" ${quality === 'U' ? 'selected' : ''} class="text-yellow-600">U</option>
+                                <option value="D" ${quality === 'D' ? 'selected' : ''} class="text-red-600">D</option>
+                                <option value="G" ${quality === 'G' ? 'selected' : ''} class="text-blue-600">G</option>
+                            </select>
+                            <button onclick="removeGatarFromSelection(${gatarNo})" class="text-red-500 hover:text-red-700">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        </div>
+                    `;
+                });
+
+                html += `
+                        </div>
                     </div>
                 `;
+                summaryDiv.innerHTML = html;
+                updateGatarTotalQuantity();
             }
+        }
+
+        // Update quantity for a specific gatar
+        function updateGatarQuantity(gatarNo) {
+            const input = document.getElementById(`gqty-${gatarNo}`);
+            const qualitySelect = document.getElementById(`gqual-${gatarNo}`);
+            if (input && input.value) {
+                gatarQuantities[gatarNo] = {
+                    quantity: parseInt(input.value) || 0,
+                    quality: qualitySelect ? qualitySelect.value : 'N'
+                };
+            } else {
+                delete gatarQuantities[gatarNo];
+            }
+            updateGatarTotalQuantity();
+        }
+
+        // Update quality for a specific gatar
+        function updateGatarQuality(gatarNo) {
+            const qualitySelect = document.getElementById(`gqual-${gatarNo}`);
+            const qtyInput = document.getElementById(`gqty-${gatarNo}`);
+            if (gatarQuantities[gatarNo]) {
+                gatarQuantities[gatarNo].quality = qualitySelect ? qualitySelect.value : 'N';
+            } else if (qtyInput && qtyInput.value) {
+                gatarQuantities[gatarNo] = {
+                    quantity: parseInt(qtyInput.value) || 0,
+                    quality: qualitySelect ? qualitySelect.value : 'N'
+                };
+            }
+        }
+
+        // Calculate and display total quantity from all gatars
+        function updateGatarTotalQuantity() {
+            let total = 0;
+            Object.values(gatarQuantities).forEach(g => {
+                total += g.quantity || 0;
+            });
+            const totalDisplay = document.getElementById('gatarTotalQty');
+            if (totalDisplay) {
+                totalDisplay.textContent = total;
+            }
+            // Also update the hidden quantity field for form submission
+            document.getElementById('quantity').value = total;
+            document.getElementById('totalQuantity').textContent = total;
+            // Check quantity warning
+            checkQuantityWarning();
+        }
+
+        // Remove a specific gatar from selection
+        function removeGatarFromSelection(gatarNo) {
+            const index = selectedGatars.indexOf(gatarNo);
+            if (index > -1) {
+                selectedGatars.splice(index, 1);
+            }
+            delete gatarQuantities[gatarNo];
+            document.getElementById('gateNo').value = selectedGatars.join(', ');
+            updateGatarGridSelection();
+            updateSelectionSummary();
+            updateGatarTotalQuantity();
         }
 
         // Format gatar selection to show ranges (e.g., "1-5, 10, 15-20")
@@ -746,7 +838,10 @@
         // Clear all selected gatars
         function clearGatarSelection() {
             selectedGatars = [];
+            gatarQuantities = {};
             document.getElementById('gateNo').value = '';
+            document.getElementById('quantity').value = 0;
+            document.getElementById('totalQuantity').textContent = '0';
             updateGatarGridSelection();
             updateSelectionSummary();
         }
@@ -1477,6 +1572,18 @@
             // Get quantity breakdown
             const quantityBreakdown = quantityValues.join(', ');
 
+            // Build gatars array for per-gatar quantity tracking
+            const gatarsArray = [];
+            Object.entries(gatarQuantities).forEach(([gatarNo, data]) => {
+                if (data.quantity > 0) {
+                    gatarsArray.push({
+                        gatar_no: parseInt(gatarNo),
+                        quantity: data.quantity,
+                        quality: data.quality || 'N'
+                    });
+                }
+            });
+
             const roomEntryData = {
                 entry_id: selectedEntry.entryId,
                 thock_number: selectedEntry.thockNumber,
@@ -1485,7 +1592,8 @@
                 gate_no: gateNo,
                 remark: remark,
                 quantity: quantity,
-                quantity_breakdown: quantityBreakdown
+                quantity_breakdown: quantityBreakdown,
+                gatars: gatarsArray
             };
 
             try {
@@ -1534,8 +1642,9 @@
             noRemarkConfirmed = false;
             document.getElementById('quantityWarning').classList.add('hidden');
 
-            // Clear selected gatars
+            // Clear selected gatars and per-gatar quantities
             selectedGatars = [];
+            gatarQuantities = {};
 
             // Clear room selection
             document.querySelectorAll('.room-btn').forEach(btn => {

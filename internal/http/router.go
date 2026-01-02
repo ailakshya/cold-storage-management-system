@@ -702,6 +702,8 @@ func NewRouter(
 		vizAPI.HandleFunc("/stats", roomVisualizationHandler.GetRoomStats).Methods("GET")
 		vizAPI.HandleFunc("/gatar", roomVisualizationHandler.GetGatarOccupancy).Methods("GET")
 		vizAPI.HandleFunc("/gatar-details", roomVisualizationHandler.GetGatarDetails).Methods("GET")
+		vizAPI.HandleFunc("/gatar-stock", roomVisualizationHandler.GetPerGatarStock).Methods("GET")
+		vizAPI.HandleFunc("/gatar-search", roomVisualizationHandler.SearchByGatar).Methods("GET")
 	}
 
 	// Health endpoints (basic health for K8s probes, detailed requires auth)

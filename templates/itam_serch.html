@@ -109,6 +109,7 @@
                 <input type="text" id="filterPhone" placeholder="Phone Number" class="neu-brutal-input" oninput="debouncedFilter()">
                 <input type="text" id="filterRoom" placeholder="Room Number" class="neu-brutal-input" oninput="debouncedFilter()">
                 <input type="text" id="filterFloor" placeholder="Floor Number" class="neu-brutal-input" oninput="debouncedFilter()">
+                <input type="text" id="filterGatar" placeholder="Gatar Number" class="neu-brutal-input" oninput="debouncedFilter()">
                 <input type="date" id="filterDateFrom" placeholder="Date From" class="neu-brutal-input" onchange="applyFilter()">
                 <input type="date" id="filterDateTo" placeholder="Date To" class="neu-brutal-input" onchange="applyFilter()">
             </div>
@@ -290,6 +291,7 @@
                               document.getElementById('filterPhone').value ||
                               document.getElementById('filterRoom').value ||
                               document.getElementById('filterFloor').value ||
+                              document.getElementById('filterGatar').value ||
                               document.getElementById('filterDateFrom').value ||
                               document.getElementById('filterDateTo').value;
 
@@ -380,6 +382,7 @@
             const phoneFilter = document.getElementById('filterPhone').value;
             const roomFilter = document.getElementById('filterRoom').value;
             const floorFilter = document.getElementById('filterFloor').value;
+            const gatarFilter = document.getElementById('filterGatar').value;
             const dateFrom = document.getElementById('filterDateFrom').value;
             const dateTo = document.getElementById('filterDateTo').value;
 
@@ -402,6 +405,16 @@
                     matches = false;
                 }
                 if (!fuzzyMatch(floorFilter, entry.floor)) {
+                    matches = false;
+                }
+                // Gatar filter - check if the entered gatar number exists in the comma-separated gate_no field
+                if (gatarFilter && entry.gateNo) {
+                    const gatarNos = entry.gateNo.split(',').map(g => g.trim());
+                    const searchGatar = gatarFilter.trim();
+                    if (!gatarNos.some(g => g.includes(searchGatar))) {
+                        matches = false;
+                    }
+                } else if (gatarFilter && !entry.gateNo) {
                     matches = false;
                 }
 
@@ -436,6 +449,7 @@
             document.getElementById('filterPhone').value = '';
             document.getElementById('filterRoom').value = '';
             document.getElementById('filterFloor').value = '';
+            document.getElementById('filterGatar').value = '';
             document.getElementById('filterDateFrom').value = '';
             document.getElementById('filterDateTo').value = '';
 
@@ -504,6 +518,7 @@
                 document.getElementById('filterPhone').value ||
                 document.getElementById('filterRoom').value ||
                 document.getElementById('filterFloor').value ||
+                document.getElementById('filterGatar').value ||
                 document.getElementById('filterDateFrom').value ||
                 document.getElementById('filterDateTo').value;
 
