@@ -116,7 +116,20 @@ func (s *RoomEntryService) GetRoomEntry(ctx context.Context, id int) (*models.Ro
 }
 
 func (s *RoomEntryService) ListRoomEntries(ctx context.Context) ([]*models.RoomEntry, error) {
-	return s.RoomEntryRepo.List(ctx)
+	roomEntries, err := s.RoomEntryRepo.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Fetch gatars for each room entry
+	for _, re := range roomEntries {
+		gatars, err := s.RoomEntryGatarRepo.GetByRoomEntryID(ctx, re.ID)
+		if err == nil && len(gatars) > 0 {
+			re.Gatars = gatars
+		}
+	}
+
+	return roomEntries, nil
 }
 
 func (s *RoomEntryService) GetUnassignedEntries(ctx context.Context) ([]*models.Entry, error) {
