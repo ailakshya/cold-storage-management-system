@@ -466,9 +466,8 @@
                                     <th class="text-left p-2 font-bold" data-i18n="truck_number">Truck No</th>
                                     <th class="text-left p-2 font-bold" data-i18n="room">Room</th>
                                     <th class="text-left p-2 font-bold" data-i18n="floor">Floor</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="gatar">Gatar</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="remark">Remark</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="gatar_details">Gatar Details</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="total_qty">Total Qty</th>
                                     <th class="text-left p-2 font-bold" data-i18n="date">Date</th>
                                 </tr>
                             </thead>
@@ -1624,8 +1623,39 @@
                 console.error('Error loading room entries:', error);
                 const errorMsg = i18n.t('failed_load_room_entries', 'Failed to load room entries');
                 document.getElementById('roomEntriesTableBody').innerHTML =
-                    `<tr><td colspan="7" class="text-center p-4 text-red-500">${errorMsg}</td></tr>`;
+                    `<tr><td colspan="6" class="text-center p-4 text-red-500">${errorMsg}</td></tr>`;
             }
+        }
+
+        // Format gatar details: show each gatar with its quantity-quality
+        function formatGatarDetails(entry) {
+            // If gatars array is available from room_entry_gatars table
+            if (entry.gatars && entry.gatars.length > 0) {
+                return entry.gatars.map(g =>
+                    `<span class="inline-block bg-blue-100 px-2 py-1 rounded mr-1 mb-1 text-sm">G${g.gatar_no}: ${g.quantity}-${g.quality || 'N'}</span>`
+                ).join('');
+            }
+
+            // Fallback: parse from existing fields
+            const gatars = (entry.gate_no || '').split(',').map(s => s.trim()).filter(s => s);
+            const breakdown = (entry.quantity_breakdown || '').split(',').map(s => s.trim()).filter(s => s);
+
+            // Extract quality from remark (parts like 5-N, 5-D, 10-U)
+            const remarkParts = (entry.remark || '').split(',').map(s => s.trim());
+            const qualityParts = remarkParts.filter(r => /^\d+-[NUDG]$/i.test(r));
+
+            if (gatars.length === 0) return '-';
+
+            return gatars.map((g, i) => {
+                const qty = breakdown[i] || '';
+                let quality = 'N';
+                if (qualityParts[i]) {
+                    const parts = qualityParts[i].split('-');
+                    if (parts.length === 2) quality = parts[1].toUpperCase();
+                }
+                const displayText = qty ? `G${g}: ${qty}-${quality}` : `G${g}`;
+                return `<span class="inline-block bg-blue-100 px-2 py-1 rounded mr-1 mb-1 text-sm">${displayText}</span>`;
+            }).join('');
         }
 
         function displayRoomEntries(roomEntries) {
@@ -1633,7 +1663,7 @@
 
             if (roomEntries.length === 0) {
                 const noEntriesMsg = i18n.t('no_room_entries', 'No room entries yet');
-                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-gray-500">${noEntriesMsg}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">${noEntriesMsg}</td></tr>`;
                 return;
             }
 
@@ -1647,8 +1677,6 @@
                     minute: '2-digit'
                 });
                 const thockColor = getThockColor(entry.thock_number);
-
-                const breakdownDisplay = entry.quantity_breakdown ? `<span class="text-xs text-gray-500">(${entry.quantity_breakdown})</span>` : '';
                 const varietyDisplay = entry.variety ? `<br><span class="text-xs text-green-600"><i class="bi bi-tag"></i> ${entry.variety}</span>` : '';
 
                 return `
@@ -1656,9 +1684,8 @@
                         <td class="p-2 font-bold" style="${thockColor}">${entry.thock_number}${varietyDisplay}</td>
                         <td class="p-2">${entry.room_no}</td>
                         <td class="p-2">${entry.floor}</td>
-                        <td class="p-2">${entry.gate_no}</td>
-                        <td class="p-2">${entry.remark || '-'}</td>
-                        <td class="p-2">${entry.quantity} ${breakdownDisplay}</td>
+                        <td class="p-2">${formatGatarDetails(entry)}</td>
+                        <td class="p-2">${entry.quantity}</td>
                         <td class="p-2 text-sm">${formattedDate}</td>
                     </tr>
                 `;
