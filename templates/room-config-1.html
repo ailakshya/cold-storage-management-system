@@ -466,8 +466,9 @@
                                     <th class="text-left p-2 font-bold" data-i18n="truck_number">Truck No</th>
                                     <th class="text-left p-2 font-bold" data-i18n="room">Room</th>
                                     <th class="text-left p-2 font-bold" data-i18n="floor">Floor</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="gatar">Gatar</th>
                                     <th class="text-left p-2 font-bold" data-i18n="gatar_details">Gatar Details</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="total_qty">Total Qty</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
                                     <th class="text-left p-2 font-bold" data-i18n="date">Date</th>
                                 </tr>
                             </thead>
@@ -1623,7 +1624,7 @@
                 console.error('Error loading room entries:', error);
                 const errorMsg = i18n.t('failed_load_room_entries', 'Failed to load room entries');
                 document.getElementById('roomEntriesTableBody').innerHTML =
-                    `<tr><td colspan="6" class="text-center p-4 text-red-500">${errorMsg}</td></tr>`;
+                    `<tr><td colspan="7" class="text-center p-4 text-red-500">${errorMsg}</td></tr>`;
             }
         }
 
@@ -1663,7 +1664,7 @@
 
             if (roomEntries.length === 0) {
                 const noEntriesMsg = i18n.t('no_room_entries', 'No room entries yet');
-                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">${noEntriesMsg}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center p-4 text-gray-500">${noEntriesMsg}</td></tr>`;
                 return;
             }
 
@@ -1678,14 +1679,16 @@
                 });
                 const thockColor = getThockColor(entry.thock_number);
                 const varietyDisplay = entry.variety ? `<br><span class="text-xs text-green-600"><i class="bi bi-tag"></i> ${entry.variety}</span>` : '';
+                const breakdownDisplay = entry.quantity_breakdown ? `<span class="text-xs text-gray-500">(${entry.quantity_breakdown})</span>` : '';
 
                 return `
                     <tr class="border-b border-gray-200 hover:bg-gray-50">
                         <td class="p-2 font-bold" style="${thockColor}">${entry.thock_number}${varietyDisplay}</td>
                         <td class="p-2">${entry.room_no}</td>
                         <td class="p-2">${entry.floor}</td>
+                        <td class="p-2">${entry.gate_no || '-'}</td>
                         <td class="p-2">${formatGatarDetails(entry)}</td>
-                        <td class="p-2">${entry.quantity}</td>
+                        <td class="p-2">${entry.quantity} ${breakdownDisplay}</td>
                         <td class="p-2 text-sm">${formattedDate}</td>
                     </tr>
                 `;
