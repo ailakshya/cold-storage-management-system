@@ -53,6 +53,7 @@ func NewRouter(
 	razorpayHandler *handlers.RazorpayHandler,
 	pendingSettingHandler *handlers.PendingSettingHandler,
 	totpHandler *handlers.TOTPHandler,
+	restoreHandler *handlers.RestoreHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -135,6 +136,7 @@ func NewRouter(
 	r.HandleFunc("/system-settings", pageHandler.SystemSettingsPage).Methods("GET")
 	r.HandleFunc("/admin/report", pageHandler.AdminReportPage).Methods("GET")
 	r.HandleFunc("/admin/logs", pageHandler.AdminLogsPage).Methods("GET")
+	r.HandleFunc("/admin/restore", pageHandler.RestorePage).Methods("GET")
 	r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
 	r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
@@ -672,6 +674,17 @@ func NewRouter(
 		settingChangesAPI.HandleFunc("/{id}/approve", pendingSettingHandler.ApproveChange).Methods("POST")
 		// Reject a change
 		settingChangesAPI.HandleFunc("/{id}/reject", pendingSettingHandler.RejectChange).Methods("POST")
+	}
+
+	// Protected API routes - Point-in-Time Restore (admin only)
+	if restoreHandler != nil {
+		restoreAPI := r.PathPrefix("/api/admin/restore").Subrouter()
+		restoreAPI.Use(authMiddleware.Authenticate)
+		restoreAPI.Use(authMiddleware.RequireRole("admin"))
+		restoreAPI.HandleFunc("/snapshots", restoreHandler.ListRestorePoints).Methods("GET")
+		restoreAPI.HandleFunc("/closest", restoreHandler.FindClosestSnapshot).Methods("GET")
+		restoreAPI.HandleFunc("/preview", restoreHandler.PreviewRestore).Methods("POST")
+		restoreAPI.HandleFunc("/execute", restoreHandler.ExecuteRestore).Methods("POST")
 	}
 
 	// Protected API routes - Entry Room (optimized single-call endpoint)

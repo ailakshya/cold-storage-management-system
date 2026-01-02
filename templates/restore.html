@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Point-in-Time Restore - Cold Storage</title>
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <link href="/static/css/responsive.css" rel="stylesheet">
+    <link href="/static/css/inventory-theme.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .neu-border {
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .neu-button {
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .stat-card {
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            padding: 1.5rem;
+            background: white;
+            border-radius: 12px;
+        }
+        .date-card {
+            padding: 1rem;
+            border: 2px solid #e0e6ed;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        .date-card:hover { border-color: #4a90a4; background: #f0f9ff; }
+        .date-card.selected { border-color: #4a90a4; background: #e0f2fe; }
+        .snapshot-row {
+            padding: 0.75rem 1rem;
+            border: 1px solid #e0e6ed;
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: white;
+        }
+        .snapshot-row:hover { background: #f0f9ff; border-color: #4a90a4; }
+        .snapshot-row.selected { background: #dbeafe; border-color: #3b82f6; }
+        .time-badge {
+            background: #4a90a4;
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+            font-weight: 600;
+        }
+        .warning-box {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        .danger-box {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        .confirmation-input {
+            font-size: 1.5rem;
+            font-weight: bold;
+            text-align: center;
+            letter-spacing: 0.2rem;
+            text-transform: uppercase;
+            padding: 1rem;
+            border: 2px solid #e0e6ed;
+            border-radius: 10px;
+        }
+        .confirmation-input:focus { border-color: #ef4444; outline: none; }
+        .progress-bar {
+            height: 8px;
+            background: #e0e6ed;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: #4a90a4;
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        @media (max-width: 1023px) and (orientation: portrait) {
+            body { font-size: 0.875rem; }
+            .stat-card { padding: 0.75rem; }
+            .stat-card p.text-3xl { font-size: 1.25rem; }
+            h1 { font-size: 1.25rem !important; }
+        }
+    </style>
+    <script src="/static/js/prefetch.js?v=5"></script>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body class="bg-[#f8fafb] min-h-screen p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 neu-border bg-white p-4 md:p-6 gap-4">
+            <div>
+                <h1 class="text-2xl md:text-3xl font-bold flex items-center gap-3">
+                    <i class="bi bi-clock-history text-orange-600"></i>
+                    Point-in-Time Restore
+                </h1>
+                <p class="text-gray-600 mt-2 text-sm md:text-base">Restore database to any previous point in time from R2 snapshots</p>
+            </div>
+            <div class="flex gap-2 md:gap-4 w-full md:w-auto justify-end">
+                <button onclick="theme.toggle()" class="neu-button bg-gray-200" title="Toggle Dark Mode">
+                    <i class="bi bi-moon-fill theme-icon-moon"></i>
+                    <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
+                <button onclick="loadDates()" class="neu-button bg-blue-500 text-white">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+                <button onclick="window.location.href='/admin/dashboard'" class="neu-button bg-gray-200">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="stat-card bg-blue-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600">Total Snapshots</p>
+                        <p class="text-3xl font-bold text-blue-600" id="totalSnapshots">-</p>
+                    </div>
+                    <i class="bi bi-database text-4xl text-blue-600"></i>
+                </div>
+            </div>
+            <div class="stat-card bg-green-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600">Available Dates</p>
+                        <p class="text-3xl font-bold text-green-600" id="totalDates">-</p>
+                    </div>
+                    <i class="bi bi-calendar3 text-4xl text-green-600"></i>
+                </div>
+            </div>
+            <div class="stat-card bg-orange-100">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm text-gray-600">Backup Frequency</p>
+                        <p class="text-3xl font-bold text-orange-600">1 min</p>
+                    </div>
+                    <i class="bi bi-clock text-4xl text-orange-600"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Step 1: Select Date -->
+            <div class="neu-border bg-white p-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm">1</span>
+                    Select Date
+                </h2>
+                <div id="dateList" class="space-y-3 max-h-96 overflow-y-auto">
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="bi bi-hourglass-split text-4xl"></i>
+                        <p class="mt-2">Loading dates...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Select Time -->
+            <div class="neu-border bg-white p-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm">2</span>
+                    Select Time
+                </h2>
+                <div id="snapshotList" class="space-y-2 max-h-96 overflow-y-auto">
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="bi bi-calendar-date text-4xl"></i>
+                        <p class="mt-2">Select a date first</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Confirm & Restore -->
+            <div class="neu-border bg-white p-6">
+                <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+                    <span class="bg-blue-500 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm">3</span>
+                    Confirm & Restore
+                </h2>
+                <div id="confirmPanel">
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="bi bi-clock-history text-4xl"></i>
+                        <p class="mt-2">Select a snapshot to restore</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warning Box -->
+        <div class="warning-box mt-8">
+            <div class="flex items-start gap-4">
+                <i class="bi bi-exclamation-triangle-fill text-3xl text-amber-600"></i>
+                <div>
+                    <h3 class="font-bold text-lg text-amber-800">Important Information</h3>
+                    <ul class="mt-2 text-amber-700 space-y-1">
+                        <li><i class="bi bi-check-circle"></i> A backup of current data will be created before restore</li>
+                        <li><i class="bi bi-check-circle"></i> Restore will replace ALL current data with snapshot data</li>
+                        <li><i class="bi bi-check-circle"></i> This action cannot be undone (except by restoring another snapshot)</li>
+                        <li><i class="bi bi-check-circle"></i> Rate limited to 1 restore per 5 minutes</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content">
+            <div class="danger-box mb-6">
+                <div class="flex items-center gap-3 mb-3">
+                    <i class="bi bi-exclamation-octagon-fill text-2xl text-red-600"></i>
+                    <h3 class="font-bold text-lg text-red-800">Confirm Database Restore</h3>
+                </div>
+                <p class="text-red-700">You are about to restore the database to:</p>
+                <p class="font-bold text-xl mt-2" id="modalSnapshotTime">-</p>
+                <p class="text-sm text-red-600 mt-2" id="modalSnapshotSize">-</p>
+            </div>
+
+            <p class="mb-4 text-gray-700">Type <strong>RESTORE</strong> to confirm:</p>
+            <input type="text" id="confirmInput" class="confirmation-input w-full mb-4" placeholder="Type RESTORE">
+
+            <div class="flex gap-4">
+                <button onclick="closeModal()" class="neu-button bg-gray-200 flex-1">
+                    <i class="bi bi-x-circle"></i> Cancel
+                </button>
+                <button onclick="executeRestore()" id="restoreBtn" class="neu-button bg-red-500 text-white flex-1" disabled>
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore Now
+                </button>
+            </div>
+
+            <div id="restoreProgress" class="hidden mt-6">
+                <p class="text-center text-gray-600 mb-2">Restoring database...</p>
+                <div class="progress-bar">
+                    <div class="progress-bar-fill" id="progressFill" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = '/login';
+        }
+
+        let selectedDate = null;
+        let selectedSnapshot = null;
+        let confirmationToken = null;
+
+        async function loadDates() {
+            try {
+                const response = await fetch('/api/admin/restore/snapshots', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load dates');
+                }
+
+                document.getElementById('totalSnapshots').textContent = data.total_backups.toLocaleString();
+                document.getElementById('totalDates').textContent = data.dates.length;
+
+                const dateList = document.getElementById('dateList');
+                if (data.dates.length === 0) {
+                    dateList.innerHTML = `
+                        <div class="text-center text-gray-500 py-8">
+                            <i class="bi bi-database-x text-4xl"></i>
+                            <p class="mt-2">No backups found in R2</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                dateList.innerHTML = data.dates.map(d => `
+                    <div class="date-card" onclick="selectDate('${d.date}', this)">
+                        <div class="flex justify-between items-center">
+                            <div>
+                                <p class="font-bold">${formatDate(d.date)}</p>
+                                <p class="text-sm text-gray-500">${d.count} snapshots</p>
+                            </div>
+                            <div class="text-right text-sm text-gray-600">
+                                <p>${d.earliest_time} - ${d.latest_time}</p>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading dates:', error);
+                document.getElementById('dateList').innerHTML = `
+                    <div class="text-center text-red-500 py-8">
+                        <i class="bi bi-exclamation-triangle text-4xl"></i>
+                        <p class="mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function selectDate(date, element) {
+            selectedDate = date;
+            selectedSnapshot = null;
+
+            // Update UI
+            document.querySelectorAll('.date-card').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+
+            // Reset confirm panel
+            document.getElementById('confirmPanel').innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="bi bi-clock-history text-4xl"></i>
+                    <p class="mt-2">Select a snapshot to restore</p>
+                </div>
+            `;
+
+            // Load snapshots for date
+            try {
+                document.getElementById('snapshotList').innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        <i class="bi bi-hourglass-split text-2xl"></i>
+                        <p class="mt-2">Loading snapshots...</p>
+                    </div>
+                `;
+
+                const response = await fetch(`/api/admin/restore/snapshots?date=${date}`, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load snapshots');
+                }
+
+                const snapshotList = document.getElementById('snapshotList');
+                snapshotList.innerHTML = data.snapshots.map(s => `
+                    <div class="snapshot-row" onclick="selectSnapshot('${s.key}', '${s.timestamp}', ${s.size}, this)">
+                        <div class="flex justify-between items-center">
+                            <span class="time-badge">${s.timestamp}</span>
+                            <span class="text-sm text-gray-600">${formatSize(s.size)}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                document.getElementById('snapshotList').innerHTML = `
+                    <div class="text-center text-red-500 py-4">
+                        <i class="bi bi-exclamation-triangle text-2xl"></i>
+                        <p class="mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        async function selectSnapshot(key, timestamp, size, element) {
+            selectedSnapshot = { key, timestamp, size };
+
+            // Update UI
+            document.querySelectorAll('.snapshot-row').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+
+            // Show confirm panel
+            document.getElementById('confirmPanel').innerHTML = `
+                <div class="space-y-4">
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <p class="text-sm text-gray-600">Selected Restore Point</p>
+                        <p class="font-bold text-xl text-blue-700">${formatDate(selectedDate)} ${timestamp}</p>
+                        <p class="text-sm text-gray-500 mt-1">${formatSize(size)}</p>
+                    </div>
+                    <button onclick="previewRestore()" class="neu-button bg-orange-500 text-white w-full">
+                        <i class="bi bi-eye"></i> Preview Restore
+                    </button>
+                </div>
+            `;
+        }
+
+        async function previewRestore() {
+            if (!selectedSnapshot) return;
+
+            try {
+                const response = await fetch('/api/admin/restore/preview', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ snapshot_key: selectedSnapshot.key })
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to preview restore');
+                }
+
+                confirmationToken = data.preview.confirmation_token;
+
+                // Show modal
+                document.getElementById('modalSnapshotTime').textContent =
+                    `${formatDate(selectedDate)} ${selectedSnapshot.timestamp}`;
+                document.getElementById('modalSnapshotSize').textContent =
+                    `Size: ${data.preview.size_formatted} | Token expires in ${data.preview.expires_in_seconds}s`;
+                document.getElementById('confirmInput').value = '';
+                document.getElementById('restoreBtn').disabled = true;
+                document.getElementById('restoreProgress').classList.add('hidden');
+                document.getElementById('confirmModal').classList.add('active');
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        document.getElementById('confirmInput').addEventListener('input', function(e) {
+            const isValid = e.target.value.toUpperCase() === 'RESTORE';
+            document.getElementById('restoreBtn').disabled = !isValid;
+        });
+
+        async function executeRestore() {
+            if (!selectedSnapshot || !confirmationToken) return;
+
+            try {
+                document.getElementById('restoreProgress').classList.remove('hidden');
+                document.getElementById('restoreBtn').disabled = true;
+
+                // Animate progress bar
+                let progress = 0;
+                const progressInterval = setInterval(() => {
+                    progress += 5;
+                    if (progress > 90) progress = 90;
+                    document.getElementById('progressFill').style.width = progress + '%';
+                }, 500);
+
+                const response = await fetch('/api/admin/restore/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        snapshot_key: selectedSnapshot.key,
+                        confirmation_token: confirmationToken
+                    })
+                });
+                const data = await response.json();
+
+                clearInterval(progressInterval);
+                document.getElementById('progressFill').style.width = '100%';
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Restore failed');
+                }
+
+                setTimeout(() => {
+                    alert('Database restored successfully!\n\nPre-restore backup: ' + data.result.pre_restore_backup);
+                    closeModal();
+                    loadDates();
+                }, 500);
+            } catch (error) {
+                document.getElementById('restoreProgress').classList.add('hidden');
+                alert('Restore failed: ' + error.message);
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('confirmModal').classList.remove('active');
+            confirmationToken = null;
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+        }
+
+        function formatSize(bytes) {
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
+
+        // Close modal on outside click
+        document.getElementById('confirmModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // Load data on page load
+        loadDates();
+    </script>
+</body>
+</html>

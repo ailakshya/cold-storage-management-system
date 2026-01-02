@@ -131,6 +131,11 @@ func (h *PageHandler) AdminLogsPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "admin_logs.html", nil)
 }
 
+// RestorePage serves point-in-time restore page (admin only)
+func (h *PageHandler) RestorePage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "restore.html", nil)
+}
+
 // GatePassEntryPage serves gate pass entry page (unloading mode)
 func (h *PageHandler) GatePassEntryPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "gate_pass_entry.html", nil)

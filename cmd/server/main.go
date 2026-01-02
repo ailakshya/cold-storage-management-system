@@ -717,8 +717,12 @@ func main() {
 			totpService,
 		)
 
+		// Initialize point-in-time restore service and handler
+		restoreService := services.NewRestoreService(pool, connStr)
+		restoreHandler := handlers.NewRestoreHandler(restoreService)
+
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {
