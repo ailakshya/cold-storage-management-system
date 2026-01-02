@@ -1629,35 +1629,16 @@
             }
         }
 
-        // Format gatar details: show each gatar with its quantity-quality
+        // Format gatar details: only show for new entries with room_entry_gatars data
         function formatGatarDetails(entry) {
-            // If gatars array is available from room_entry_gatars table
+            // Only show if gatars array exists (new entries with room_entry_gatars data)
             if (entry.gatars && entry.gatars.length > 0) {
                 return entry.gatars.map(g =>
                     `<span class="inline-block bg-blue-100 px-2 py-1 rounded mr-1 mb-1 text-sm">G${g.gatar_no}: ${g.quantity}-${g.quality || 'N'}</span>`
                 ).join('');
             }
-
-            // Fallback: parse from existing fields
-            const gatars = (entry.gate_no || '').split(',').map(s => s.trim()).filter(s => s);
-            const breakdown = (entry.quantity_breakdown || '').split(',').map(s => s.trim()).filter(s => s);
-
-            // Extract quality from remark (parts like 5-N, 5-D, 10-U)
-            const remarkParts = (entry.remark || '').split(',').map(s => s.trim());
-            const qualityParts = remarkParts.filter(r => /^\d+-[NUDG]$/i.test(r));
-
-            if (gatars.length === 0) return '-';
-
-            return gatars.map((g, i) => {
-                const qty = breakdown[i] || '';
-                let quality = 'N';
-                if (qualityParts[i]) {
-                    const parts = qualityParts[i].split('-');
-                    if (parts.length === 2) quality = parts[1].toUpperCase();
-                }
-                const displayText = qty ? `G${g}: ${qty}-${quality}` : `G${g}`;
-                return `<span class="inline-block bg-blue-100 px-2 py-1 rounded mr-1 mb-1 text-sm">${displayText}</span>`;
-            }).join('');
+            // Old data - no gatar details available
+            return '-';
         }
 
         function displayRoomEntries(roomEntries) {
