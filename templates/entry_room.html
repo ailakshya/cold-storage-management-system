@@ -2032,10 +2032,15 @@
 
                 // Only allow edit if not yet in inventory
                 const editButton = !isInInventory
-                    ? `<button onclick="openEditEntryModal(${entry.id})" class="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600">
+                    ? `<button onclick="openEditEntryModal(${entry.id})" class="bg-blue-500 text-white px-2 py-1 rounded text-sm hover:bg-blue-600" title="Edit">
                             <i class="bi bi-pencil"></i>
                        </button>`
                     : `<span class="text-gray-400 text-xs">${entry.actual_quantity} items</span>`;
+
+                // Print button - always available
+                const printButton = `<button onclick="promptPrintLabels(${entry.id}, '${entry.thock_number}', '${entry.name.replace(/'/g, "\\'")}', '${entry.remark || ''}')" class="bg-purple-500 text-white px-2 py-1 rounded text-sm hover:bg-purple-600 ml-1" title="Print Labels">
+                        <i class="bi bi-printer"></i>
+                   </button>`;
 
                 return `
                     <tr class="border-b border-gray-200 hover:bg-gray-50 ${isInInventory ? 'bg-green-50' : ''}">
@@ -2047,8 +2052,8 @@
                         <td class="p-2"><span class="px-2 py-1 rounded text-xs font-bold ${categoryColor}">${entry.thock_category.toUpperCase()}</span></td>
                         <td class="p-2">${inventoryBadge}</td>
                         <td class="p-2 text-xs">${formattedDate}</td>
-                        <td class="p-2 text-right">
-                            ${editButton}
+                        <td class="p-2 text-right flex gap-1 justify-end">
+                            ${editButton}${printButton}
                         </td>
                     </tr>
                 `;
@@ -2216,6 +2221,15 @@
             // Get family member ID if selected
             const familyMemberId = parseInt(document.getElementById('selectedFamilyMemberId').value) || null;
 
+            // Get label count for printing
+            const labelCount = parseInt(document.getElementById('labelCount').value) || 0;
+
+            // Build remark with varieties and tag count
+            let remark = selectedVarieties.join(', ');
+            if (labelCount > 0) {
+                remark = remark ? `${remark}, Tags:${labelCount}` : `Tags:${labelCount}`;
+            }
+
             const entryData = {
                 customer_id: parseInt(document.getElementById('userId').value) || 0,
                 family_member_id: familyMemberId,
@@ -2225,7 +2239,7 @@
                 so: so,
                 expected_quantity: quantity,
                 thock_category: category,
-                remark: selectedVarieties.join(', ')
+                remark: remark
             };
 
             // Disable button and set loading state
@@ -2296,11 +2310,63 @@
                 const result = await response.json();
                 if (result.success) {
                     console.log('Printed', copies, 'label(s)');
+                    return true;
                 } else {
                     console.error('Print failed:', result.message);
+                    return false;
                 }
             } catch (err) {
                 console.error('Print error:', err);
+                return false;
+            }
+        }
+
+        // Prompt for print labels from table action button
+        async function promptPrintLabels(entryId, thockNumber, customerName, currentRemark) {
+            const copies = prompt('How many labels to print?', '1');
+            if (!copies || copies === '0') return;
+
+            const numCopies = parseInt(copies);
+            if (isNaN(numCopies) || numCopies < 1 || numCopies > 10) {
+                alert('Please enter a number between 1 and 10');
+                return;
+            }
+
+            // Print labels
+            const success = await printLabels(thockNumber, customerName, numCopies);
+            if (!success) {
+                alert('Failed to print labels');
+                return;
+            }
+
+            // Update remark with print count
+            try {
+                // Parse existing print count from remark
+                let totalPrinted = numCopies;
+                const printMatch = currentRemark.match(/Tags:(\d+)/);
+                if (printMatch) {
+                    totalPrinted += parseInt(printMatch[1]);
+                }
+
+                // Build new remark
+                let newRemark = currentRemark.replace(/Tags:\d+\s*/, '').trim();
+                newRemark = newRemark ? `${newRemark}, Tags:${totalPrinted}` : `Tags:${totalPrinted}`;
+
+                // Update entry remark via API
+                await fetch(`/api/entries/${entryId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ remark: newRemark })
+                });
+
+                alert(`Printed ${numCopies} label(s). Total tags: ${totalPrinted}`);
+                loadEntries(); // Refresh table
+            } catch (err) {
+                console.error('Failed to update remark:', err);
+                alert(`Printed ${numCopies} label(s), but failed to save count`);
             }
         }
 
