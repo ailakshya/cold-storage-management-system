@@ -701,7 +701,11 @@ func NewRouter(
 		printerAPI := r.PathPrefix("/api/print").Subrouter()
 		printerAPI.Use(authMiddleware.Authenticate)
 		printerAPI.HandleFunc("", printerHandler.Print2Up).Methods("POST")
-		printerAPI.HandleFunc("-receipt", printerHandler.PrintReceipt).Methods("POST")
+
+		// Receipt printing to HP printer
+		receiptAPI := r.PathPrefix("/api/print-receipt").Subrouter()
+		receiptAPI.Use(authMiddleware.Authenticate)
+		receiptAPI.HandleFunc("", printerHandler.PrintReceipt).Methods("POST")
 	}
 
 	// Protected API routes - Room Visualization (all authenticated users)
