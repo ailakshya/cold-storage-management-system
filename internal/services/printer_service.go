@@ -82,6 +82,36 @@ func (s *PrinterService) Print2Up(thockNumber, customerName string, copies int) 
 	return nil
 }
 
+// PrintReceipt sends HTML content to HP printer
+func (s *PrinterService) PrintReceipt(html string) error {
+	reqData := map[string]string{"html": html}
+	jsonData, err := json.Marshal(reqData)
+	if err != nil {
+		return fmt.Errorf("failed to marshal receipt request: %w", err)
+	}
+
+	resp, err := s.client.Post(
+		s.baseURL+"/print-receipt",
+		"application/json",
+		bytes.NewBuffer(jsonData),
+	)
+	if err != nil {
+		return fmt.Errorf("failed to send receipt request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var printResp PrintResponse
+	if err := json.NewDecoder(resp.Body).Decode(&printResp); err != nil {
+		return fmt.Errorf("failed to decode receipt response: %w", err)
+	}
+
+	if !printResp.Success {
+		return fmt.Errorf("receipt print failed: %s", printResp.Message)
+	}
+
+	return nil
+}
+
 func (s *PrinterService) sendPrintRequest(endpoint string, req PrintFullRequest) error {
 	jsonData, err := json.Marshal(req)
 	if err != nil {

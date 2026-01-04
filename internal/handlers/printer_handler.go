@@ -21,6 +21,10 @@ type PrintRequest struct {
 	Copies int    `json:"copies"`
 }
 
+type ReceiptPrintRequest struct {
+	HTML string `json:"html"`
+}
+
 func (h *PrinterHandler) Print2Up(w http.ResponseWriter, r *http.Request) {
 	var req PrintRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -46,5 +50,38 @@ func (h *PrinterHandler) Print2Up(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "Printed successfully",
+	})
+}
+
+func (h *PrinterHandler) PrintReceipt(w http.ResponseWriter, r *http.Request) {
+	var req ReceiptPrintRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	if req.HTML == "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": "No HTML content provided",
+		})
+		return
+	}
+
+	err := h.PrinterService.PrintReceipt(req.HTML)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Receipt printed to HP printer",
 	})
 }

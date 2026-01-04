@@ -3009,10 +3009,13 @@
                     </html>
                 `;
 
-                // Send to print server
-                const printResponse = await fetch('http://192.168.15.101:5000/print-receipt', {
+                // Send to print server via backend
+                const printResponse = await fetch('/api/print-receipt', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ html: fullHTML })
                 });
                 const printResult = await printResponse.json();
