@@ -2631,22 +2631,22 @@
                             ${roomEntry.thock_number}
                         </div>
 
-                        <div class="info-grid">
-                            <div class="info-cell">
-                                <div class="cell-label">ग्राहक का नाम | Customer:</div>
-                                <div class="cell-value">${capitalizeText(entry.name)}${entry.so ? ' S/O ' + capitalizeText(entry.so) : ''}</div>
+                        <div class="info-section">
+                            <div class="info-row">
+                                <span class="label">ग्राहक का नाम | Customer:</span>
+                                <span class="value">${capitalizeText(entry.name)}${entry.so ? ' S/O ' + capitalizeText(entry.so) : ''}</span>
                             </div>
-                            <div class="info-cell">
-                                <div class="cell-label">फोन | Phone:</div>
-                                <div class="cell-value">${entry.phone}</div>
+                            <div class="info-row">
+                                <span class="label">फोन | Phone:</span>
+                                <span class="value">${entry.phone}</span>
                             </div>
-                            <div class="info-cell">
-                                <div class="cell-label">ग्राम व पता | Village:</div>
-                                <div class="cell-value">${capitalizeText(entry.village) || 'N/A'}</div>
+                            <div class="info-row">
+                                <span class="label">ग्राम व पता | Village:</span>
+                                <span class="value">${capitalizeText(entry.village) || 'N/A'}</span>
                             </div>
-                            <div class="info-cell">
-                                <div class="cell-label">दिनांक | Date:</div>
-                                <div class="cell-value">${printDate}</div>
+                            <div class="info-row">
+                                <span class="label">दिनांक | Date:</span>
+                                <span class="value">${printDate}</span>
                             </div>
                         </div>
 
@@ -2660,9 +2660,9 @@
                             <div class="weight-value">${randomWeight} किग्रा</div>
                         </div>
 
-                        <div class="days-section">
-                            <div class="days-label">दिनांक:</div>
-                            <div class="days-value">55 दिन</div>
+                        <div class="category-section">
+                            <div class="category-label">श्रेणी:</div>
+                            <div class="category-value">${category}</div>
                         </div>
 
                         <div class="terms-section">
@@ -2735,37 +2735,63 @@
                                 color: #000;
                                 margin-top: 3px;
                             }
-                            .info-grid {
-                                display: grid;
-                                grid-template-columns: 1fr 1fr;
-                                margin-bottom: 12px;
-                            }
-                            .info-cell {
+                            .info-section {
                                 border: 2px solid #000;
-                                padding: 8px 10px;
-                                background: white;
+                                padding: 8px;
+                                margin-bottom: 8px;
                             }
-                            .cell-label {
+                            .info-row {
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                                margin-bottom: 8px;
+                                padding: 4px 0;
+                            }
+                            .info-row:last-child {
+                                margin-bottom: 0;
+                            }
+                            .label {
                                 font-size: 10px;
                                 color: #000;
                                 font-weight: bold;
-                                margin-bottom: 4px;
+                                display: inline-block;
+                                min-width: 120px;
                             }
-                            .cell-value {
-                                font-size: 13px;
+                            .value {
+                                font-size: 12px;
                                 color: #000;
                                 font-weight: bold;
+                                display: inline-block;
                             }
                             .truck-banner {
                                 border: 2px solid #000;
                                 color: #000;
                                 text-align: center;
-                                font-size: 24px;
+                                font-size: 20px;
                                 font-weight: bold;
-                                padding: 12px;
-                                margin-bottom: 12px;
+                                padding: 8px;
+                                margin-bottom: 8px;
                                 letter-spacing: 1px;
                                 background: white;
+                            }
+                            .category-section {
+                                border: 2px solid #000;
+                                padding: 8px;
+                                margin: 8px 0;
+                                background: white;
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                            }
+                            .category-label {
+                                font-size: 10px;
+                                font-weight: bold;
+                                color: #000;
+                            }
+                            .category-value {
+                                font-size: 14px;
+                                font-weight: bold;
+                                color: #000;
                             }
                             .location-section {
                                 border: 1px solid #000;
@@ -2825,44 +2851,6 @@
                             }
                             .weight-value {
                                 font-size: 18px;
-                                font-weight: bold;
-                                color: #000;
-                            }
-                            .days-section {
-                                border: 3px solid #000;
-                                padding: 12px;
-                                margin: 12px 0;
-                                background: white;
-                                display: flex;
-                                justify-content: space-between;
-                                align-items: center;
-                            }
-                            .days-label {
-                                font-size: 12px;
-                                font-weight: bold;
-                                color: #000;
-                            }
-                            .days-value {
-                                font-size: 18px;
-                                font-weight: bold;
-                                color: #000;
-                            }
-                            .category-section {
-                                border: 2px solid #000;
-                                padding: 8px;
-                                margin: 8px 0;
-                                background: white;
-                                display: flex;
-                                justify-content: space-between;
-                                align-items: center;
-                            }
-                            .category-label {
-                                font-size: 10px;
-                                font-weight: bold;
-                                color: #000;
-                            }
-                            .category-value {
-                                font-size: 14px;
                                 font-weight: bold;
                                 color: #000;
                             }
