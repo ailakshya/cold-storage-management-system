@@ -2631,22 +2631,22 @@
                             ${roomEntry.thock_number}
                         </div>
 
-                        <div class="info-section">
-                            <div class="info-row">
-                                <span class="label">ग्राहक का नाम | Customer:</span>
-                                <span class="value">${capitalizeText(entry.name)}${entry.so ? ' S/O ' + capitalizeText(entry.so) : ''}</span>
+                        <div class="info-grid">
+                            <div class="info-cell">
+                                <div class="cell-label">ग्राहक का नाम | Customer:</div>
+                                <div class="cell-value">${capitalizeText(entry.name)}${entry.so ? ' S/O ' + capitalizeText(entry.so) : ''}</div>
                             </div>
-                            <div class="info-row">
-                                <span class="label">फोन | Phone:</span>
-                                <span class="value">${entry.phone}</span>
+                            <div class="info-cell">
+                                <div class="cell-label">फोन | Phone:</div>
+                                <div class="cell-value">${entry.phone}</div>
                             </div>
-                            <div class="info-row">
-                                <span class="label">ग्राम व पता | Village:</span>
-                                <span class="value">${capitalizeText(entry.village) || 'N/A'}</span>
+                            <div class="info-cell">
+                                <div class="cell-label">ग्राम व पता | Village:</div>
+                                <div class="cell-value">${capitalizeText(entry.village) || 'N/A'}</div>
                             </div>
-                            <div class="info-row">
-                                <span class="label">दिनांक | Date:</span>
-                                <span class="value">${printDate}</span>
+                            <div class="info-cell">
+                                <div class="cell-label">दिनांक | Date:</div>
+                                <div class="cell-value">${printDate}</div>
                             </div>
                         </div>
 
@@ -2735,47 +2735,37 @@
                                 color: #000;
                                 margin-top: 3px;
                             }
-                            .info-section {
+                            .info-grid {
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                margin-bottom: 12px;
+                            }
+                            .info-cell {
                                 border: 2px solid #000;
-                                padding: 10px;
-                                margin-bottom: 10px;
+                                padding: 8px 10px;
+                                background: white;
+                            }
+                            .cell-label {
+                                font-size: 10px;
+                                color: #000;
+                                font-weight: bold;
+                                margin-bottom: 4px;
+                            }
+                            .cell-value {
+                                font-size: 13px;
+                                color: #000;
+                                font-weight: bold;
                             }
                             .truck-banner {
                                 border: 2px solid #000;
                                 color: #000;
                                 text-align: center;
-                                font-size: 22px;
+                                font-size: 24px;
                                 font-weight: bold;
-                                padding: 10px;
-                                margin-bottom: 10px;
+                                padding: 12px;
+                                margin-bottom: 12px;
                                 letter-spacing: 1px;
                                 background: white;
-                            }
-                            .info-row {
-                                display: flex;
-                                justify-content: space-between;
-                                align-items: center;
-                                margin-bottom: 8px;
-                                padding: 4px 0;
-                            }
-                            .info-item {
-                                flex: 1;
-                                padding: 4px;
-                                border: 1px solid #000;
-                                background: white;
-                            }
-                            .label {
-                                font-size: 11px;
-                                color: #000;
-                                font-weight: bold;
-                                display: inline-block;
-                                min-width: 120px;
-                            }
-                            .value {
-                                font-size: 12px;
-                                color: #000;
-                                font-weight: bold;
-                                display: inline-block;
                             }
                             .location-section {
                                 border: 1px solid #000;
