@@ -2694,8 +2694,8 @@
                         <title>Entry Receipt - ${roomEntry.thock_number}</title>
                         <style>
                             @page {
-                                size: A4 portrait;
-                                margin: 10mm;
+                                size: A4 landscape;
+                                margin: 5mm;
                             }
                             * {
                                 margin: 0;
@@ -2705,22 +2705,23 @@
                             body {
                                 font-family: 'Arial', sans-serif;
                                 background: white;
-                                padding: 0;
+                                padding: 5px;
                                 margin: 0;
                             }
-                            .receipt {
-                                width: 100%;
+                            .container {
+                                display: flex;
+                                gap: 20px;
                                 height: 100vh;
-                                border: 3px solid #000;
-                                padding: 25px;
+                                justify-content: center;
+                            }
+                            .receipt {
+                                width: 48%;
+                                border: 2px solid #000;
+                                padding: 12px;
                                 background: white;
                                 display: flex;
                                 flex-direction: column;
                                 box-sizing: border-box;
-                                page-break-after: always;
-                            }
-                            .receipt:last-child {
-                                page-break-after: avoid;
                             }
                             .header {
                                 text-align: center;
@@ -2997,9 +2998,10 @@
                         <script src="/static/js/theme.js"></script>
 </head>
                     <body>
-                        ${receiptHTML}
-                        ${receiptHTML}
-
+                        <div class="container">
+                            ${receiptHTML}
+                            ${receiptHTML}
+                        </div>
                     </body>
                     </html>
                 `;
