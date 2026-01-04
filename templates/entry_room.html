@@ -2616,8 +2616,6 @@
                 // Generate random weight between 55-57 kg (whole numbers)
                 const randomWeight = Math.floor(Math.random() * (58 - 55) + 55);
 
-                // Get category from room entry
-                const category = roomEntry.thock_category === 'seed' ? 'बीज (Seed)' : 'खाने वाला (Table)';
 
                 // Create receipt HTML (2 copies side by side) - Hindi Format
                 const receiptHTML = `
@@ -2689,7 +2687,7 @@
                         <title>Entry Receipt - ${roomEntry.thock_number}</title>
                         <style>
                             @page {
-                                size: A4 portrait;
+                                size: landscape;
                                 margin: 10mm;
                             }
                             * {
@@ -2700,18 +2698,18 @@
                             body {
                                 font-family: 'Arial', sans-serif;
                                 background: white;
-                                padding: 0;
-                                margin: 0;
+                                padding: 10px;
+                            }
+                            .container {
+                                display: block;
                             }
                             .receipt {
                                 width: 100%;
-                                height: 100vh;
+                                max-width: 700px;
+                                margin: 0 auto 20px auto;
                                 border: 3px solid #000;
                                 padding: 25px;
                                 background: white;
-                                display: flex;
-                                flex-direction: column;
-                                box-sizing: border-box;
                                 page-break-after: always;
                             }
                             .receipt:last-child {
@@ -2719,76 +2717,60 @@
                             }
                             .header {
                                 text-align: center;
-                                border-bottom: 2px solid #000;
-                                padding-bottom: 10px;
-                                margin-bottom: 12px;
+                                border-bottom: 3px solid #000;
+                                padding-bottom: 15px;
+                                margin-bottom: 20px;
                             }
                             .header h1 {
-                                font-size: 20px;
+                                font-size: 28px;
                                 font-weight: bold;
                             }
                             .header p {
-                                font-size: 9px;
+                                font-size: 12px;
                                 color: #000;
-                                margin-top: 3px;
+                                margin-top: 5px;
                             }
                             .info-section {
                                 border: 2px solid #000;
-                                padding: 8px;
-                                margin-bottom: 8px;
+                                padding: 15px;
+                                margin-bottom: 20px;
+                            }
+                            .truck-banner {
+                                border: 3px solid #000;
+                                color: #000;
+                                text-align: center;
+                                font-size: 32px;
+                                font-weight: bold;
+                                padding: 15px;
+                                margin-bottom: 20px;
+                                letter-spacing: 2px;
+                                background: white;
                             }
                             .info-row {
                                 display: flex;
                                 justify-content: space-between;
                                 align-items: center;
-                                margin-bottom: 8px;
-                                padding: 4px 0;
+                                margin-bottom: 15px;
+                                padding: 8px 0;
                             }
-                            .info-row:last-child {
-                                margin-bottom: 0;
+                            .info-item {
+                                flex: 1;
+                                padding: 8px;
+                                border: 1px solid #000;
+                                background: white;
                             }
                             .label {
-                                font-size: 10px;
+                                font-size: 14px;
                                 color: #000;
                                 font-weight: bold;
                                 display: inline-block;
-                                min-width: 120px;
+                                min-width: 180px;
                             }
                             .value {
-                                font-size: 12px;
+                                font-size: 16px;
                                 color: #000;
                                 font-weight: bold;
                                 display: inline-block;
-                            }
-                            .truck-banner {
-                                border: 2px solid #000;
-                                color: #000;
-                                text-align: center;
-                                font-size: 20px;
-                                font-weight: bold;
-                                padding: 8px;
-                                margin-bottom: 8px;
-                                letter-spacing: 1px;
-                                background: white;
-                            }
-                            .category-section {
-                                border: 2px solid #000;
-                                padding: 8px;
-                                margin: 8px 0;
-                                background: white;
-                                display: flex;
-                                justify-content: space-between;
-                                align-items: center;
-                            }
-                            .category-label {
-                                font-size: 10px;
-                                font-weight: bold;
-                                color: #000;
-                            }
-                            .category-value {
-                                font-size: 14px;
-                                font-weight: bold;
-                                color: #000;
                             }
                             .location-section {
                                 border: 1px solid #000;
@@ -2817,37 +2799,56 @@
                                 border: 3px solid #000;
                                 color: #000;
                                 text-align: center;
-                                padding: 15px;
-                                margin: 12px 0;
+                                padding: 20px;
+                                margin: 20px 0;
                                 background: white;
                             }
                             .quantity-label {
-                                font-size: 12px;
-                                margin-bottom: 6px;
+                                font-size: 14px;
+                                margin-bottom: 8px;
                                 font-weight: bold;
                                 color: #000;
                             }
                             .quantity-value {
-                                font-size: 28px;
+                                font-size: 36px;
                                 font-weight: bold;
                                 color: #000;
                             }
                             .weight-section {
-                                border: 3px solid #000;
-                                padding: 12px;
-                                margin: 12px 0;
+                                border: 2px solid #000;
+                                padding: 15px;
+                                margin: 20px 0;
                                 background: white;
                                 display: flex;
                                 justify-content: space-between;
                                 align-items: center;
                             }
                             .weight-label {
-                                font-size: 12px;
+                                font-size: 14px;
                                 font-weight: bold;
                                 color: #000;
                             }
                             .weight-value {
-                                font-size: 18px;
+                                font-size: 20px;
+                                font-weight: bold;
+                                color: #000;
+                            }
+                            .category-section {
+                                border: 2px solid #000;
+                                padding: 8px;
+                                margin: 8px 0;
+                                background: white;
+                                display: flex;
+                                justify-content: space-between;
+                                align-items: center;
+                            }
+                            .category-label {
+                                font-size: 10px;
+                                font-weight: bold;
+                                color: #000;
+                            }
+                            .category-value {
+                                font-size: 14px;
                                 font-weight: bold;
                                 color: #000;
                             }
@@ -2922,39 +2923,39 @@
                             }
                             .terms-section {
                                 border: 2px solid #000;
-                                padding: 8px;
-                                margin: 10px 0;
+                                padding: 15px;
+                                margin: 25px 0;
                                 background: white;
                             }
                             .terms-title {
-                                font-size: 11px;
+                                font-size: 16px;
                                 font-weight: bold;
                                 text-align: center;
                                 background: #000;
                                 color: white;
-                                padding: 4px;
-                                margin-bottom: 6px;
+                                padding: 8px;
+                                margin-bottom: 15px;
                             }
                             .terms-list {
-                                font-size: 9px;
-                                line-height: 1.5;
-                                margin-left: 12px;
+                                font-size: 14px;
+                                line-height: 1.8;
+                                margin-left: 20px;
                                 padding: 0;
                             }
                             .terms-list li {
-                                margin-bottom: 4px;
+                                margin-bottom: 8px;
                             }
                             .terms-text {
-                                font-size: 9px;
-                                line-height: 1.5;
-                                padding: 6px;
+                                font-size: 14px;
+                                line-height: 1.8;
+                                padding: 15px;
                                 text-align: justify;
                                 color: #000;
                             }
                             .signature-section {
                                 display: flex;
                                 justify-content: space-between;
-                                margin-top: auto;
+                                margin-top: 40px;
                                 padding-top: 20px;
                                 border-top: 2px solid #000;
                             }
@@ -2964,9 +2965,9 @@
                             }
                             .signature-line {
                                 border-top: 2px solid #000;
-                                margin-top: 50px;
-                                padding-top: 8px;
-                                font-size: 10px;
+                                margin-top: 60px;
+                                padding-top: 10px;
+                                font-size: 12px;
                                 font-weight: bold;
                             }
                             .print-button {
@@ -2987,13 +2988,18 @@
                             @media print {
                                 .print-button { display: none; }
                                 body { padding: 0; margin: 0; }
+                                .receipt { page-break-after: always; }
+                                .receipt:last-child { page-break-after: avoid; }
                             }
                         </style>
                         <script src="/static/js/theme.js"></script>
 </head>
                     <body>
-                        ${receiptHTML}
-                        ${receiptHTML}
+                        <div class="container">
+                            ${receiptHTML}
+                            ${receiptHTML}
+                        </div>
+
                     </body>
                     </html>
                 `;
