@@ -23,8 +23,8 @@ func (s *LedgerService) CreateEntry(ctx context.Context, entry *models.CreateLed
 	// Validate entry type
 	switch entry.EntryType {
 	case models.LedgerEntryTypeCharge, models.LedgerEntryTypePayment,
-		models.LedgerEntryTypeCredit, models.LedgerEntryTypeRefund,
-		models.LedgerEntryTypeDebtApproval:
+		models.LedgerEntryTypeOnlinePayment, models.LedgerEntryTypeCredit,
+		models.LedgerEntryTypeRefund, models.LedgerEntryTypeDebtApproval:
 		// Valid
 	default:
 		return nil, fmt.Errorf("invalid entry type: %s", entry.EntryType)
@@ -38,7 +38,7 @@ func (s *LedgerService) CreateEntry(ctx context.Context, entry *models.CreateLed
 			return nil, fmt.Errorf("%s entry must have positive debit amount", entry.EntryType)
 		}
 		entry.Credit = 0
-	case models.LedgerEntryTypePayment, models.LedgerEntryTypeCredit:
+	case models.LedgerEntryTypePayment, models.LedgerEntryTypeOnlinePayment, models.LedgerEntryTypeCredit:
 		// These should have credit (money paid/credited)
 		if entry.Credit <= 0 {
 			return nil, fmt.Errorf("%s entry must have positive credit amount", entry.EntryType)
