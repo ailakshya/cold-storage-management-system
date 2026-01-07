@@ -166,8 +166,9 @@ func (r *LedgerRepository) GetAll(ctx context.Context, filter *models.LedgerFilt
 	argNum := 1
 
 	if filter.CustomerPhone != "" {
-		conditions = append(conditions, fmt.Sprintf("customer_phone = $%d", argNum))
-		args = append(args, filter.CustomerPhone)
+		// Use LIKE for fuzzy/partial search on phone OR name
+		conditions = append(conditions, fmt.Sprintf("(customer_phone LIKE $%d OR LOWER(customer_name) LIKE LOWER($%d))", argNum, argNum))
+		args = append(args, "%"+filter.CustomerPhone+"%")
 		argNum++
 	}
 
