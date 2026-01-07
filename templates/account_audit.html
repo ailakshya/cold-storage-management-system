@@ -219,7 +219,7 @@
                     <input type="date" id="filterEndDate" class="w-full neu-input">
                 </div>
                 <div class="flex items-end gap-2">
-                    <button onclick="loadAuditData()" class="neu-button bg-blue-500 text-white flex-1">
+                    <button onclick="currentPage = 0; loadAuditData(); updateFilterHighlights();" class="neu-button bg-blue-500 text-white flex-1">
                         <i class="bi bi-search"></i> Search
                     </button>
                     <button onclick="clearFilters()" class="neu-button bg-gray-300">
@@ -474,12 +474,6 @@
             filterEndDate.classList.toggle('filter-active', filterEndDate.value !== '');
         }
 
-        // Add event listeners for filter highlighting
-        document.getElementById('filterType').addEventListener('change', updateFilterHighlights);
-        document.getElementById('filterPhone').addEventListener('input', updateFilterHighlights);
-        document.getElementById('filterStartDate').addEventListener('change', updateFilterHighlights);
-        document.getElementById('filterEndDate').addEventListener('change', updateFilterHighlights);
-
         // Helper functions
         function formatDate(dateStr) {
             if (!dateStr) return '-';
@@ -513,6 +507,12 @@
 
         // Initialize
         document.addEventListener('DOMContentLoaded', async function() {
+            // Add event listeners for filter highlighting
+            document.getElementById('filterType').addEventListener('change', updateFilterHighlights);
+            document.getElementById('filterPhone').addEventListener('input', updateFilterHighlights);
+            document.getElementById('filterStartDate').addEventListener('change', updateFilterHighlights);
+            document.getElementById('filterEndDate').addEventListener('change', updateFilterHighlights);
+
             if (await checkAdminPermission()) {
                 loadAuditData();
             }

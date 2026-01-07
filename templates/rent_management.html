@@ -344,11 +344,11 @@
                     Payment Method *
                 </label>
                 <div class="flex gap-4">
-                    <div id="cashOption" onclick="selectPaymentMethod('cash')" class="flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200 bg-green-500 text-white border-green-600 border-2 shadow-lg scale-105">
+                    <div id="cashOption" onclick="selectPaymentMethod('cash')" class="flex-1 cursor-pointer p-4 text-center transition-all duration-200 rounded-lg border-2" style="background-color: #22c55e; color: white; border-color: #16a34a; transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
                         <i class="bi bi-cash-stack text-2xl"></i>
                         <p class="font-bold mt-1">Cash</p>
                     </div>
-                    <div id="onlineOption" onclick="selectPaymentMethod('online')" class="flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200">
+                    <div id="onlineOption" onclick="selectPaymentMethod('online')" class="flex-1 cursor-pointer p-4 text-center transition-all duration-200 rounded-lg border" style="background-color: #f3f4f6; color: #374151; border-color: #e5e7eb;">
                         <i class="bi bi-phone text-2xl"></i>
                         <p class="font-bold mt-1">Online</p>
                     </div>
@@ -1507,11 +1507,31 @@
             const onlineOption = document.getElementById('onlineOption');
 
             if (method === 'cash') {
-                cashOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200 bg-green-500 text-white border-green-600 border-2 shadow-lg scale-105';
-                onlineOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200';
+                // Highlight Cash, reset Online
+                cashOption.style.backgroundColor = '#22c55e';
+                cashOption.style.color = 'white';
+                cashOption.style.borderColor = '#16a34a';
+                cashOption.style.transform = 'scale(1.05)';
+                cashOption.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+
+                onlineOption.style.backgroundColor = '#f3f4f6';
+                onlineOption.style.color = '#374151';
+                onlineOption.style.borderColor = '#e5e7eb';
+                onlineOption.style.transform = 'scale(1)';
+                onlineOption.style.boxShadow = 'none';
             } else {
-                onlineOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200 bg-blue-500 text-white border-blue-600 border-2 shadow-lg scale-105';
-                cashOption.className = 'flex-1 cursor-pointer neu-input p-4 text-center transition-all duration-200';
+                // Highlight Online, reset Cash
+                onlineOption.style.backgroundColor = '#3b82f6';
+                onlineOption.style.color = 'white';
+                onlineOption.style.borderColor = '#2563eb';
+                onlineOption.style.transform = 'scale(1.05)';
+                onlineOption.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+
+                cashOption.style.backgroundColor = '#f3f4f6';
+                cashOption.style.color = '#374151';
+                cashOption.style.borderColor = '#e5e7eb';
+                cashOption.style.transform = 'scale(1)';
+                cashOption.style.boxShadow = 'none';
             }
         }
 
