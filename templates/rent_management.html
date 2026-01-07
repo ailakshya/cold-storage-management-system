@@ -1480,8 +1480,13 @@
                 familyMemberSection.style.display = 'none';
                 selectedFamilyMember = familyMembers[0];
             } else {
+                // No explicit family members - use customer name as the family member
                 familyMemberSection.style.display = 'none';
-                selectedFamilyMember = null;
+                selectedFamilyMember = {
+                    name: currentPaymentCustomer.name,
+                    balance: currentPaymentCustomer.balance,
+                    rent: currentPaymentCustomer.totalRent
+                };
             }
 
             document.getElementById('paymentModal').classList.remove('hidden');
