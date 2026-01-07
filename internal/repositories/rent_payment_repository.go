@@ -270,7 +270,8 @@ func (r *RentPaymentRepository) List(ctx context.Context) ([]*models.RentPayment
 
 func (r *RentPaymentRepository) GetByReceiptNumber(ctx context.Context, receiptNumber string) (*models.RentPayment, error) {
 	query := `
-		SELECT id, receipt_number, entry_id, customer_name, customer_phone, total_rent, amount_paid, balance,
+		SELECT id, receipt_number, entry_id, family_member_id, COALESCE(family_member_name, ''),
+		       customer_name, customer_phone, total_rent, amount_paid, balance,
 		       payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
 		FROM rent_payments
 		WHERE receipt_number = $1
@@ -281,6 +282,8 @@ func (r *RentPaymentRepository) GetByReceiptNumber(ctx context.Context, receiptN
 		&payment.ID,
 		&payment.ReceiptNumber,
 		&payment.EntryID,
+		&payment.FamilyMemberID,
+		&payment.FamilyMemberName,
 		&payment.CustomerName,
 		&payment.CustomerPhone,
 		&payment.TotalRent,

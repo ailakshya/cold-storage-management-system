@@ -29,5 +29,6 @@ type CreateRentPaymentRequest struct {
 	TotalRent        float64 `json:"total_rent"`
 	AmountPaid       float64 `json:"amount_paid"`
 	Balance          float64 `json:"balance"`
+	PaymentType      string  `json:"payment_type"` // "cash" or "online"
 	Notes            string  `json:"notes"`
 }

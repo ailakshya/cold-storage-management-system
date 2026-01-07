@@ -123,6 +123,7 @@ func (r *LedgerRepository) GetByCustomer(ctx context.Context, customerPhone stri
 		SELECT id, customer_phone, customer_name, COALESCE(customer_so, '') as customer_so,
 			entry_type, COALESCE(description, '') as description, debit, credit, running_balance,
 			reference_id, COALESCE(reference_type, '') as reference_type,
+			family_member_id, COALESCE(family_member_name, '') as family_member_name,
 			created_by_user_id, COALESCE(created_by_name, '') as created_by_name,
 			created_at, COALESCE(notes, '') as notes
 		FROM ledger_entries
@@ -145,6 +146,7 @@ func (r *LedgerRepository) GetByCustomer(ctx context.Context, customerPhone stri
 			&e.ID, &e.CustomerPhone, &e.CustomerName, &e.CustomerSO,
 			&e.EntryType, &e.Description, &e.Debit, &e.Credit, &e.RunningBalance,
 			&refID, &e.ReferenceType,
+			&e.FamilyMemberID, &e.FamilyMemberName,
 			&e.CreatedByUserID, &e.CreatedByName, &e.CreatedAt, &e.Notes,
 		)
 		if err != nil {
@@ -201,6 +203,7 @@ func (r *LedgerRepository) GetAll(ctx context.Context, filter *models.LedgerFilt
 		SELECT id, customer_phone, customer_name, COALESCE(customer_so, '') as customer_so,
 			entry_type, COALESCE(description, '') as description, debit, credit, running_balance,
 			reference_id, COALESCE(reference_type, '') as reference_type,
+			family_member_id, COALESCE(family_member_name, '') as family_member_name,
 			created_by_user_id, COALESCE(created_by_name, '') as created_by_name,
 			created_at, COALESCE(notes, '') as notes
 		FROM ledger_entries
@@ -225,6 +228,7 @@ func (r *LedgerRepository) GetAll(ctx context.Context, filter *models.LedgerFilt
 			&e.ID, &e.CustomerPhone, &e.CustomerName, &e.CustomerSO,
 			&e.EntryType, &e.Description, &e.Debit, &e.Credit, &e.RunningBalance,
 			&refID, &e.ReferenceType,
+			&e.FamilyMemberID, &e.FamilyMemberName,
 			&e.CreatedByUserID, &e.CreatedByName, &e.CreatedAt, &e.Notes,
 		)
 		if err != nil {

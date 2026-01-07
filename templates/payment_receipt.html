@@ -66,6 +66,7 @@
             <div class="border-2 border-black p-4 mb-4">
                 <p class="text-xs text-gray-600 font-semibold mb-2">RECEIVED FROM:</p>
                 <p id="customerName" class="text-xl font-black mb-1">-</p>
+                <p id="familyMemberName" class="text-sm font-semibold text-blue-700" style="display: none;">-</p>
                 <p id="customerPhone" class="text-sm font-semibold">-</p>
                 <p id="customerVillage" class="text-sm font-semibold">-</p>
             </div>
@@ -168,6 +169,12 @@
             document.getElementById('amountPaid').textContent = '₹' + payment.amount_paid.toFixed(2);
             document.getElementById('totalRent').textContent = '₹' + payment.total_rent.toFixed(2);
             document.getElementById('balance').textContent = '₹' + payment.balance.toFixed(2);
+
+            // Display family member name if available
+            if (payment.family_member_name && payment.family_member_name.trim() !== '') {
+                document.getElementById('familyMemberName').textContent = '👤 ' + payment.family_member_name;
+                document.getElementById('familyMemberName').style.display = 'block';
+            }
 
             if (payment.notes && payment.notes.trim() !== '') {
                 document.getElementById('notes').textContent = payment.notes;

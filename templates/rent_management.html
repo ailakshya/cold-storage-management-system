@@ -1581,7 +1581,8 @@
                     total_rent: selectedFamilyMember ? selectedFamilyMember.rent : currentPaymentCustomer.totalRent,
                     amount_paid: amount,
                     balance: newBalance < 0 ? 0 : newBalance,
-                    notes: `${paymentMethod.toUpperCase()}${remark ? ' - ' + remark : ''}`
+                    payment_type: paymentMethod,
+                    notes: remark || ''
                 };
 
                 // Add family member info if selected

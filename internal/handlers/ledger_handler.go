@@ -170,19 +170,21 @@ func (h *LedgerHandler) GetAuditTrail(w http.ResponseWriter, r *http.Request) {
 		}
 
 		auditEntries[i] = models.AuditEntry{
-			ID:              e.ID,
-			Date:            e.CreatedAt,
-			CustomerPhone:   e.CustomerPhone,
-			CustomerName:    e.CustomerName,
-			CustomerSO:      e.CustomerSO,
-			EntryType:       e.EntryType,
-			Description:     e.Description,
-			Debit:           e.Debit,
-			Credit:          e.Credit,
-			RunningBalance:  e.RunningBalance,
-			CreatedByName:   e.CreatedByName,
-			PaymentType:     paymentType,
-			Remarks:         e.Notes,
+			ID:               e.ID,
+			Date:             e.CreatedAt,
+			CustomerPhone:    e.CustomerPhone,
+			CustomerName:     e.CustomerName,
+			CustomerSO:       e.CustomerSO,
+			FamilyMemberID:   e.FamilyMemberID,
+			FamilyMemberName: e.FamilyMemberName,
+			EntryType:        e.EntryType,
+			Description:      e.Description,
+			Debit:            e.Debit,
+			Credit:           e.Credit,
+			RunningBalance:   e.RunningBalance,
+			CreatedByName:    e.CreatedByName,
+			PaymentType:      paymentType,
+			Remarks:          e.Notes,
 		}
 	}
 

@@ -75,17 +75,19 @@ type LedgerFilter struct {
 
 // AuditEntry is used for the audit trail display
 type AuditEntry struct {
-	ID              int             `json:"id"`
-	Date            time.Time       `json:"date"`
-	CustomerPhone   string          `json:"customer_phone"`
-	CustomerName    string          `json:"customer_name"`
-	CustomerSO      string          `json:"customer_so"`
-	EntryType       LedgerEntryType `json:"entry_type"`
-	Description     string          `json:"description"`
-	Debit           float64         `json:"debit"`
-	Credit          float64         `json:"credit"`
-	RunningBalance  float64         `json:"running_balance"`
-	CreatedByName   string          `json:"created_by_name"`
-	PaymentType     string          `json:"payment_type"`
-	Remarks         string          `json:"remarks"`
+	ID               int             `json:"id"`
+	Date             time.Time       `json:"date"`
+	CustomerPhone    string          `json:"customer_phone"`
+	CustomerName     string          `json:"customer_name"`
+	CustomerSO       string          `json:"customer_so"`
+	FamilyMemberID   *int            `json:"family_member_id,omitempty"`
+	FamilyMemberName string          `json:"family_member_name,omitempty"`
+	EntryType        LedgerEntryType `json:"entry_type"`
+	Description      string          `json:"description"`
+	Debit            float64         `json:"debit"`
+	Credit           float64         `json:"credit"`
+	RunningBalance   float64         `json:"running_balance"`
+	CreatedByName    string          `json:"created_by_name"`
+	PaymentType      string          `json:"payment_type"`
+	Remarks          string          `json:"remarks"`
 }

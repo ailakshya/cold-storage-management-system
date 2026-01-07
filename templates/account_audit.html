@@ -64,6 +64,16 @@
         .badge-refund { background: #fef08a; color: #854d0e; }
         .badge-debt { background: #e9d5ff; color: #6b21a8; }
         .badge-online { background: #cffafe; color: #0e7490; }
+        .neu-input:focus, .neu-input.active {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+            outline: none;
+        }
+        select.filter-active {
+            background-color: #dbeafe;
+            border-color: #3b82f6;
+            font-weight: 600;
+        }
         #mainContent {
             display: none;
         }
@@ -228,6 +238,7 @@
                             <th>Date</th>
                             <th>Customer</th>
                             <th>S/O</th>
+                            <th>Family Member</th>
                             <th>Phone</th>
                             <th>Type</th>
                             <th class="text-right">Credit</th>
@@ -239,7 +250,7 @@
                     </thead>
                     <tbody id="auditTableBody">
                         <tr>
-                            <td colspan="10" class="text-center py-8">
+                            <td colspan="11" class="text-center py-8">
                                 <i class="bi bi-hourglass-split text-4xl text-gray-400"></i>
                                 <p class="text-gray-600 mt-2">Loading audit data...</p>
                             </td>
@@ -346,7 +357,7 @@
                 console.error('Error loading audit data:', error);
                 document.getElementById('auditTableBody').innerHTML = `
                     <tr>
-                        <td colspan="10" class="text-center py-8 text-red-500">
+                        <td colspan="11" class="text-center py-8 text-red-500">
                             <i class="bi bi-exclamation-triangle text-4xl"></i>
                             <p class="mt-2">Error loading audit data</p>
                         </td>
@@ -362,7 +373,7 @@
             if (!entries || entries.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="10" class="text-center py-8">
+                        <td colspan="11" class="text-center py-8">
                             <i class="bi bi-inbox text-4xl text-gray-400"></i>
                             <p class="text-gray-600 mt-2">No entries found</p>
                         </td>
@@ -377,6 +388,7 @@
                     <td class="whitespace-nowrap">${formatDate(entry.date)}</td>
                     <td>${escapeHtml(entry.customer_name)}</td>
                     <td>${escapeHtml(entry.customer_so || '-')}</td>
+                    <td class="text-blue-700 font-medium">${escapeHtml(entry.family_member_name || '-')}</td>
                     <td>${escapeHtml(entry.customer_phone)}</td>
                     <td><span class="badge ${getBadgeClass(entry.entry_type)}">${entry.entry_type}</span></td>
                     <td class="text-right ${entry.credit > 0 ? 'text-green-600 font-semibold' : ''}">${entry.credit > 0 ? '₹' + formatNumber(entry.credit) : '-'}</td>
@@ -407,6 +419,7 @@
             entries.forEach(entry => {
                 if (entry.entry_type === 'CHARGE') totalCharges += entry.debit;
                 if (entry.entry_type === 'PAYMENT') totalPayments += entry.credit;
+                if (entry.entry_type === 'ONLINE_PAYMENT') totalPayments += entry.credit;
                 if (entry.entry_type === 'CREDIT') totalCredits += entry.credit;
             });
 
@@ -443,9 +456,29 @@
             document.getElementById('filterType').value = '';
             document.getElementById('filterStartDate').value = '';
             document.getElementById('filterEndDate').value = '';
+            updateFilterHighlights();
             currentPage = 0;
             loadAuditData();
         }
+
+        // Highlight active filters
+        function updateFilterHighlights() {
+            const filterType = document.getElementById('filterType');
+            const filterPhone = document.getElementById('filterPhone');
+            const filterStartDate = document.getElementById('filterStartDate');
+            const filterEndDate = document.getElementById('filterEndDate');
+
+            filterType.classList.toggle('filter-active', filterType.value !== '');
+            filterPhone.classList.toggle('filter-active', filterPhone.value.trim() !== '');
+            filterStartDate.classList.toggle('filter-active', filterStartDate.value !== '');
+            filterEndDate.classList.toggle('filter-active', filterEndDate.value !== '');
+        }
+
+        // Add event listeners for filter highlighting
+        document.getElementById('filterType').addEventListener('change', updateFilterHighlights);
+        document.getElementById('filterPhone').addEventListener('input', updateFilterHighlights);
+        document.getElementById('filterStartDate').addEventListener('change', updateFilterHighlights);
+        document.getElementById('filterEndDate').addEventListener('change', updateFilterHighlights);
 
         // Helper functions
         function formatDate(dateStr) {

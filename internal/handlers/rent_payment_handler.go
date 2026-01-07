@@ -95,12 +95,20 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
+		// Determine ledger entry type based on payment method
+		entryType := models.LedgerEntryTypePayment
+		description := "Rent payment received (Cash)"
+		if req.PaymentType == "online" {
+			entryType = models.LedgerEntryTypeOnlinePayment
+			description = "Rent payment received (Online)"
+		}
+
 		ledgerEntry := &models.CreateLedgerEntryRequest{
 			CustomerPhone:    req.CustomerPhone,
 			CustomerName:     req.CustomerName,
 			CustomerSO:       customerSO,
-			EntryType:        models.LedgerEntryTypePayment,
-			Description:      "Rent payment received",
+			EntryType:        entryType,
+			Description:      description,
 			Credit:           payment.AmountPaid,
 			ReferenceID:      &payment.ID,
 			ReferenceType:    "payment",
