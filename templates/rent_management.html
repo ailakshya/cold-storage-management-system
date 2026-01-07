@@ -1475,6 +1475,10 @@
                     selectedFamilyMember = null;
                     document.getElementById('familyMemberBalance').classList.add('hidden');
                 }
+            } else if (familyMembers.length === 1) {
+                // Auto-select the single family member
+                familyMemberSection.style.display = 'none';
+                selectedFamilyMember = familyMembers[0];
             } else {
                 familyMemberSection.style.display = 'none';
                 selectedFamilyMember = null;
