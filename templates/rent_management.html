@@ -1603,6 +1603,9 @@
                 const relevantBalance = selectedFamilyMember ? selectedFamilyMember.balance : currentPaymentCustomer.balance;
                 const newBalance = relevantBalance - amount;
 
+                // Always include family member name - use selectedFamilyMember if available, otherwise use customer name
+                const familyMemberName = selectedFamilyMember?.name || currentPaymentCustomer.name;
+
                 const paymentData = {
                     entry_id: entryId,
                     customer_name: currentPaymentCustomer.name,
@@ -1611,18 +1614,9 @@
                     amount_paid: amount,
                     balance: newBalance < 0 ? 0 : newBalance,
                     payment_type: paymentMethod,
+                    family_member_name: familyMemberName,
                     notes: remark || ''
                 };
-
-                // Add family member info if selected
-                if (selectedFamilyMember) {
-                    paymentData.family_member_name = selectedFamilyMember.name;
-                    // Find family member ID from thocks
-                    const fmThock = currentPaymentCustomer.thocks.find(t => t.family_member_name === selectedFamilyMember.name);
-                    if (fmThock && fmThock.id) {
-                        // We need the family_member_id not entry_id - this will be handled by backend
-                    }
-                }
 
                 console.log('Creating payment with data:', paymentData);
 
