@@ -71,6 +71,8 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 
 	payment := &models.RentPayment{
 		EntryID:           req.EntryID,
+		FamilyMemberID:    req.FamilyMemberID,
+		FamilyMemberName:  req.FamilyMemberName,
 		CustomerName:      req.CustomerName,
 		CustomerPhone:     req.CustomerPhone,
 		TotalRent:         req.TotalRent,
