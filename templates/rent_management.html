@@ -1287,7 +1287,7 @@
                                         <i class="bi bi-receipt"></i>
                                         Payment History
                                     </h4>
-                                    <div id="paymentHistory${index}" class="space-y-2">
+                                    <div id="paymentHistory${index}" class="space-y-2 overflow-auto" style="max-height: 300px;">
                                         ${(() => {
                                             // Get ALL payments from ledger (single source of truth)
                                             const allPayments = [];
