@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
@@ -97,13 +98,17 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 			}
 		}
 
-		// Determine ledger entry type based on payment method
+		// Log payment type received from request
+		fmt.Printf("PAYMENT: Received PaymentType='%s' for customer %s\n", req.PaymentType, req.CustomerPhone)
+
+		// Determine ledger entry type based on payment method (case-insensitive)
 		entryType := models.LedgerEntryTypePayment
 		description := "Rent payment received (Cash)"
-		if req.PaymentType == "online" {
+		if strings.EqualFold(req.PaymentType, "online") {
 			entryType = models.LedgerEntryTypeOnlinePayment
 			description = "Rent payment received (Online)"
 		}
+		fmt.Printf("PAYMENT: Using entryType='%s', description='%s'\n", entryType, description)
 
 		ledgerEntry := &models.CreateLedgerEntryRequest{
 			CustomerPhone:    req.CustomerPhone,

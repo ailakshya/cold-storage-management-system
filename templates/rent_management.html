@@ -1511,7 +1511,9 @@
         }
 
         function selectPaymentMethod(method) {
+            console.log('selectPaymentMethod called with:', method);
             document.getElementById('paymentMethod').value = method;
+            console.log('paymentMethod value set to:', document.getElementById('paymentMethod').value);
             const cashOption = document.getElementById('cashOption');
             const onlineOption = document.getElementById('onlineOption');
 
@@ -1569,6 +1571,9 @@
             const submitBtn = document.getElementById('collectPaymentBtn');
             const amount = parseFloat(document.getElementById('paymentAmount').value);
             const paymentMethod = document.getElementById('paymentMethod').value;
+            console.log('===== PAYMENT SUBMISSION DEBUG =====');
+            console.log('Hidden input element:', document.getElementById('paymentMethod'));
+            console.log('Payment method value:', paymentMethod);
             const remark = document.getElementById('paymentRemark').value.trim();
 
             if (!amount || amount <= 0) {
