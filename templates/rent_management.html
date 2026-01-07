@@ -1403,10 +1403,17 @@
                     return true;
                 }
 
-                // Search by thock number or family member name
+                // Search by thock number or family member name in entries
                 if (customer.thocks && customer.thocks.some(thock =>
                     (thock.thock_number && thock.thock_number.toLowerCase().includes(searchTerm)) ||
                     (thock.family_member_name && thock.family_member_name.toLowerCase().includes(searchTerm))
+                )) {
+                    return true;
+                }
+
+                // Search by family member name in familyMembers array
+                if (customer.familyMembers && customer.familyMembers.some(fm =>
+                    fm.name && fm.name.toLowerCase().includes(searchTerm)
                 )) {
                     return true;
                 }
