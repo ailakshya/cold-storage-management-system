@@ -152,6 +152,15 @@ CREATE TABLE IF NOT EXISTS rent_payments (
 -- Migration: Add payment_type column if it doesn't exist
 ALTER TABLE rent_payments ADD COLUMN IF NOT EXISTS payment_type VARCHAR(10) DEFAULT 'cash';
 
+-- Migration: Backfill payment_type from ledger entries for existing records
+UPDATE rent_payments rp
+SET payment_type = 'online'
+FROM ledger l
+WHERE l.reference_id = rp.id
+  AND l.reference_type = 'payment'
+  AND l.entry_type = 'ONLINE_PAYMENT'
+  AND (rp.payment_type IS NULL OR rp.payment_type = 'cash');
+
 CREATE INDEX IF NOT EXISTS idx_g_rent_payments_entry_id ON rent_payments(entry_id);
 CREATE INDEX IF NOT EXISTS idx_g_rent_payments_phone ON rent_payments(customer_phone);
 CREATE INDEX IF NOT EXISTS idx_g_rent_payments_date ON rent_payments(payment_date);
