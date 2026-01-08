@@ -225,6 +225,9 @@
                     <button onclick="clearFilters()" class="neu-button bg-gray-300">
                         <i class="bi bi-x-circle"></i>
                     </button>
+                    <button onclick="exportToExcel()" class="neu-button bg-green-500 text-white">
+                        <i class="bi bi-file-earmark-excel"></i> Export
+                    </button>
                 </div>
             </div>
         </div>
@@ -503,6 +506,89 @@
                 'ONLINE_PAYMENT': 'badge-online'
             };
             return classes[type] || '';
+        }
+
+        // Export to Excel (CSV format)
+        async function exportToExcel() {
+            const exportBtn = event.target.closest('button');
+            const originalText = exportBtn.innerHTML;
+            exportBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Exporting...';
+            exportBtn.disabled = true;
+
+            try {
+                // Build query params (same as loadAuditData but without pagination)
+                const params = new URLSearchParams();
+                const phone = document.getElementById('filterPhone').value.trim();
+                const type = document.getElementById('filterType').value;
+                const startDate = document.getElementById('filterStartDate').value;
+                const endDate = document.getElementById('filterEndDate').value;
+
+                if (phone) params.append('phone', phone);
+                if (type) params.append('type', type);
+                if (startDate) params.append('start_date', startDate);
+                if (endDate) params.append('end_date', endDate);
+                params.append('limit', '10000'); // Get all entries
+
+                const response = await fetch(`/api/ledger/audit?${params}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) throw new Error('Failed to fetch data');
+                const entries = await response.json();
+
+                if (!entries || entries.length === 0) {
+                    alert('No data to export');
+                    return;
+                }
+
+                // Create CSV content
+                const headers = ['Date', 'Customer Name', 'S/O', 'Family Member', 'Phone', 'Type', 'Debit', 'Credit', 'Balance', 'Created By', 'Payment Type', 'Remarks'];
+                const rows = entries.map(e => [
+                    formatDateForExcel(e.date),
+                    e.customer_name || '',
+                    e.customer_so || '',
+                    e.family_member_name || '',
+                    e.customer_phone || '',
+                    e.entry_type || '',
+                    e.debit || 0,
+                    e.credit || 0,
+                    e.running_balance || 0,
+                    e.created_by_name || '',
+                    e.payment_type || '',
+                    e.remarks || ''
+                ]);
+
+                // Convert to CSV
+                const csvContent = [headers, ...rows]
+                    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+                    .join('\n');
+
+                // Add BOM for Excel UTF-8 compatibility
+                const BOM = '\uFEFF';
+                const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+
+                // Download file
+                const link = document.createElement('a');
+                const fileName = `audit_trail_${new Date().toISOString().split('T')[0]}.csv`;
+                link.href = URL.createObjectURL(blob);
+                link.download = fileName;
+                link.click();
+                URL.revokeObjectURL(link.href);
+
+                alert(`Exported ${entries.length} entries to ${fileName}`);
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Failed to export: ' + error.message);
+            } finally {
+                exportBtn.innerHTML = originalText;
+                exportBtn.disabled = false;
+            }
+        }
+
+        function formatDateForExcel(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-IN') + ' ' + date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
         }
 
         // Initialize
