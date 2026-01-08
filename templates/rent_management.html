@@ -628,6 +628,9 @@
         let canManageEntries = false; // Permission flag for entry reassignment and customer merge
         let isAdmin = false; // Admin role flag for delete functionality
         let creditOutItems = []; // Items taken out via admin approval
+        let displayedCount = 0; // Pagination: track how many customers are displayed
+        let currentFilteredAccounts = []; // Track filtered accounts for Load More
+        const DISPLAY_BATCH = 50; // Show 50 customers at a time
 
         // Escape HTML to prevent XSS
         function escapeHtml(text) {
@@ -962,6 +965,8 @@
 
         function displayCustomerAccounts(accounts) {
             const container = document.getElementById('customersContainer');
+            displayedCount = 0;
+            currentFilteredAccounts = accounts;
 
             if (accounts.length === 0) {
                 container.innerHTML = `
@@ -970,38 +975,51 @@
                         <p class="text-gray-600 mt-4 text-lg">No customer accounts found</p>
                     </div>
                 `;
+                updateLoadMoreButton();
                 return;
             }
 
-            // Progressive rendering: show first 20 immediately, then batch render rest
-            const BATCH_SIZE = 20;
+            // Clear container and render first batch
+            container.innerHTML = '';
+            loadMoreCustomers();
+        }
+
+        function loadMoreCustomers() {
+            const container = document.getElementById('customersContainer');
+            const accounts = currentFilteredAccounts;
+            const batch = accounts.slice(displayedCount, displayedCount + DISPLAY_BATCH);
             const renderStart = performance.now();
 
-            // Clear and render first batch immediately
-            container.innerHTML = '';
-            const firstBatch = accounts.slice(0, BATCH_SIZE);
-            container.innerHTML = firstBatch.map((customer, index) => renderCustomerCard(customer, index)).join('');
+            batch.forEach((customer, idx) => {
+                const div = document.createElement('div');
+                div.innerHTML = renderCustomerCard(customer, displayedCount + idx);
+                if (div.firstElementChild) {
+                    container.appendChild(div.firstElementChild);
+                }
+            });
 
-            // Render remaining in background batches
-            if (accounts.length > BATCH_SIZE) {
-                let offset = BATCH_SIZE;
-                const renderBatch = () => {
-                    const batch = accounts.slice(offset, offset + BATCH_SIZE);
-                    if (batch.length === 0) {
-                        console.log(`Render complete: ${(performance.now() - renderStart).toFixed(0)}ms for ${accounts.length} customers`);
-                        return;
-                    }
-                    const fragment = document.createElement('div');
-                    fragment.innerHTML = batch.map((customer, idx) => renderCustomerCard(customer, offset + idx)).join('');
-                    while (fragment.firstChild) {
-                        container.appendChild(fragment.firstChild);
-                    }
-                    offset += BATCH_SIZE;
-                    requestAnimationFrame(renderBatch); // Non-blocking
-                };
-                requestAnimationFrame(renderBatch);
-            } else {
-                console.log(`Render complete: ${(performance.now() - renderStart).toFixed(0)}ms for ${accounts.length} customers`);
+            displayedCount += batch.length;
+            console.log(`Rendered ${displayedCount}/${accounts.length} customers in ${(performance.now() - renderStart).toFixed(0)}ms`);
+            updateLoadMoreButton();
+        }
+
+        function updateLoadMoreButton() {
+            let btn = document.getElementById('loadMoreBtn');
+            const remaining = currentFilteredAccounts.length - displayedCount;
+
+            if (remaining > 0) {
+                if (!btn) {
+                    btn = document.createElement('button');
+                    btn.id = 'loadMoreBtn';
+                    btn.className = 'neu-button bg-blue-500 text-white w-full mt-4 py-3';
+                    btn.onclick = loadMoreCustomers;
+                    const container = document.getElementById('customersContainer');
+                    container.parentNode.insertBefore(btn, container.nextSibling);
+                }
+                btn.innerHTML = `<i class="bi bi-arrow-down-circle"></i> Load More (${remaining} remaining)`;
+                btn.style.display = 'block';
+            } else if (btn) {
+                btn.style.display = 'none';
             }
         }
 
