@@ -70,6 +70,12 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Normalize payment type
+	paymentType := "cash"
+	if strings.EqualFold(req.PaymentType, "online") {
+		paymentType = "online"
+	}
+
 	payment := &models.RentPayment{
 		EntryID:           req.EntryID,
 		FamilyMemberID:    req.FamilyMemberID,
@@ -79,6 +85,7 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		TotalRent:         req.TotalRent,
 		AmountPaid:        req.AmountPaid,
 		Balance:           req.Balance, // Use client-provided cumulative balance
+		PaymentType:       paymentType,
 		ProcessedByUserID: userID,
 		Notes:             req.Notes,
 	}

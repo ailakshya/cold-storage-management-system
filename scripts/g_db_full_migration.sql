@@ -142,11 +142,15 @@ CREATE TABLE IF NOT EXISTS rent_payments (
     total_rent DECIMAL(10, 2) NOT NULL,
     amount_paid DECIMAL(10, 2) NOT NULL,
     balance DECIMAL(10, 2) NOT NULL,
+    payment_type VARCHAR(10) DEFAULT 'cash',
     payment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     processed_by_user_id INTEGER,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Migration: Add payment_type column if it doesn't exist
+ALTER TABLE rent_payments ADD COLUMN IF NOT EXISTS payment_type VARCHAR(10) DEFAULT 'cash';
 
 CREATE INDEX IF NOT EXISTS idx_g_rent_payments_entry_id ON rent_payments(entry_id);
 CREATE INDEX IF NOT EXISTS idx_g_rent_payments_phone ON rent_payments(customer_phone);

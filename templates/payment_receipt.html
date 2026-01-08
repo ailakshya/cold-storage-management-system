@@ -310,8 +310,8 @@
             // Amount in Hindi words
             document.getElementById('amountInWords').textContent = amountToHindiWords(payment.amount_paid);
 
-            // Payment method
-            document.getElementById('paymentMethod').textContent = payment.notes && payment.notes.toLowerCase().includes('online') ? 'ऑनलाइन' : 'नकद';
+            // Payment method - use payment_type field
+            document.getElementById('paymentMethod').textContent = payment.payment_type === 'online' ? 'ऑनलाइन' : 'नकद';
 
             // Display family member name if available
             if (payment.family_member_name && payment.family_member_name.trim() !== '') {
