@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
     <meta charset="UTF-8">
     <link rel="manifest" href="/static/manifest.json">
@@ -8,10 +8,16 @@
     <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Receipt</title>
+    <title>धन प्राप्ति रसीद - Payment Receipt</title>
     <link href="/static/css/tailwind.min.css" rel="stylesheet">
     <link href="/static/css/arbitrary.css" rel="stylesheet">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
+
+        * {
+            font-family: 'Noto Sans Devanagari', sans-serif;
+        }
+
         @media print {
             .no-print {
                 display: none;
@@ -20,17 +26,38 @@
                 size: A5;
                 margin: 10mm;
             }
+            body {
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
+
         .receipt-border {
             border: 3px solid #000;
             box-shadow: 5px 5px 0 #000;
         }
+
+        .dotted-line {
+            border-bottom: 2px dotted #000;
+            display: inline-block;
+            min-width: 200px;
+        }
+
+        .amount-box {
+            border: 3px solid #000;
+            padding: 10px 20px;
+            display: inline-block;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
         .verification-code {
             font-family: monospace;
             word-break: break-all;
-            background: #f0f0f0;
-            padding: 10px;
-            border: 2px dashed #000;
+            background: #f5f5f5;
+            padding: 8px;
+            border: 2px dashed #666;
+            font-size: 0.7rem;
         }
     </style>
     <script src="/static/js/theme.js"></script>
@@ -38,95 +65,175 @@
 <body class="bg-gray-100 p-4">
     <div class="max-w-2xl mx-auto bg-white receipt-border p-6">
         <!-- Print Button -->
-        <div class="no-print mb-4 text-right">
+        <div class="no-print mb-4 flex justify-between">
+            <button onclick="window.close()" class="bg-gray-500 text-white px-4 py-2 font-bold border-2 border-black shadow-[4px_4px_0_0_#000] hover:shadow-none transition-all">
+                ✕ बंद करें
+            </button>
             <button onclick="window.print()" class="bg-blue-600 text-white px-4 py-2 font-bold border-2 border-black shadow-[4px_4px_0_0_#000] hover:shadow-none transition-all">
-                🖨️ Print Receipt
+                🖨️ प्रिंट करें
             </button>
         </div>
 
-        <!-- Company Header -->
-        <div class="text-center mb-6 pb-4 border-b-4 border-black">
-            <h1 class="text-3xl font-black mb-2">COLD STORAGE</h1>
-            <p class="text-sm font-semibold">PAYMENT RECEIPT</p>
+        <!-- Header -->
+        <div class="text-center mb-4 pb-3 border-b-2 border-black">
+            <p class="text-sm font-semibold text-gray-600 mb-1">धन प्राप्ति रसीद</p>
+            <h1 class="text-2xl font-black mb-1">गुरु कृपा कोल्ड स्टोर</h1>
+            <p class="text-xs text-gray-700">ग्राम-करैथा, बिजलीघर के सामने, जहांगीराबाद-औरंगाबाद रोड, जहांगीराबाद (बुलन्दशहर)</p>
         </div>
 
-        <!-- Receipt Details -->
-        <div class="mb-6">
-            <div class="grid grid-cols-2 gap-4 mb-4">
-                <div>
-                    <p class="text-xs text-gray-600 font-semibold">RECEIPT NO:</p>
-                    <p id="receiptNumber" class="text-lg font-black">-</p>
-                </div>
-                <div class="text-right">
-                    <p class="text-xs text-gray-600 font-semibold">DATE:</p>
-                    <p id="paymentDate" class="text-lg font-black">-</p>
+        <!-- Receipt Number and Date -->
+        <div class="flex justify-between items-center mb-4 pb-2 border-b border-gray-300">
+            <div>
+                <span class="font-semibold">र.क्र० </span>
+                <span id="receiptNumber" class="font-black text-lg">-</span>
+            </div>
+            <div>
+                <span class="font-semibold">दिनांक: </span>
+                <span id="paymentDate" class="font-bold">-</span>
+            </div>
+        </div>
+
+        <!-- Customer Details -->
+        <div class="mb-4 space-y-3">
+            <div class="flex flex-wrap items-baseline gap-1">
+                <span class="font-semibold">श्रीमान/श्रीमती:</span>
+                <span id="customerName" class="font-black text-lg dotted-line px-2">-</span>
+                <span class="font-semibold ml-2">S/O:</span>
+                <span id="customerSO" class="font-bold dotted-line px-2">-</span>
+            </div>
+            <div class="flex flex-wrap items-baseline gap-1">
+                <span class="font-semibold">गाँव:</span>
+                <span id="customerVillage" class="font-bold dotted-line px-2">-</span>
+                <span class="font-semibold ml-2">मो:</span>
+                <span id="customerPhone" class="font-bold">-</span>
+            </div>
+            <div id="familyMemberRow" class="flex items-baseline gap-1" style="display: none;">
+                <span class="font-semibold">परिवार का सदस्य:</span>
+                <span id="familyMemberName" class="font-bold text-blue-700 dotted-line px-2">-</span>
+            </div>
+        </div>
+
+        <!-- Amount in Words -->
+        <div class="mb-4 py-3 border-y-2 border-black">
+            <div class="flex items-baseline gap-1 mb-2">
+                <span class="font-semibold">रुपया (शब्दों में):</span>
+                <span id="amountInWords" class="font-bold text-lg dotted-line px-2 flex-1">-</span>
+            </div>
+            <div class="flex items-baseline gap-1">
+                <span class="font-semibold">द्वारा:</span>
+                <span id="paymentMethod" class="font-bold px-2">नकद</span>
+                <span class="ml-auto font-semibold text-green-700">सधन्यवाद प्राप्त हुए।</span>
+            </div>
+        </div>
+
+        <!-- Amount Box and Balance -->
+        <div class="flex justify-between items-center mb-4">
+            <div class="amount-box bg-green-50">
+                <span class="text-sm">रु० </span>
+                <span id="amountPaid" class="text-green-700">-</span>
+            </div>
+            <div class="text-right">
+                <div class="text-sm text-gray-600">कुल किराया: <span id="totalRent" class="font-bold">₹-</span></div>
+                <div class="text-lg font-black">
+                    शेष बकाया: <span id="balance" class="text-red-600">₹-</span>
                 </div>
             </div>
+        </div>
 
-            <div class="border-2 border-black p-4 mb-4">
-                <p class="text-xs text-gray-600 font-semibold mb-2">RECEIVED FROM:</p>
-                <p id="customerName" class="text-xl font-black mb-1">-</p>
-                <div id="familyMemberRow" class="mb-1 border-b border-dashed border-gray-400 pb-1" style="display: none;">
-                    <span class="text-xs text-gray-600">Family Member:</span>
-                    <span id="familyMemberName" class="text-lg font-bold">-</span>
-                </div>
-                <p id="customerPhone" class="text-sm font-semibold">-</p>
-                <p id="customerVillage" class="text-sm font-semibold">-</p>
+        <!-- Notes Section -->
+        <div class="mb-4" id="notesSection" style="display: none;">
+            <span class="font-semibold text-sm">टिप्पणी:</span>
+            <span id="notes" class="text-sm border-b border-dotted border-gray-500 px-2">-</span>
+        </div>
+
+        <!-- Processed By and Signature -->
+        <div class="flex justify-between items-end mb-4 pt-3 border-t border-gray-300">
+            <div>
+                <p class="text-xs text-gray-600">प्राप्तकर्ता:</p>
+                <p id="processedBy" class="font-bold text-sm">-</p>
             </div>
-
-            <div class="border-2 border-black p-4 bg-yellow-50">
-                <div class="grid grid-cols-2 gap-4 mb-3">
-                    <div>
-                        <p class="text-xs text-gray-600 font-semibold">AMOUNT PAID:</p>
-                        <p id="amountPaid" class="text-2xl font-black text-green-700">₹-</p>
-                    </div>
-                    <div>
-                        <p class="text-xs text-gray-600 font-semibold">TOTAL RENT:</p>
-                        <p id="totalRent" class="text-lg font-bold">₹-</p>
-                    </div>
+            <div class="text-center">
+                <div class="border-t-2 border-black w-32 pt-1">
+                    <p class="text-xs">प्रबंधक/एकाउन्टेंट</p>
                 </div>
-                <div class="border-t-2 border-black pt-3">
-                    <p class="text-xs text-gray-600 font-semibold">BALANCE DUE:</p>
-                    <p id="balance" class="text-xl font-black text-red-700">₹-</p>
-                </div>
-            </div>
-
-            <div class="mt-4" id="notesSection" style="display: none;">
-                <p class="text-xs text-gray-600 font-semibold mb-1">NOTES:</p>
-                <p id="notes" class="text-sm border-2 border-black p-2">-</p>
             </div>
         </div>
 
         <!-- Verification Code -->
-        <div class="border-t-4 border-black pt-4 mt-6">
-            <p class="text-xs text-gray-600 font-semibold mb-2">VERIFICATION CODE:</p>
-            <div class="verification-code text-xs" id="verificationCode">
-                Generating verification code...
+        <div class="border-t-2 border-gray-300 pt-3 mt-4">
+            <p class="text-xs text-gray-500 mb-1">सत्यापन कोड / Verification Code:</p>
+            <div class="verification-code" id="verificationCode">
+                Generating...
             </div>
-            <p class="text-xs text-gray-500 mt-2 italic">
-                This encrypted code verifies the authenticity of this receipt. Keep this receipt safe for your records.
+            <p class="text-xs text-gray-400 mt-1 italic">
+                यह कोड इस रसीद की प्रामाणिकता सत्यापित करता है।
             </p>
-        </div>
-
-        <!-- Employee/Collector Info -->
-        <div class="mt-6 border-2 border-black p-3 bg-blue-50">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <i class="bi bi-person-badge text-blue-600"></i>
-                    <span class="text-xs font-semibold text-gray-700">COLLECTED BY:</span>
-                </div>
-                <span id="processedBy" class="font-black text-sm">Loading...</span>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="mt-6 text-center border-t-4 border-black pt-4">
-            <p class="text-xs font-semibold">Thank you for your business!</p>
-            <p class="text-xs text-gray-600 mt-1">For any queries, please contact us.</p>
         </div>
     </div>
 
     <script>
+        // Number to Hindi words conversion
+        function numberToHindiWords(num) {
+            const ones = ['', 'एक', 'दो', 'तीन', 'चार', 'पाँच', 'छः', 'सात', 'आठ', 'नौ', 'दस',
+                'ग्यारह', 'बारह', 'तेरह', 'चौदह', 'पंद्रह', 'सोलह', 'सत्रह', 'अठारह', 'उन्नीस'];
+            const tens = ['', '', 'बीस', 'तीस', 'चालीस', 'पचास', 'साठ', 'सत्तर', 'अस्सी', 'नब्बे'];
+
+            if (num === 0) return 'शून्य';
+            if (num < 0) return 'ऋण ' + numberToHindiWords(-num);
+
+            let words = '';
+
+            if (Math.floor(num / 10000000) > 0) {
+                words += numberToHindiWords(Math.floor(num / 10000000)) + ' करोड़ ';
+                num %= 10000000;
+            }
+
+            if (Math.floor(num / 100000) > 0) {
+                words += numberToHindiWords(Math.floor(num / 100000)) + ' लाख ';
+                num %= 100000;
+            }
+
+            if (Math.floor(num / 1000) > 0) {
+                words += numberToHindiWords(Math.floor(num / 1000)) + ' हज़ार ';
+                num %= 1000;
+            }
+
+            if (Math.floor(num / 100) > 0) {
+                words += numberToHindiWords(Math.floor(num / 100)) + ' सौ ';
+                num %= 100;
+            }
+
+            if (num > 0) {
+                if (num < 20) {
+                    words += ones[num];
+                } else {
+                    const ten = Math.floor(num / 10);
+                    const one = num % 10;
+                    if (one === 0) {
+                        words += tens[ten];
+                    } else if (one === 9 && ten < 9) {
+                        words += 'उन' + tens[ten + 1].substring(0, tens[ten + 1].length - 1);
+                    } else {
+                        words += tens[ten] + (tens[ten] ? '' : '') + ones[one];
+                    }
+                }
+            }
+
+            return words.trim();
+        }
+
+        function amountToHindiWords(amount) {
+            const rupees = Math.floor(amount);
+            const paise = Math.round((amount - rupees) * 100);
+
+            let result = numberToHindiWords(rupees) + ' रुपये';
+            if (paise > 0) {
+                result += ' ' + numberToHindiWords(paise) + ' पैसे';
+            }
+            result += ' मात्र';
+            return result;
+        }
+
         // Get URL parameters
         const urlParams = new URLSearchParams(window.location.search);
         const receiptNumber = urlParams.get('receipt');
@@ -157,26 +264,59 @@
                 }
 
                 const payment = await response.json();
-                displayReceipt(payment);
+
+                // Fetch customer details for S/O and village
+                let customerSO = '';
+                let customerVillage = '';
+                try {
+                    const custResponse = await fetch(`/api/customers/search?phone=${payment.customer_phone}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (custResponse.ok) {
+                        const customers = await custResponse.json();
+                        if (customers && customers.length > 0) {
+                            customerSO = customers[0].so || '';
+                            customerVillage = customers[0].village || '';
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error fetching customer:', e);
+                }
+
+                displayReceipt(payment, customerSO, customerVillage);
             } catch (error) {
                 console.error('Error loading receipt:', error);
                 alert('Failed to load receipt: ' + error.message);
             }
         }
 
-        async function displayReceipt(payment) {
+        async function displayReceipt(payment, customerSO, customerVillage) {
             document.getElementById('receiptNumber').textContent = payment.receipt_number;
-            document.getElementById('paymentDate').textContent = new Date(payment.payment_date).toLocaleString('en-IN');
+
+            // Format date in Hindi style
+            const date = new Date(payment.payment_date);
+            const dateStr = date.toLocaleDateString('hi-IN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            document.getElementById('paymentDate').textContent = dateStr;
+
             document.getElementById('customerName').textContent = payment.customer_name;
+            document.getElementById('customerSO').textContent = customerSO || '-';
+            document.getElementById('customerVillage').textContent = customerVillage || '-';
             document.getElementById('customerPhone').textContent = payment.customer_phone;
-            document.getElementById('amountPaid').textContent = '₹' + payment.amount_paid.toFixed(2);
+
+            document.getElementById('amountPaid').textContent = payment.amount_paid.toFixed(2);
             document.getElementById('totalRent').textContent = '₹' + payment.total_rent.toFixed(2);
             document.getElementById('balance').textContent = '₹' + payment.balance.toFixed(2);
+
+            // Amount in Hindi words
+            document.getElementById('amountInWords').textContent = amountToHindiWords(payment.amount_paid);
+
+            // Payment method
+            document.getElementById('paymentMethod').textContent = payment.notes && payment.notes.toLowerCase().includes('online') ? 'ऑनलाइन' : 'नकद';
 
             // Display family member name if available
             if (payment.family_member_name && payment.family_member_name.trim() !== '') {
                 document.getElementById('familyMemberName').textContent = payment.family_member_name;
-                document.getElementById('familyMemberRow').style.display = 'block';
+                document.getElementById('familyMemberRow').style.display = 'flex';
             }
 
             if (payment.notes && payment.notes.trim() !== '') {
@@ -204,50 +344,37 @@
 
                 if (response.ok) {
                     const user = await response.json();
-                    document.getElementById('processedBy').textContent = `${user.name} (${user.role})`;
+                    document.getElementById('processedBy').textContent = user.name;
                 } else {
-                    document.getElementById('processedBy').textContent = 'Employee ID: ' + userId;
+                    document.getElementById('processedBy').textContent = 'ID: ' + userId;
                 }
             } catch (error) {
                 console.error('Error fetching employee details:', error);
-                document.getElementById('processedBy').textContent = 'Employee ID: ' + userId;
+                document.getElementById('processedBy').textContent = 'ID: ' + userId;
             }
         }
 
         async function generateVerificationCode(payment) {
             try {
-                // Create data string for hashing (including employee ID for security)
                 const dataString = `${payment.receipt_number}|${payment.amount_paid}|${payment.payment_date}|${payment.customer_phone}|${payment.processed_by_user_id}`;
-
-                // Use a secret key (in production, this should come from server)
                 const secretKey = 'COLD-STORAGE-2025-SECRET-KEY';
 
-                // Encode the data
                 const encoder = new TextEncoder();
                 const data = encoder.encode(dataString);
                 const key = encoder.encode(secretKey);
 
-                // Import the key for HMAC
                 const cryptoKey = await crypto.subtle.importKey(
-                    'raw',
-                    key,
-                    { name: 'HMAC', hash: 'SHA-256' },
-                    false,
-                    ['sign']
+                    'raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
                 );
 
-                // Generate HMAC
                 const signature = await crypto.subtle.sign('HMAC', cryptoKey, data);
-
-                // Convert to hex string
                 const hashArray = Array.from(new Uint8Array(signature));
                 const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-                // Display verification code
                 document.getElementById('verificationCode').textContent = hashHex.toUpperCase();
             } catch (error) {
                 console.error('Error generating verification code:', error);
-                document.getElementById('verificationCode').textContent = 'Error generating code';
+                document.getElementById('verificationCode').textContent = 'Error';
             }
         }
 
