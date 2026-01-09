@@ -628,6 +628,35 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 			}
 		}
 
+		// Calculate customer-level totals for family member adjustment
+		customerTotalRent := 0.0
+		customerTotalPaid := 0.0
+		for _, fm := range familyMembers {
+			customerTotalRent += fm.Rent
+			customerTotalPaid += fm.Paid
+		}
+
+		// If customer account is fully paid (or overpaid), redistribute to balance family members
+		// This handles cases where payments went to wrong family member but total is correct
+		if customerTotalPaid >= customerTotalRent && customerTotalRent > 0 {
+			// Calculate proportional payment for each family member based on their rent share
+			for i := range familyMembers {
+				if familyMembers[i].Rent > 0 {
+					// Each family member is considered fully paid proportionally
+					familyMembers[i].Paid = familyMembers[i].Rent
+					familyMembers[i].Balance = 0
+					// Recalculate canTakeOut based on full payment
+					if rentPerItem > 0 {
+						itemsPaidFor := int(familyMembers[i].Paid / rentPerItem)
+						familyMembers[i].CanTakeOut = itemsPaidFor - familyMembers[i].Outgoing
+						if familyMembers[i].CanTakeOut < 0 {
+							familyMembers[i].CanTakeOut = 0
+						}
+					}
+				}
+			}
+		}
+
 		// Sort family members: those with balance first, then alphabetically
 		sort.Slice(familyMembers, func(i, j int) bool {
 			iHasDue := familyMembers[i].Balance > 0
