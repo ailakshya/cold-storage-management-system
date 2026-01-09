@@ -234,6 +234,7 @@
                                 class="w-full neu-input"
                                 data-i18n-placeholder="name_of_person_receiving"
                                 placeholder="Name of person receiving items"
+                                oninput="this.value = this.value.replace(/\b\w/g, c => c.toUpperCase())"
                             >
                         </div>
 
