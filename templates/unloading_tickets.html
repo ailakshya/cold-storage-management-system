@@ -122,6 +122,37 @@
             </div>
         </header>
 
+        <!-- Top: Pending Gate Passes (Full Width) -->
+        <div class="neu-border bg-white p-4 mb-4">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="bi bi-list-check text-yellow-600"></i>
+                    <span data-i18n="pending_gate_passes">Pending Gate Passes</span>
+                </h2>
+                <button onclick="loadPendingGatePasses()" class="neu-button bg-blue-500 text-white text-sm px-3 py-2">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div id="pendingTicketsTop" class="overflow-auto" style="max-height: 300px;">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white">
+                        <tr class="border-b-2 border-black">
+                            <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
+                            <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
+                            <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
+                            <th class="text-left p-2 font-bold" data-i18n="expires">Expires</th>
+                            <th class="text-left p-2 font-bold" data-i18n="action">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketsTableBody">
+                        <tr>
+                            <td colspan="5" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <div class="grid grid-cols-1 md:grid-cols-10 gap-4 md:gap-6">
             <!-- Left: Approval Form (60%) -->
             <div class="md:col-span-6">
@@ -368,36 +399,59 @@
                 </div>
             </div>
 
-            <!-- Right: Pending Tickets (40%) -->
+            <!-- Right: Quick Stats (40%) -->
             <div class="md:col-span-4">
                 <div class="neu-border bg-white p-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h2 class="text-xl font-bold flex items-center gap-2">
-                            <i class="bi bi-list-check text-yellow-600"></i>
-                            <span data-i18n="pending_gate_passes">Pending Gate Passes</span>
-                        </h2>
-                        <button onclick="loadPendingGatePasses()" class="neu-button bg-blue-500 text-white text-sm px-3 py-2">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                    </div>
-                    <div id="pendingTickets" class="overflow-auto" style="max-height: 700px;">
-                        <table class="w-full text-sm">
-                            <thead class="sticky top-0 bg-white">
-                                <tr class="border-b-2 border-black">
-                                    <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="expires">Expires</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ticketsTableBody">
-                                <tr>
-                                    <td colspan="4" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <h2 class="text-xl font-bold flex items-center gap-2 mb-3">
+                        <i class="bi bi-speedometer2 text-blue-600"></i>
+                        <span data-i18n="quick_stats">Quick Stats</span>
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                            <p class="text-sm text-gray-600" data-i18n="pending_count">Pending</p>
+                            <p id="statPending" class="text-2xl font-bold text-yellow-600">0</p>
+                        </div>
+                        <div class="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                            <p class="text-sm text-gray-600" data-i18n="approved_count">Approved</p>
+                            <p id="statApproved" class="text-2xl font-bold text-blue-600">0</p>
+                        </div>
+                        <div class="bg-green-50 p-3 rounded-lg border border-green-200">
+                            <p class="text-sm text-gray-600" data-i18n="completed_today">Completed Today</p>
+                            <p id="statCompleted" class="text-2xl font-bold text-green-600">0</p>
+                        </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Bottom: Recent Gate Passes (Full Width) -->
+        <div class="neu-border bg-white p-4 mt-4">
+            <div class="flex justify-between items-center mb-3">
+                <h2 class="text-xl font-bold flex items-center gap-2">
+                    <i class="bi bi-clock-history text-green-600"></i>
+                    <span data-i18n="recent_gate_passes">Recent Gate Passes</span>
+                </h2>
+                <button onclick="loadRecentGatePasses()" class="neu-button bg-green-500 text-white text-sm px-3 py-2">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
+            </div>
+            <div id="recentTickets" class="overflow-auto" style="max-height: 300px;">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-white">
+                        <tr class="border-b-2 border-black">
+                            <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
+                            <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
+                            <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
+                            <th class="text-left p-2 font-bold" data-i18n="status">Status</th>
+                            <th class="text-left p-2 font-bold" data-i18n="date">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentTableBody">
+                        <tr>
+                            <td colspan="5" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -1318,15 +1372,108 @@
             window.history.back();
         }
 
+        // Load recent gate passes (completed, rejected, expired)
+        async function loadRecentGatePasses() {
+            try {
+                const response = await fetch('/api/gate-passes', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load gate passes');
+                }
+
+                const allPasses = await response.json();
+
+                // Filter for recent completed/rejected/expired passes
+                const recentPasses = allPasses.filter(gp =>
+                    gp.status === 'completed' || gp.status === 'rejected' || gp.status === 'expired'
+                ).slice(0, 20); // Show last 20
+
+                displayRecentPasses(recentPasses);
+                updateStats(allPasses);
+
+            } catch (error) {
+                console.error('Error loading recent gate passes:', error);
+                document.getElementById('recentTableBody').innerHTML =
+                    `<tr><td colspan="5" class="text-center p-4 text-red-500">${i18n.t('failed_load', 'Failed to load')}</td></tr>`;
+            }
+        }
+
+        function displayRecentPasses(passes) {
+            const tbody = document.getElementById('recentTableBody');
+
+            if (passes.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">${i18n.t('no_recent_passes', 'No recent passes')}</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = passes.map(gp => {
+                // Status badge
+                let statusClass = 'bg-gray-100 text-gray-600';
+                let statusText = gp.status;
+                if (gp.status === 'completed') {
+                    statusClass = 'bg-green-100 text-green-700';
+                    statusText = i18n.t('completed', 'Completed');
+                } else if (gp.status === 'rejected') {
+                    statusClass = 'bg-red-100 text-red-700';
+                    statusText = i18n.t('rejected', 'Rejected');
+                } else if (gp.status === 'expired') {
+                    statusClass = 'bg-orange-100 text-orange-700';
+                    statusText = i18n.t('expired', 'Expired');
+                }
+
+                // Format date
+                const date = gp.completed_at || gp.updated_at || gp.issued_at;
+                const formattedDate = date ? new Date(date).toLocaleDateString('en-IN', {
+                    day: '2-digit',
+                    month: 'short',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }) : '-';
+
+                return `
+                    <tr class="border-b border-gray-200 hover:bg-gray-50">
+                        <td class="p-2" style="${getThockColor(gp.thock_number)}">${gp.thock_number}</td>
+                        <td class="p-2 text-sm truncate max-w-[120px]" title="${gp.customer_name}">${gp.customer_name}</td>
+                        <td class="p-2 font-bold">${gp.total_picked_up || gp.approved_quantity || gp.requested_quantity}</td>
+                        <td class="p-2">
+                            <span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${statusText}</span>
+                        </td>
+                        <td class="p-2 text-xs text-gray-600">${formattedDate}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateStats(allPasses) {
+            const pending = allPasses.filter(gp => gp.status === 'pending').length;
+            const approved = allPasses.filter(gp => gp.status === 'approved' || gp.status === 'partially_completed').length;
+
+            // Count completed today
+            const today = new Date().toDateString();
+            const completedToday = allPasses.filter(gp => {
+                if (gp.status !== 'completed') return false;
+                const completedDate = gp.completed_at ? new Date(gp.completed_at).toDateString() : null;
+                return completedDate === today;
+            }).length;
+
+            document.getElementById('statPending').textContent = pending;
+            document.getElementById('statApproved').textContent = approved;
+            document.getElementById('statCompleted').textContent = completedToday;
+        }
+
         // Load on page load
         window.addEventListener('load', function() {
             loadPendingGatePasses();
             loadApprovedPasses();
+            loadRecentGatePasses();
 
             // Auto-refresh every 10 seconds
             setInterval(() => {
                 loadPendingGatePasses();
                 loadApprovedPasses();
+                loadRecentGatePasses();
             }, 10000);
         });
 
