@@ -139,6 +139,7 @@
                         <tr class="border-b-2 border-black">
                             <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
                             <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
+                            <th class="text-left p-2 font-bold" data-i18n="recipient">Recipient</th>
                             <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
                             <th class="text-left p-2 font-bold" data-i18n="expires">Expires</th>
                             <th class="text-left p-2 font-bold" data-i18n="action">Action</th>
@@ -146,7 +147,7 @@
                     </thead>
                     <tbody id="ticketsTableBody">
                         <tr>
-                            <td colspan="5" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
+                            <td colspan="6" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -385,13 +386,14 @@
                             <thead class="sticky top-0 bg-white">
                                 <tr class="border-b-2 border-black">
                                     <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="recipient">Recipient</th>
                                     <th class="text-left p-2 font-bold" data-i18n="progress">Progress</th>
                                     <th class="text-left p-2 font-bold" data-i18n="action">Action</th>
                                 </tr>
                             </thead>
                             <tbody id="approvedTableBody">
                                 <tr>
-                                    <td colspan="3" class="text-center p-4 text-gray-500" data-i18n="no_approved_passes">No approved passes</td>
+                                    <td colspan="4" class="text-center p-4 text-gray-500" data-i18n="no_approved_passes">No approved passes</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -441,6 +443,7 @@
                         <tr class="border-b-2 border-black">
                             <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
                             <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
+                            <th class="text-left p-2 font-bold" data-i18n="recipient">Recipient</th>
                             <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
                             <th class="text-left p-2 font-bold" data-i18n="status">Status</th>
                             <th class="text-left p-2 font-bold" data-i18n="date">Date</th>
@@ -448,7 +451,7 @@
                     </thead>
                     <tbody id="recentTableBody">
                         <tr>
-                            <td colspan="5" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
+                            <td colspan="6" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
                         </tr>
                     </tbody>
                 </table>
@@ -632,11 +635,26 @@
             };
         }
 
+        // Extract recipient from remarks or use family_member_name
+        function getRecipient(gp) {
+            // First check family_member_name
+            if (gp.family_member_name && gp.family_member_name !== '-') {
+                return gp.family_member_name;
+            }
+            // Then try to extract from remarks
+            if (gp.remarks) {
+                const match = gp.remarks.match(/Recipient:\s*([^|]+)/i);
+                if (match) return match[1].trim();
+            }
+            // Fallback to customer name
+            return gp.customer_name || '-';
+        }
+
         function displayPendingTickets(gatePasses) {
             const tbody = document.getElementById('ticketsTableBody');
 
             if (gatePasses.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">${i18n.t('no_pending_tickets', 'No pending tickets')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">${i18n.t('no_pending_tickets', 'No pending tickets')}</td></tr>`;
                 return;
             }
 
@@ -650,13 +668,22 @@
                 // Color code truck number based on seed/sell
                 const truckColor = getThockColor(gp.thock_number);
 
+                // Get recipient name
+                const recipient = getRecipient(gp);
+
                 return `
                     <tr class="${rowClass} cursor-pointer"
                         onclick='selectTicket(${JSON.stringify(gp)})'>
                         <td class="p-2" style="${truckColor}">${gp.thock_number}</td>
-                        <td class="p-2 text-sm truncate max-w-[120px]" title="${gp.customer_name}">${gp.customer_name}</td>
+                        <td class="p-2 text-sm truncate max-w-[100px]" title="${gp.customer_name}">${gp.customer_name}</td>
+                        <td class="p-2 text-sm truncate max-w-[100px] text-purple-600 font-semibold" title="${recipient}">${recipient}</td>
                         <td class="p-2 font-bold">${gp.requested_quantity}</td>
                         <td class="p-2 text-xs font-bold ${remaining.color}">${remaining.text}</td>
+                        <td class="p-2">
+                            <button class="neu-button bg-green-500 text-white text-xs px-2 py-1">
+                                <i class="bi bi-check"></i>
+                            </button>
+                        </td>
                     </tr>
                 `;
             }).join('');
@@ -1167,7 +1194,7 @@
             );
 
             if (activePasses.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" class="text-center p-4 text-gray-500">${i18n.t('no_approved_waiting', 'No approved passes waiting for pickup')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">${i18n.t('no_approved_waiting', 'No approved passes waiting for pickup')}</td></tr>`;
                 return;
             }
 
@@ -1175,6 +1202,9 @@
                 const approvedQty = gp.approved_quantity || gp.requested_quantity;
                 const pickedUp = gp.total_picked_up || 0;
                 const remaining = approvedQty - pickedUp;
+
+                // Get recipient name
+                const recipient = getRecipient(gp);
 
                 // Progress bar color
                 let progressColor = 'bg-orange-500';
@@ -1203,6 +1233,7 @@
                 return `
                     <tr class="border-b border-gray-200 hover:bg-gray-50">
                         <td class="p-2" style="${getThockColor(gp.thock_number)}">${gp.thock_number}</td>
+                        <td class="p-2 text-sm text-purple-600 font-semibold truncate max-w-[100px]" title="${recipient}">${recipient}</td>
                         <td class="p-2">
                             <div class="flex items-center gap-2">
                                 <span class="font-bold ${remaining === 0 ? 'text-green-600' : 'text-orange-600'}">${pickedUp}/${approvedQty}</span>
@@ -1404,7 +1435,7 @@
             const tbody = document.getElementById('recentTableBody');
 
             if (passes.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center p-4 text-gray-500">${i18n.t('no_recent_passes', 'No recent passes')}</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="text-center p-4 text-gray-500">${i18n.t('no_recent_passes', 'No recent passes')}</td></tr>`;
                 return;
             }
 
@@ -1433,6 +1464,9 @@
                     statusText = i18n.t('expired', 'Expired');
                 }
 
+                // Get recipient name
+                const recipient = getRecipient(gp);
+
                 // Format date - show when it was created (issued_at)
                 const formattedDate = gp.issued_at ? new Date(gp.issued_at).toLocaleDateString('en-IN', {
                     day: '2-digit',
@@ -1444,7 +1478,8 @@
                 return `
                     <tr class="border-b border-gray-200 hover:bg-gray-50">
                         <td class="p-2" style="${getThockColor(gp.thock_number)}">${gp.thock_number}</td>
-                        <td class="p-2 text-sm truncate max-w-[120px]" title="${gp.customer_name}">${gp.customer_name}</td>
+                        <td class="p-2 text-sm truncate max-w-[100px]" title="${gp.customer_name}">${gp.customer_name}</td>
+                        <td class="p-2 text-sm truncate max-w-[100px] text-purple-600 font-semibold" title="${recipient}">${recipient}</td>
                         <td class="p-2 font-bold">${gp.requested_quantity}</td>
                         <td class="p-2">
                             <span class="px-2 py-1 rounded text-xs font-bold ${statusClass}">${statusText}</span>
