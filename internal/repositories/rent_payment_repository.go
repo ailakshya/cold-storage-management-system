@@ -61,8 +61,8 @@ func (r *RentPaymentRepository) Create(ctx context.Context, payment *models.Rent
 	}
 
 	query := `
-		INSERT INTO rent_payments (receipt_number, entry_id, family_member_id, family_member_name, customer_name, customer_phone, total_rent, amount_paid, balance, payment_type, processed_by_user_id, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		INSERT INTO rent_payments (receipt_number, entry_id, family_member_id, family_member_name, customer_name, customer_phone, total_rent, amount_paid, balance, processed_by_user_id, notes)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		RETURNING id, payment_date, created_at
 	`
 
@@ -76,7 +76,6 @@ func (r *RentPaymentRepository) Create(ctx context.Context, payment *models.Rent
 		payment.TotalRent,
 		payment.AmountPaid,
 		payment.Balance,
-		payment.PaymentType,
 		payment.ProcessedByUserID,
 		payment.Notes,
 	).Scan(&payment.ID, &payment.PaymentDate, &payment.CreatedAt)
@@ -93,7 +92,7 @@ func (r *RentPaymentRepository) GetByEntryID(ctx context.Context, entryID int) (
 	query := `
 		SELECT id, receipt_number, entry_id, family_member_id, COALESCE(family_member_name, ''),
 		       customer_name, customer_phone, total_rent, amount_paid, balance,
-		       COALESCE(payment_type, 'cash'), payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
+		       payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
 		FROM rent_payments
 		WHERE entry_id = $1
 		ORDER BY payment_date DESC
@@ -119,7 +118,6 @@ func (r *RentPaymentRepository) GetByEntryID(ctx context.Context, entryID int) (
 			&payment.TotalRent,
 			&payment.AmountPaid,
 			&payment.Balance,
-			&payment.PaymentType,
 			&payment.PaymentDate,
 			&payment.ProcessedByUserID,
 			&payment.Notes,
@@ -138,7 +136,7 @@ func (r *RentPaymentRepository) GetByPhone(ctx context.Context, phone string) ([
 	query := `
 		SELECT id, receipt_number, entry_id, family_member_id, COALESCE(family_member_name, ''),
 		       customer_name, customer_phone, total_rent, amount_paid, balance,
-		       COALESCE(payment_type, 'cash'), payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
+		       payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
 		FROM rent_payments
 		WHERE customer_phone = $1
 		ORDER BY payment_date DESC
@@ -164,7 +162,6 @@ func (r *RentPaymentRepository) GetByPhone(ctx context.Context, phone string) ([
 			&payment.TotalRent,
 			&payment.AmountPaid,
 			&payment.Balance,
-			&payment.PaymentType,
 			&payment.PaymentDate,
 			&payment.ProcessedByUserID,
 			&payment.Notes,
@@ -183,7 +180,7 @@ func (r *RentPaymentRepository) GetByFamilyMemberID(ctx context.Context, familyM
 	query := `
 		SELECT id, receipt_number, entry_id, family_member_id, COALESCE(family_member_name, ''),
 		       customer_name, customer_phone, total_rent, amount_paid, balance,
-		       COALESCE(payment_type, 'cash'), payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
+		       payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
 		FROM rent_payments
 		WHERE family_member_id = $1
 		ORDER BY payment_date DESC
@@ -209,7 +206,6 @@ func (r *RentPaymentRepository) GetByFamilyMemberID(ctx context.Context, familyM
 			&payment.TotalRent,
 			&payment.AmountPaid,
 			&payment.Balance,
-			&payment.PaymentType,
 			&payment.PaymentDate,
 			&payment.ProcessedByUserID,
 			&payment.Notes,
@@ -229,7 +225,7 @@ func (r *RentPaymentRepository) List(ctx context.Context) ([]*models.RentPayment
 	query := `
 		SELECT rp.id, rp.receipt_number, rp.entry_id, rp.family_member_id, COALESCE(rp.family_member_name, ''),
 		       rp.customer_name, rp.customer_phone,
-		       rp.total_rent, rp.amount_paid, rp.balance, COALESCE(rp.payment_type, 'cash'), rp.payment_date,
+		       rp.total_rent, rp.amount_paid, rp.balance, rp.payment_date,
 		       COALESCE(rp.processed_by_user_id, 0), COALESCE(u.name, 'Unknown'),
 		       COALESCE(rp.notes, ''), rp.created_at
 		FROM rent_payments rp
@@ -257,7 +253,6 @@ func (r *RentPaymentRepository) List(ctx context.Context) ([]*models.RentPayment
 			&payment.TotalRent,
 			&payment.AmountPaid,
 			&payment.Balance,
-			&payment.PaymentType,
 			&payment.PaymentDate,
 			&payment.ProcessedByUserID,
 			&payment.ProcessedByName,
@@ -277,7 +272,7 @@ func (r *RentPaymentRepository) GetByReceiptNumber(ctx context.Context, receiptN
 	query := `
 		SELECT id, receipt_number, entry_id, family_member_id, COALESCE(family_member_name, ''),
 		       customer_name, customer_phone, total_rent, amount_paid, balance,
-		       COALESCE(payment_type, 'cash'), payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
+		       payment_date, COALESCE(processed_by_user_id, 0), COALESCE(notes, ''), created_at
 		FROM rent_payments
 		WHERE receipt_number = $1
 	`
@@ -294,7 +289,6 @@ func (r *RentPaymentRepository) GetByReceiptNumber(ctx context.Context, receiptN
 		&payment.TotalRent,
 		&payment.AmountPaid,
 		&payment.Balance,
-		&payment.PaymentType,
 		&payment.PaymentDate,
 		&payment.ProcessedByUserID,
 		&payment.Notes,
