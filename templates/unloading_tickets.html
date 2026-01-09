@@ -123,47 +123,16 @@
         </header>
 
         <div class="grid grid-cols-1 md:grid-cols-10 gap-4 md:gap-6">
-            <!-- Left: Pending Gate Passes (60%) - TOP -->
+            <!-- Left: Approval Form (60%) -->
             <div class="md:col-span-6">
-                <div class="neu-border bg-white p-4">
-                    <div class="flex justify-between items-center mb-3">
-                        <h2 class="text-xl font-bold flex items-center gap-2">
-                            <i class="bi bi-list-check text-yellow-600"></i>
-                            <span data-i18n="pending_gate_passes">Pending Gate Passes</span>
-                        </h2>
-                        <button onclick="loadPendingGatePasses()" class="neu-button bg-blue-500 text-white text-sm px-3 py-2">
-                            <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                    </div>
-                    <div id="pendingTicketsTop" class="overflow-auto" style="max-height: 400px;">
-                        <table class="w-full text-sm">
-                            <thead class="sticky top-0 bg-white">
-                                <tr class="border-b-2 border-black">
-                                    <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="expires">Expires</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="action">Action</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ticketsTableBody">
-                                <tr>
-                                    <td colspan="5" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Approval Form (hidden initially) -->
-                <div class="neu-border bg-white p-6 mt-4">
+                <div class="neu-border bg-white p-6">
                     <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
                         <i class="bi bi-check2-circle text-green-600"></i>
                         <span data-i18n="approval_form">Approval Form</span>
                     </h2>
 
-                    <div id="noSelection" class="p-4 text-center text-gray-500">
-                        <i class="bi bi-hand-index text-4xl mb-2"></i>
+                    <div id="noSelection" class="p-8 text-center text-gray-500">
+                        <i class="bi bi-hand-index text-6xl mb-4"></i>
                         <p data-i18n="select_gate_pass_approve">Select a gate pass to approve</p>
                     </div>
 
@@ -399,29 +368,29 @@
                 </div>
             </div>
 
-            <!-- Right: Recent Gate Passes (40%) - All statuses -->
+            <!-- Right: Pending Tickets (40%) -->
             <div class="md:col-span-4">
                 <div class="neu-border bg-white p-4">
                     <div class="flex justify-between items-center mb-3">
                         <h2 class="text-xl font-bold flex items-center gap-2">
-                            <i class="bi bi-clock-history text-blue-600"></i>
-                            <span data-i18n="recent_gate_passes">Recent Gate Passes</span>
+                            <i class="bi bi-list-check text-yellow-600"></i>
+                            <span data-i18n="pending_gate_passes">Pending Gate Passes</span>
                         </h2>
-                        <button onclick="loadRecentGatePasses()" class="neu-button bg-blue-500 text-white text-sm px-3 py-2">
+                        <button onclick="loadPendingGatePasses()" class="neu-button bg-blue-500 text-white text-sm px-3 py-2">
                             <i class="bi bi-arrow-clockwise"></i>
                         </button>
                     </div>
-                    <div id="recentTickets" class="overflow-auto" style="max-height: 700px;">
+                    <div id="pendingTickets" class="overflow-auto" style="max-height: 700px;">
                         <table class="w-full text-sm">
                             <thead class="sticky top-0 bg-white">
                                 <tr class="border-b-2 border-black">
                                     <th class="text-left p-2 font-bold" data-i18n="thock_number">Thok</th>
                                     <th class="text-left p-2 font-bold" data-i18n="customer_name">Customer</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="picked_up">Picked</th>
-                                    <th class="text-left p-2 font-bold" data-i18n="status">Status</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="qty">Qty</th>
+                                    <th class="text-left p-2 font-bold" data-i18n="expires">Expires</th>
                                 </tr>
                             </thead>
-                            <tbody id="recentTableBody">
+                            <tbody id="ticketsTableBody">
                                 <tr>
                                     <td colspan="4" class="text-center p-4 text-gray-500" data-i18n="loading">Loading...</td>
                                 </tr>
@@ -564,62 +533,8 @@
             } catch (error) {
                 console.error('Error loading pending gate passes:', error);
                 document.getElementById('ticketsTableBody').innerHTML =
-                    `<tr><td colspan="5" class="text-center p-4 text-red-500">${i18n.t('failed_load_tickets', 'Failed to load tickets')}</td></tr>`;
+                    `<tr><td colspan="7" class="text-center p-4 text-red-500">${i18n.t('failed_load_tickets', 'Failed to load tickets')}</td></tr>`;
             }
-        }
-
-        // Load recent gate passes (all statuses)
-        async function loadRecentGatePasses() {
-            try {
-                const response = await fetch('/api/gate-passes', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to load recent gate passes');
-                }
-
-                const gatePasses = await response.json();
-                displayRecentGatePasses(gatePasses || []);
-
-            } catch (error) {
-                console.error('Error loading recent gate passes:', error);
-                document.getElementById('recentTableBody').innerHTML =
-                    `<tr><td colspan="4" class="text-center p-4 text-red-500">${i18n.t('failed_load', 'Failed to load')}</td></tr>`;
-            }
-        }
-
-        function displayRecentGatePasses(gatePasses) {
-            const tbody = document.getElementById('recentTableBody');
-
-            if (!gatePasses || gatePasses.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center p-4 text-gray-500">${i18n.t('no_recent_passes', 'No recent gate passes')}</td></tr>`;
-                return;
-            }
-
-            // Sort by date descending and take last 20
-            const sorted = gatePasses.sort((a, b) => new Date(b.issued_at || b.created_at) - new Date(a.issued_at || a.created_at)).slice(0, 20);
-
-            tbody.innerHTML = sorted.map(gp => {
-                const statusColors = {
-                    'completed': 'bg-green-100 text-green-800',
-                    'approved': 'bg-blue-100 text-blue-800',
-                    'pending': 'bg-yellow-100 text-yellow-800',
-                    'expired': 'bg-gray-100 text-gray-800',
-                    'rejected': 'bg-red-100 text-red-800'
-                };
-                const statusColor = statusColors[gp.status] || 'bg-gray-100 text-gray-600';
-                const pickedUp = gp.total_picked_up || 0;
-
-                return `
-                    <tr class="border-b hover:bg-gray-50">
-                        <td class="p-2" style="${getThockColor(gp.thock_number)}">${gp.thock_number || '-'}</td>
-                        <td class="p-2 text-sm">${gp.customer_name || '-'}</td>
-                        <td class="p-2 font-bold">${pickedUp}</td>
-                        <td class="p-2"><span class="px-2 py-1 rounded text-xs ${statusColor}">${gp.status?.toUpperCase() || '-'}</span></td>
-                    </tr>
-                `;
-            }).join('');
         }
 
         // Calculate remaining time until expiration
@@ -1164,7 +1079,7 @@
                 alert(i18n.t('gate_pass_approved', 'Gate pass approved successfully!'));
                 clearSelection();
                 loadPendingGatePasses();
-                loadRecentGatePasses();
+                loadApprovedPasses();
 
             } catch (error) {
                 alert(i18n.t('error_approving', 'Error approving gate pass') + ': ' + error.message);
@@ -1406,12 +1321,12 @@
         // Load on page load
         window.addEventListener('load', function() {
             loadPendingGatePasses();
-            loadRecentGatePasses();
+            loadApprovedPasses();
 
             // Auto-refresh every 10 seconds
             setInterval(() => {
                 loadPendingGatePasses();
-                loadRecentGatePasses();
+                loadApprovedPasses();
             }, 10000);
         });
 
