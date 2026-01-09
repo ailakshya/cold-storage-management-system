@@ -635,16 +635,16 @@
             };
         }
 
-        // Extract recipient from remarks or use family_member_name
+        // Extract recipient from remarks (priority) or use family_member_name
         function getRecipient(gp) {
-            // First check family_member_name
-            if (gp.family_member_name && gp.family_member_name !== '-') {
-                return gp.family_member_name;
-            }
-            // Then try to extract from remarks
+            // First try to extract from remarks (what employee entered)
             if (gp.remarks) {
                 const match = gp.remarks.match(/Recipient:\s*([^|]+)/i);
                 if (match) return match[1].trim();
+            }
+            // Then check family_member_name
+            if (gp.family_member_name && gp.family_member_name !== '-' && gp.family_member_name !== '') {
+                return gp.family_member_name;
             }
             // Fallback to customer name
             return gp.customer_name || '-';

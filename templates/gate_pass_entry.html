@@ -1752,11 +1752,17 @@
                     minute: '2-digit'
                 });
 
-                // Get recipient from family_member_name or extract from remarks
-                let recipient = gp.family_member_name || '-';
-                if (recipient === '-' && gp.remarks) {
+                // Get recipient - first from remarks (what employee entered), then family_member_name
+                let recipient = '-';
+                if (gp.remarks) {
                     const match = gp.remarks.match(/Recipient:\s*([^|]+)/i);
                     if (match) recipient = match[1].trim();
+                }
+                if (recipient === '-' && gp.family_member_name && gp.family_member_name !== '') {
+                    recipient = gp.family_member_name;
+                }
+                if (recipient === '-') {
+                    recipient = gp.customer_name || '-';
                 }
 
                 // Calculate remaining time for pending gate passes
