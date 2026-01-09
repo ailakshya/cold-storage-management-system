@@ -80,6 +80,30 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Validate against actual balance due per family member (prevent over-collection)
+	if h.LedgerService != nil && h.LedgerService.LedgerRepo != nil && req.CustomerPhone != "" {
+		// Get family member name for validation
+		fmName := strings.TrimSpace(req.FamilyMemberName)
+		if fmName == "" {
+			fmName = req.CustomerName
+		}
+
+		// Get total already paid by this family member from ledger
+		alreadyPaid, err := h.LedgerService.LedgerRepo.GetTotalCreditByFamilyMember(ctx, req.CustomerPhone, fmName)
+		if err == nil {
+			// Calculate actual balance due for this family member
+			actualBalanceDue := req.TotalRent - alreadyPaid
+			if actualBalanceDue < 0 {
+				actualBalanceDue = 0
+			}
+			// Reject if payment exceeds balance due
+			if req.AmountPaid > actualBalanceDue {
+				http.Error(w, fmt.Sprintf("Payment (%.0f) exceeds balance due (%.0f) for %s", req.AmountPaid, actualBalanceDue, fmName), http.StatusBadRequest)
+				return
+			}
+		}
+	}
+
 	// Normalize family member name to match entry's family member name
 	// This prevents mismatches like "Aakash" vs "Aakesh"
 	familyMemberName := strings.TrimSpace(req.FamilyMemberName)

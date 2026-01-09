@@ -399,6 +399,17 @@ func (r *LedgerRepository) GetTotalCredit(ctx context.Context, customerPhone str
 	return total, err
 }
 
+// GetTotalCreditByFamilyMember returns total payments (credits) for a specific family member
+func (r *LedgerRepository) GetTotalCreditByFamilyMember(ctx context.Context, customerPhone, familyMemberName string) (float64, error) {
+	var total float64
+	err := r.DB.QueryRow(ctx,
+		`SELECT COALESCE(SUM(credit), 0) FROM ledger_entries
+		 WHERE customer_phone = $1
+		 AND (family_member_name = $2 OR (family_member_name IS NULL AND $2 = '') OR (family_member_name = '' AND $2 = ''))`,
+		customerPhone, familyMemberName).Scan(&total)
+	return total, err
+}
+
 // GetAllTotalCredits returns total credits for all customers (bulk query)
 func (r *LedgerRepository) GetAllTotalCredits(ctx context.Context) (map[string]float64, error) {
 	query := `
