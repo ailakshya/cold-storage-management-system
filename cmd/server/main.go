@@ -593,6 +593,7 @@ func main() {
 		rentPaymentHandler := handlers.NewRentPaymentHandler(rentPaymentService, ledgerService, adminActionLogRepo)
 		rentPaymentHandler.SetNotificationService(notificationService)
 		rentPaymentHandler.SetCustomerService(customerService)
+		rentPaymentHandler.SetEntryRepo(entryRepo) // For family member name validation
 		invoiceHandler := handlers.NewInvoiceHandler(invoiceService)
 		loginLogHandler := handlers.NewLoginLogHandler(loginLogRepo)
 		// Set OTP repo for customer login logs in admin panel

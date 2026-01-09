@@ -17,12 +17,15 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// Note: context package is still needed for background goroutine in NotifyPaymentReceived
+
 type RentPaymentHandler struct {
 	Service             *services.RentPaymentService
 	LedgerService       *services.LedgerService
 	NotificationService *services.NotificationService
 	CustomerService     *services.CustomerService
 	AdminActionRepo     *repositories.AdminActionLogRepository
+	EntryRepo           *repositories.EntryRepository
 }
 
 func NewRentPaymentHandler(service *services.RentPaymentService, ledgerService *services.LedgerService, adminActionRepo *repositories.AdminActionLogRepository) *RentPaymentHandler {
@@ -43,14 +46,21 @@ func (h *RentPaymentHandler) SetCustomerService(customerService *services.Custom
 	h.CustomerService = customerService
 }
 
+// SetEntryRepo sets the entry repository for family member validation
+func (h *RentPaymentHandler) SetEntryRepo(entryRepo *repositories.EntryRepository) {
+	h.EntryRepo = entryRepo
+}
+
 func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
 	var req models.CreateRentPaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	userID, ok := middleware.GetUserIDFromContext(ctx)
 	if !ok {
 		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
 		return
@@ -70,10 +80,28 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Normalize family member name to match entry's family member name
+	// This prevents mismatches like "Aakash" vs "Aakesh"
+	familyMemberName := strings.TrimSpace(req.FamilyMemberName)
+	if h.EntryRepo != nil && req.EntryID > 0 {
+		// Get the entry to find the correct family member name
+		if entry, err := h.EntryRepo.Get(ctx, req.EntryID); err == nil && entry != nil {
+			if entry.FamilyMemberName != "" {
+				// Use the family member name from the entry (source of truth)
+				familyMemberName = entry.FamilyMemberName
+			}
+		}
+	}
+
+	// If still empty, use customer name
+	if familyMemberName == "" {
+		familyMemberName = req.CustomerName
+	}
+
 	payment := &models.RentPayment{
 		EntryID:           req.EntryID,
 		FamilyMemberID:    req.FamilyMemberID,
-		FamilyMemberName:  req.FamilyMemberName,
+		FamilyMemberName:  familyMemberName,
 		CustomerName:      req.CustomerName,
 		CustomerPhone:     req.CustomerPhone,
 		TotalRent:         req.TotalRent,
@@ -83,7 +111,7 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		Notes:             req.Notes,
 	}
 
-	if err := h.Service.CreatePayment(context.Background(), payment); err != nil {
+	if err := h.Service.CreatePayment(ctx, payment); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -93,13 +121,10 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 		// Lookup customer S/O for ledger entry
 		customerSO := ""
 		if h.CustomerService != nil {
-			if customer, err := h.CustomerService.SearchByPhone(r.Context(), req.CustomerPhone); err == nil && customer != nil {
+			if customer, err := h.CustomerService.SearchByPhone(ctx, req.CustomerPhone); err == nil && customer != nil {
 				customerSO = customer.SO
 			}
 		}
-
-		// Log payment type received from request
-		fmt.Printf("PAYMENT: Received PaymentType='%s' for customer %s\n", req.PaymentType, req.CustomerPhone)
 
 		// Determine ledger entry type based on payment method (case-insensitive)
 		entryType := models.LedgerEntryTypePayment
@@ -108,7 +133,6 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 			entryType = models.LedgerEntryTypeOnlinePayment
 			description = "Rent payment received (Online)"
 		}
-		fmt.Printf("PAYMENT: Using entryType='%s', description='%s'\n", entryType, description)
 
 		ledgerEntry := &models.CreateLedgerEntryRequest{
 			CustomerPhone:    req.CustomerPhone,
@@ -120,40 +144,45 @@ func (h *RentPaymentHandler) CreatePayment(w http.ResponseWriter, r *http.Reques
 			ReferenceID:      &payment.ID,
 			ReferenceType:    "payment",
 			FamilyMemberID:   req.FamilyMemberID,
-			FamilyMemberName: req.FamilyMemberName,
+			FamilyMemberName: familyMemberName, // Use corrected family member name
 			CreatedByUserID:  userID,
 			Notes:            req.Notes,
 		}
 		// Create ledger entry (don't fail the payment if this fails)
-		_, _ = h.LedgerService.CreateEntry(r.Context(), ledgerEntry)
+		_, _ = h.LedgerService.CreateEntry(ctx, ledgerEntry)
 	}
 
 	// Log payment creation
-	description := fmt.Sprintf("Payment received: ₹%.2f from %s (%s) - Balance: ₹%.2f",
+	logDescription := fmt.Sprintf("Payment received: ₹%.2f from %s (%s) - Balance: ₹%.2f",
 		payment.AmountPaid, req.CustomerName, req.CustomerPhone, payment.Balance)
 	if req.Notes != "" {
-		description += " | Notes: " + req.Notes
+		logDescription += " | Notes: " + req.Notes
 	}
-	h.AdminActionRepo.CreateActionLog(context.Background(), &models.AdminActionLog{
+	h.AdminActionRepo.CreateActionLog(ctx, &models.AdminActionLog{
 		AdminUserID: userID,
 		ActionType:  "PAYMENT",
 		TargetType:  "rent_payment",
 		TargetID:    &payment.ID,
-		Description: description,
+		Description: logDescription,
 	})
 
 	// Invalidate payment caches
-	cache.InvalidatePaymentCaches(r.Context())
+	cache.InvalidatePaymentCaches(ctx)
 
 	// Send payment SMS notification (non-blocking)
 	if h.NotificationService != nil && payment.AmountPaid > 0 && req.CustomerPhone != "" {
+		// Capture values for goroutine
+		customerName := req.CustomerName
+		customerPhone := req.CustomerPhone
+		amountPaid := payment.AmountPaid
+		balance := payment.Balance
 		go func() {
 			customer := &models.Customer{
-				Name:  req.CustomerName,
-				Phone: req.CustomerPhone,
+				Name:  customerName,
+				Phone: customerPhone,
 			}
 			// Remaining balance after this payment
-			_ = h.NotificationService.NotifyPaymentReceived(context.Background(), customer, payment.AmountPaid, payment.Balance)
+			_ = h.NotificationService.NotifyPaymentReceived(context.Background(), customer, amountPaid, balance)
 		}()
 	}
 
@@ -183,7 +212,7 @@ func (h *RentPaymentHandler) GetPaymentsByEntry(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	payments, err := h.Service.GetPaymentsByEntryID(context.Background(), entryID)
+	payments, err := h.Service.GetPaymentsByEntryID(r.Context(), entryID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -215,7 +244,7 @@ func (h *RentPaymentHandler) GetPaymentsByPhone(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	payments, err := h.Service.GetPaymentsByPhone(context.Background(), phone)
+	payments, err := h.Service.GetPaymentsByPhone(r.Context(), phone)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -226,7 +255,7 @@ func (h *RentPaymentHandler) GetPaymentsByPhone(w http.ResponseWriter, r *http.R
 }
 
 func (h *RentPaymentHandler) ListPayments(w http.ResponseWriter, r *http.Request) {
-	payments, err := h.Service.ListPayments(context.Background())
+	payments, err := h.Service.ListPayments(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -244,7 +273,7 @@ func (h *RentPaymentHandler) GetPaymentByReceiptNumber(w http.ResponseWriter, r 
 		return
 	}
 
-	payment, err := h.Service.GetPaymentByReceiptNumber(context.Background(), receiptNumber)
+	payment, err := h.Service.GetPaymentByReceiptNumber(r.Context(), receiptNumber)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return

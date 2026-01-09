@@ -459,6 +459,20 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 		familyMemberQty := make(map[string]int)
 		familyMemberRent := make(map[string]float64)
 
+		// Build a set of known family member names from thocks (for matching)
+		knownFamilyMembers := make(map[string]string) // normalized -> original
+		for _, thock := range customer.Thocks {
+			fmName := thock.FamilyMemberName
+			if fmName == "" {
+				fmName = customer.Name
+			}
+			// Store mapping from normalized (lowercase, trimmed) to original
+			normalized := strings.ToLower(strings.TrimSpace(fmName))
+			if _, exists := knownFamilyMembers[normalized]; !exists {
+				knownFamilyMembers[normalized] = fmName
+			}
+		}
+
 		for _, thock := range customer.Thocks {
 			fmName := thock.FamilyMemberName
 			if fmName == "" {
@@ -482,6 +496,38 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 			if fmName == "" {
 				fmName = customer.Name
 			}
+
+			// Try to match payment's family member name to existing thock family member
+			// This handles slight spelling variations (e.g., "Aakesh" vs "Aakash")
+			normalizedPaymentName := strings.ToLower(strings.TrimSpace(fmName))
+			matched := false
+
+			// Step 1: Try exact normalized match
+			if originalName, exists := knownFamilyMembers[normalizedPaymentName]; exists {
+				fmName = originalName
+				matched = true
+			}
+
+			// Step 2: If only one family member has items, assign all payments to them
+			// This handles cases where payment was recorded with customer name but items are under a variant
+			if !matched && len(knownFamilyMembers) == 1 {
+				for _, originalName := range knownFamilyMembers {
+					fmName = originalName
+					matched = true
+					break
+				}
+			}
+
+			// Step 3: Try to match customer name to existing family member
+			if !matched {
+				customerNameNormalized := strings.ToLower(strings.TrimSpace(customer.Name))
+				if normalizedPaymentName == customerNameNormalized {
+					if originalName, exists := knownFamilyMembers[customerNameNormalized]; exists {
+						fmName = originalName
+					}
+				}
+			}
+
 			familyMemberLedgerPayments[fmName] = append(familyMemberLedgerPayments[fmName], LedgerPayment{
 				ID:               lp.ID,
 				Amount:           lp.Amount,
@@ -617,6 +663,11 @@ func (h *AccountHandler) generateAccountSummary(ctx context.Context) (*AccountSu
 		// Within same category, sort alphabetically by name
 		return strings.ToLower(customers[i].Name) < strings.ToLower(customers[j].Name)
 	})
+
+	// Ensure outstanding is not negative (negative means customers have credit)
+	if totalOutstanding < 0 {
+		totalOutstanding = 0
+	}
 
 	return &AccountSummary{
 		Customers:        customers,
