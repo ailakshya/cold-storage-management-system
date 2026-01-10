@@ -21,8 +21,22 @@ var CommonPasswords = []string{
 }
 
 // Database fallback configuration - will try all passwords for each host
-// Order: VIP-DB (bare metal) -> Backup server -> Localhost (for disaster recovery)
+// Order: POC Primary -> POC Standby -> VIP-DB -> Backup server -> Localhost
 var DatabaseFallbacks = []DatabaseConfig{
+	{
+		Name:     "POC Primary (192.168.15.230)",
+		Host:     "192.168.15.230",
+		Port:     5432,
+		User:     "cold_user",
+		Database: "cold_db",
+	},
+	{
+		Name:     "POC Standby (192.168.15.231)",
+		Host:     "192.168.15.231",
+		Port:     5432,
+		User:     "cold_user",
+		Database: "cold_db",
+	},
 	{
 		Name:     "VIP-DB (Primary)",
 		Host:     "192.168.15.210",
