@@ -119,9 +119,10 @@ func runR2Backup() {
 	}
 
 	// Generate backup filename with structured hourly folders
-	// Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
+	// Format: {env}/base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
 	now := timeutil.Now()
-	backupKey := fmt.Sprintf("base/%s/%s/%s/%s/cold_db_%s.sql",
+	backupKey := fmt.Sprintf("%s/base/%s/%s/%s/%s/cold_db_%s.sql",
+		config.GetR2BackupPrefix(),
 		now.Format("2006"),           // Year
 		now.Format("01"),             // Month
 		now.Format("02"),             // Day
@@ -199,7 +200,7 @@ func cleanupOldBackups(ctx context.Context, client *s3.Client) {
 	for {
 		result, err := client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 			Bucket:            aws.String(config.R2BucketName),
-			Prefix:            aws.String("base/"),
+			Prefix:            aws.String(config.GetR2BackupPrefix() + "/base/"),
 			ContinuationToken: continuationToken,
 		})
 		if err != nil {
@@ -1347,9 +1348,10 @@ func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate backup filename with structured hourly folders
-	// Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
+	// Format: {env}/base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
 	now := timeutil.Now()
-	backupKey := fmt.Sprintf("base/%s/%s/%s/%s/cold_db_%s.sql",
+	backupKey := fmt.Sprintf("%s/base/%s/%s/%s/%s/cold_db_%s.sql",
+		config.GetR2BackupPrefix(),
 		now.Format("2006"),           // Year
 		now.Format("01"),             // Month
 		now.Format("02"),             // Day

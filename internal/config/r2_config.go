@@ -12,6 +12,29 @@ const (
 	R2Region     = "auto"
 )
 
+// Environment prefix for R2 backups
+// Values: "production-beta" (current K3s), "poc" (new HA VMs), "local" (dev)
+var R2BackupPrefix = "production-beta"
+
+// GetR2BackupPrefix returns the backup prefix based on the connected database
+func GetR2BackupPrefix() string {
+	return R2BackupPrefix
+}
+
+// SetR2BackupPrefixFromDB sets the backup prefix based on the database host
+func SetR2BackupPrefixFromDB(host string) {
+	switch host {
+	case "192.168.15.230", "192.168.15.231":
+		R2BackupPrefix = "poc"
+	case "192.168.15.210":
+		R2BackupPrefix = "production-beta"
+	case "localhost", "/var/run/postgresql":
+		R2BackupPrefix = "local"
+	default:
+		R2BackupPrefix = "production-beta"
+	}
+}
+
 // Common passwords to try (CNPG may reset password from secret)
 var CommonPasswords = []string{
 	"SecurePostgresPassword123",
