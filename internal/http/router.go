@@ -1,8 +1,10 @@
 package http
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/middleware"
@@ -558,17 +560,16 @@ func NewRouter(
 		// R2 Cloud Storage Status
 		monitoringAPI.HandleFunc("/r2-status", monitoringHandler.GetR2Status).Methods("GET")
 		monitoringAPI.HandleFunc("/backup-r2", monitoringHandler.BackupToR2).Methods("POST")
-
-		// Proxy routes for Grafana and Prometheus (no auth - internal monitoring tools)
-		// Auth not required since these are internal services only accessible through the app
-		grafanaProxy := r.PathPrefix("/proxy/grafana").Subrouter()
-		grafanaProxy.PathPrefix("/{path:.*}").HandlerFunc(monitoringHandler.ProxyGrafana).Methods("GET", "POST", "PUT", "DELETE")
-		grafanaProxy.PathPrefix("/").HandlerFunc(monitoringHandler.ProxyGrafana).Methods("GET", "POST", "PUT", "DELETE")
-
-		prometheusProxy := r.PathPrefix("/proxy/prometheus").Subrouter()
-		prometheusProxy.PathPrefix("/{path:.*}").HandlerFunc(monitoringHandler.ProxyPrometheus).Methods("GET", "POST")
-		prometheusProxy.PathPrefix("/").HandlerFunc(monitoringHandler.ProxyPrometheus).Methods("GET", "POST")
 	}
+
+	// Proxy routes for Grafana and Prometheus (no auth - standalone handlers)
+	grafanaProxy := r.PathPrefix("/proxy/grafana").Subrouter()
+	grafanaProxy.PathPrefix("/{path:.*}").HandlerFunc(proxyGrafanaHandler).Methods("GET", "POST", "PUT", "DELETE")
+	grafanaProxy.PathPrefix("/").HandlerFunc(proxyGrafanaHandler).Methods("GET", "POST", "PUT", "DELETE")
+
+	prometheusProxy := r.PathPrefix("/proxy/prometheus").Subrouter()
+	prometheusProxy.PathPrefix("/{path:.*}").HandlerFunc(proxyPrometheusHandler).Methods("GET", "POST")
+	prometheusProxy.PathPrefix("/").HandlerFunc(proxyPrometheusHandler).Methods("GET", "POST")
 
 	// Protected API routes - Deployments (admin only)
 	if deploymentHandler != nil {
@@ -805,4 +806,62 @@ func NewCustomerRouter(
 	// Note: /health/detailed and /metrics are intentionally NOT exposed on customer portal
 
 	return r
+}
+
+// Standalone proxy handlers for Grafana and Prometheus
+const (
+	grafanaTargetURL    = "http://192.168.15.110:30300"
+	prometheusTargetURL = "http://192.168.15.110:30090"
+)
+
+func proxyGrafanaHandler(w http.ResponseWriter, r *http.Request) {
+	proxyToTarget(w, r, grafanaTargetURL)
+}
+
+func proxyPrometheusHandler(w http.ResponseWriter, r *http.Request) {
+	proxyToTarget(w, r, prometheusTargetURL)
+}
+
+func proxyToTarget(w http.ResponseWriter, r *http.Request, targetBase string) {
+	vars := mux.Vars(r)
+	path := vars["path"]
+	if path == "" {
+		path = "/"
+	} else {
+		path = "/" + path
+	}
+
+	targetURL := targetBase + path
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
+		return
+	}
+
+	for key, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		http.Error(w, "Failed to reach target: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }
