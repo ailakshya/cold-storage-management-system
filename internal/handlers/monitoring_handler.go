@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -1749,9 +1750,9 @@ func (h *MonitoringHandler) GetPrometheusMetrics(w http.ResponseWriter, r *http.
 
 // queryPrometheus executes a PromQL query and returns the first result value
 func queryPrometheus(ctx context.Context, client *http.Client, query string) (float64, error) {
-	url := fmt.Sprintf("%s/api/v1/query?query=%s", prometheusURL, query)
+	queryURL := fmt.Sprintf("%s/api/v1/query?query=%s", prometheusURL, url.QueryEscape(query))
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", queryURL, nil)
 	if err != nil {
 		return 0, err
 	}
