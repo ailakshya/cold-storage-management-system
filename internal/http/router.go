@@ -809,9 +809,10 @@ func NewCustomerRouter(
 }
 
 // Standalone proxy handlers for Grafana and Prometheus
+// Use internal K8s service names to avoid external redirects
 const (
-	grafanaTargetURL    = "http://192.168.15.110:30300"
-	prometheusTargetURL = "http://192.168.15.110:30090"
+	grafanaTargetURL    = "http://grafana.default.svc.cluster.local:3000"
+	prometheusTargetURL = "http://prometheus.default.svc.cluster.local:9090"
 )
 
 func proxyGrafanaHandler(w http.ResponseWriter, r *http.Request) {
