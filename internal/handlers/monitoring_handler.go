@@ -34,7 +34,7 @@ var (
 	r2BackupTicker    *time.Ticker
 	r2BackupStopChan  chan bool
 	r2BackupMutex     sync.Mutex
-	r2BackupInterval  = 1 * time.Minute // Backup every 1 minute for near-zero data loss
+	r2BackupInterval  = 5 * time.Minute // Backup every 5 minutes (balanced between data safety and performance)
 	r2BackupDBPool    *pgxpool.Pool     // Shared database pool from main app
 	lastBackupTime    time.Time
 	pendingChanges    int

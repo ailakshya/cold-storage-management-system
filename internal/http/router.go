@@ -3,6 +3,7 @@ package http
 import (
 	"io/fs"
 	"net/http"
+	"strings"
 
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/middleware"
@@ -11,6 +12,40 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+// staticFileHandler wraps a file server with caching headers
+// CSS/JS files are cached for 1 year (they have versioned filenames or are rarely changed)
+// Images/fonts are cached for 1 month
+// This reduces bandwidth and speeds up page loads significantly
+func staticFileHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		// Set cache headers based on file type
+		if strings.HasSuffix(path, ".css") || strings.HasSuffix(path, ".js") {
+			// CSS and JS files - cache for 1 year (31536000 seconds)
+			// These are versioned or rarely change
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else if strings.HasSuffix(path, ".woff") || strings.HasSuffix(path, ".woff2") ||
+			strings.HasSuffix(path, ".ttf") || strings.HasSuffix(path, ".eot") {
+			// Font files - cache for 1 year
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		} else if strings.HasSuffix(path, ".png") || strings.HasSuffix(path, ".jpg") ||
+			strings.HasSuffix(path, ".jpeg") || strings.HasSuffix(path, ".gif") ||
+			strings.HasSuffix(path, ".ico") || strings.HasSuffix(path, ".svg") {
+			// Images - cache for 1 month (2592000 seconds)
+			w.Header().Set("Cache-Control", "public, max-age=2592000")
+		} else if strings.HasSuffix(path, ".json") {
+			// JSON files (like locales) - cache for 1 day with revalidation
+			w.Header().Set("Cache-Control", "public, max-age=86400, must-revalidate")
+		} else {
+			// Other static files - cache for 1 hour
+			w.Header().Set("Cache-Control", "public, max-age=3600")
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
 
 func NewRouter(
 	userHandler *handlers.UserHandler,
@@ -62,14 +97,18 @@ func NewRouter(
 	r.Use(middleware.HTTPSRedirect)
 	r.Use(middleware.SecurityHeaders)
 
+	// Apply gzip compression for all responses (reduces transfer size by ~90%)
+	r.Use(middleware.GzipCompression)
+
 	// Apply API logging middleware to all routes (if enabled)
 	if apiLoggingMiddleware != nil {
 		r.Use(apiLoggingMiddleware.Handler)
 	}
 
-	// Serve static files from embedded filesystem
+	// Serve static files from embedded filesystem with caching headers
 	staticFS, _ := fs.Sub(static.FS, ".")
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	r.PathPrefix("/static/").Handler(staticFileHandler(staticHandler))
 
 	// Public HTML pages (NO AUTHENTICATION REQUIRED)
 	// Domain-based routing: gurukripacoldstore.in serves portfolio, others serve login
@@ -745,9 +784,13 @@ func NewCustomerRouter(
 	r.Use(middleware.HTTPSRedirect)
 	r.Use(middleware.SecurityHeaders)
 
-	// Serve static files from embedded filesystem
+	// Apply gzip compression for all responses (reduces transfer size by ~90%)
+	r.Use(middleware.GzipCompression)
+
+	// Serve static files from embedded filesystem with caching headers
 	staticFS, _ := fs.Sub(static.FS, ".")
-	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	staticHandler := http.StripPrefix("/static/", http.FileServer(http.FS(staticFS)))
+	r.PathPrefix("/static/").Handler(staticFileHandler(staticHandler))
 
 	// Public routes - Customer portal login
 	r.HandleFunc("/", pageHandler.CustomerPortalLoginPage).Methods("GET")
