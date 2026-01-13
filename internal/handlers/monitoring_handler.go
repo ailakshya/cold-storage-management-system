@@ -1661,7 +1661,7 @@ func formatBytes(bytes int64) string {
 // Prometheus Direct Metrics Endpoints
 // ======================================
 
-const prometheusURL = "http://192.168.15.110:30090"
+const prometheusURL = "http://prometheus.default.svc.cluster.local:9090"
 
 // PrometheusNodeMetric represents a node metric from Prometheus
 type PrometheusNodeMetric struct {
@@ -1808,7 +1808,7 @@ func queryPrometheus(ctx context.Context, client *http.Client, query string) (fl
 // Proxy Endpoints for Grafana & Prometheus
 // ======================================
 
-const grafanaURL = "http://192.168.15.110:30300"
+const grafanaURL = "http://grafana.default.svc.cluster.local:3000"
 
 // ProxyGrafana proxies requests to Grafana
 func (h *MonitoringHandler) ProxyGrafana(w http.ResponseWriter, r *http.Request) {
