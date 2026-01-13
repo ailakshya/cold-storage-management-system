@@ -473,31 +473,29 @@ func (h *MonitoringHandler) metricsUnavailable(w http.ResponseWriter) bool {
 
 // GetDashboardData returns all data for the monitoring dashboard
 func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Request) {
-	if h.metricsUnavailable(w) {
-		return
-	}
 	ctx := r.Context()
 
-	// Get cluster overview
-	clusterOverview, _ := h.repo.GetClusterOverview(ctx)
+	// Get API analytics (last hour) - from database
+	var apiAnalytics interface{}
+	var alertSummary interface{}
+	var recentAlerts interface{}
+	var postgresPods interface{}
 
-	// Get PostgreSQL overview
-	postgresOverview, _ := h.repo.GetPostgresOverview(ctx)
+	if h.repo != nil {
+		apiAnalytics, _ = h.repo.GetAPIAnalytics(ctx, 1*time.Hour)
+		alertSummary, _ = h.repo.GetAlertSummary(ctx)
+		recentAlerts, _ = h.repo.GetRecentAlerts(ctx, 10)
+		postgresPods, _ = h.repo.GetLatestPostgresMetrics(ctx)
+	}
 
-	// Get API analytics (last hour)
-	apiAnalytics, _ := h.repo.GetAPIAnalytics(ctx, 1*time.Hour)
+	// Get node metrics from Prometheus (real-time)
+	prometheusNodes := getPrometheusNodeMetrics(ctx)
 
-	// Get alert summary
-	alertSummary, _ := h.repo.GetAlertSummary(ctx)
+	// Calculate cluster overview from Prometheus data
+	clusterOverview := calculateClusterOverview(prometheusNodes)
 
-	// Get recent alerts
-	recentAlerts, _ := h.repo.GetRecentAlerts(ctx, 10)
-
-	// Get latest node metrics
-	nodes, _ := h.repo.GetLatestNodeMetrics(ctx)
-
-	// Get latest PostgreSQL metrics
-	postgresPods, _ := h.repo.GetLatestPostgresMetrics(ctx)
+	// Calculate PostgreSQL overview from Prometheus data
+	postgresOverview := calculatePostgresOverview(prometheusNodes)
 
 	response := map[string]interface{}{
 		"cluster_overview":  clusterOverview,
@@ -505,13 +503,179 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		"api_analytics":     apiAnalytics,
 		"alert_summary":     alertSummary,
 		"recent_alerts":     recentAlerts,
-		"nodes":             nodes,
+		"nodes":             prometheusNodes,
 		"postgres_pods":     postgresPods,
 		"last_updated":      timeutil.Now(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// getPrometheusNodeMetrics fetches node metrics from Prometheus
+func getPrometheusNodeMetrics(ctx context.Context) []map[string]interface{} {
+	nodes := []struct {
+		Name string
+		IP   string
+		Role string
+	}{
+		{"k3s-node1", "192.168.15.110", "control-plane"},
+		{"k3s-node2", "192.168.15.111", "control-plane"},
+		{"k3s-node3", "192.168.15.112", "control-plane"},
+		{"db-node1", "192.168.15.120", "database"},
+		{"db-node2", "192.168.15.121", "database"},
+		{"db-node3", "192.168.15.122", "database"},
+		{"backup-server", "192.168.15.195", "backup"},
+	}
+
+	results := make([]map[string]interface{}, 0, len(nodes))
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for _, node := range nodes {
+		metric := map[string]interface{}{
+			"node_name":      node.Name,
+			"node_ip":        node.IP,
+			"role":           node.Role,
+			"cpu_percent":    0.0,
+			"memory_percent": 0.0,
+			"disk_used_gb":   0.0,
+			"disk_total_gb":  0.0,
+			"status":         "unknown",
+		}
+
+		// Query CPU usage
+		cpuQuery := fmt.Sprintf(`100 - (avg by(instance) (irate(node_cpu_seconds_total{instance="%s:9100",mode="idle"}[5m])) * 100)`, node.IP)
+		cpuVal, err := queryPrometheus(ctx, client, cpuQuery)
+		if err == nil {
+			metric["cpu_percent"] = cpuVal
+			metric["status"] = "healthy"
+		}
+
+		// Query Memory usage
+		memQuery := fmt.Sprintf(`100 * (1 - (node_memory_MemAvailable_bytes{instance="%s:9100"} / node_memory_MemTotal_bytes{instance="%s:9100"}))`, node.IP, node.IP)
+		memVal, err := queryPrometheus(ctx, client, memQuery)
+		if err == nil {
+			metric["memory_percent"] = memVal
+		}
+
+		// Query Memory total
+		memTotalQuery := fmt.Sprintf(`node_memory_MemTotal_bytes{instance="%s:9100"} / 1024 / 1024 / 1024`, node.IP)
+		memTotalVal, _ := queryPrometheus(ctx, client, memTotalQuery)
+		metric["memory_total_gb"] = memTotalVal
+
+		// Query Disk usage
+		diskUsedQuery := fmt.Sprintf(`(node_filesystem_size_bytes{instance="%s:9100",mountpoint="/"} - node_filesystem_avail_bytes{instance="%s:9100",mountpoint="/"}) / 1024 / 1024 / 1024`, node.IP, node.IP)
+		diskUsedVal, _ := queryPrometheus(ctx, client, diskUsedQuery)
+		metric["disk_used_gb"] = diskUsedVal
+
+		diskTotalQuery := fmt.Sprintf(`node_filesystem_size_bytes{instance="%s:9100",mountpoint="/"} / 1024 / 1024 / 1024`, node.IP)
+		diskTotalVal, _ := queryPrometheus(ctx, client, diskTotalQuery)
+		metric["disk_total_gb"] = diskTotalVal
+
+		// CPU cores
+		cpuCoresQuery := fmt.Sprintf(`count(node_cpu_seconds_total{instance="%s:9100",mode="idle"})`, node.IP)
+		cpuCores, _ := queryPrometheus(ctx, client, cpuCoresQuery)
+		metric["cpu_cores"] = int(cpuCores)
+
+		results = append(results, metric)
+	}
+
+	return results
+}
+
+// calculateClusterOverview calculates cluster stats from Prometheus node metrics
+func calculateClusterOverview(nodes []map[string]interface{}) map[string]interface{} {
+	k3sNodes := 0
+	healthyK3s := 0
+	totalCPU := 0.0
+	totalMem := 0.0
+	totalMemGB := 0.0
+	usedMemGB := 0.0
+	totalDiskGB := 0.0
+	usedDiskGB := 0.0
+	totalCores := 0
+
+	for _, n := range nodes {
+		role, _ := n["role"].(string)
+		if role == "control-plane" {
+			k3sNodes++
+			if status, _ := n["status"].(string); status == "healthy" {
+				healthyK3s++
+			}
+			cpu, _ := n["cpu_percent"].(float64)
+			mem, _ := n["memory_percent"].(float64)
+			memTotal, _ := n["memory_total_gb"].(float64)
+			diskUsed, _ := n["disk_used_gb"].(float64)
+			diskTotal, _ := n["disk_total_gb"].(float64)
+			cores, _ := n["cpu_cores"].(int)
+
+			totalCPU += cpu
+			totalMem += mem
+			totalMemGB += memTotal
+			usedMemGB += memTotal * mem / 100
+			totalDiskGB += diskTotal
+			usedDiskGB += diskUsed
+			totalCores += cores
+		}
+	}
+
+	avgCPU := 0.0
+	avgMem := 0.0
+	if k3sNodes > 0 {
+		avgCPU = totalCPU / float64(k3sNodes)
+		avgMem = totalMem / float64(k3sNodes)
+	}
+
+	diskPercent := 0.0
+	if totalDiskGB > 0 {
+		diskPercent = (usedDiskGB / totalDiskGB) * 100
+	}
+
+	return map[string]interface{}{
+		"total_nodes":     k3sNodes,
+		"healthy_nodes":   healthyK3s,
+		"cpu_percent":     avgCPU,
+		"cpu_cores":       totalCores,
+		"memory_percent":  avgMem,
+		"memory_used_gb":  usedMemGB,
+		"memory_total_gb": totalMemGB,
+		"disk_percent":    diskPercent,
+		"disk_used_gb":    usedDiskGB,
+		"disk_total_gb":   totalDiskGB,
+	}
+}
+
+// calculatePostgresOverview calculates PostgreSQL cluster stats from Prometheus
+func calculatePostgresOverview(nodes []map[string]interface{}) map[string]interface{} {
+	dbNodes := 0
+	healthyDB := 0
+
+	for _, n := range nodes {
+		role, _ := n["role"].(string)
+		if role == "database" {
+			dbNodes++
+			if status, _ := n["status"].(string); status == "healthy" {
+				healthyDB++
+			}
+		}
+	}
+
+	// Assume 1 primary, rest are replicas if healthy
+	primaryCount := 0
+	replicaCount := 0
+	if healthyDB > 0 {
+		primaryCount = 1
+		replicaCount = healthyDB - 1
+	}
+
+	return map[string]interface{}{
+		"total_pods":      dbNodes,
+		"healthy_pods":    healthyDB,
+		"primary_count":   primaryCount,
+		"replica_count":   replicaCount,
+		"total_size_gb":   0,
+		"avg_connections": 0,
+	}
 }
 
 // ======================================
