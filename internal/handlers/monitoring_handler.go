@@ -632,16 +632,16 @@ func calculateClusterOverview(nodes []map[string]interface{}) map[string]interfa
 	}
 
 	return map[string]interface{}{
-		"total_nodes":     k3sNodes,
-		"healthy_nodes":   healthyK3s,
-		"cpu_percent":     avgCPU,
-		"cpu_cores":       totalCores,
-		"memory_percent":  avgMem,
-		"memory_used_gb":  usedMemGB,
-		"memory_total_gb": totalMemGB,
-		"disk_percent":    diskPercent,
-		"disk_used_gb":    usedDiskGB,
-		"disk_total_gb":   totalDiskGB,
+		"total_nodes":       k3sNodes,
+		"healthy_nodes":     healthyK3s,
+		"avg_cpu_percent":   avgCPU,
+		"total_cpu_cores":   totalCores,
+		"avg_memory_percent": avgMem,
+		"used_memory_gb":    usedMemGB,
+		"total_memory_gb":   totalMemGB,
+		"avg_disk_percent":  diskPercent,
+		"used_disk_gb":      usedDiskGB,
+		"total_disk_gb":     totalDiskGB,
 	}
 }
 

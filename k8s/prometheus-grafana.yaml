@@ -103,6 +103,8 @@ spec:
           - '--storage.tsdb.path=/prometheus'
           - '--storage.tsdb.retention.time=15d'
           - '--web.enable-lifecycle'
+          - '--web.external-url=https://app.gurukripacoldstore.in/proxy/prometheus/'
+          - '--web.route-prefix=/'
         ports:
         - containerPort: 9090
         volumeMounts:
@@ -185,6 +187,10 @@ spec:
           value: "admin"  # Change this in production!
         - name: GF_USERS_ALLOW_SIGN_UP
           value: "false"
+        - name: GF_SERVER_ROOT_URL
+          value: "https://app.gurukripacoldstore.in/proxy/grafana/"
+        - name: GF_SERVER_SERVE_FROM_SUB_PATH
+          value: "true"
         volumeMounts:
         - name: datasources
           mountPath: /etc/grafana/provisioning/datasources
