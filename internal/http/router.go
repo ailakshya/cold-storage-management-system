@@ -730,11 +730,10 @@ func NewRouter(
 		vizAPI.HandleFunc("/gatar-search", roomVisualizationHandler.SearchByGatar).Methods("GET")
 	}
 
-	// Health endpoints (basic health for K8s probes, detailed requires auth)
+	// Health endpoints (no auth - for monitoring)
 	r.HandleFunc("/health", healthHandler.BasicHealth).Methods("GET")
 	r.HandleFunc("/health/ready", healthHandler.ReadinessHealth).Methods("GET")
-	// Detailed health exposes internal info - require admin
-	r.HandleFunc("/health/detailed", authMiddleware.Authenticate(authMiddleware.RequireAdmin(http.HandlerFunc(healthHandler.DetailedHealth))).ServeHTTP).Methods("GET")
+	r.HandleFunc("/health/detailed", healthHandler.DetailedHealth).Methods("GET")
 
 	// Metrics endpoint - require admin authentication to protect internal metrics
 	r.Handle("/metrics", authMiddleware.Authenticate(authMiddleware.RequireAdmin(promhttp.Handler())))
