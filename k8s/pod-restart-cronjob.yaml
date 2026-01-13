@@ -1,0 +1,81 @@
+# Pod Restart CronJob - Restarts cold-backend pods daily at 2 AM IST
+# This helps keep pods fresh and prevents accumulated memory/connection issues
+#
+# Schedule: 30 20 * * * (20:30 UTC = 2:00 AM IST)
+
+---
+# ServiceAccount for the CronJob
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pod-restart-sa
+  namespace: default
+
+---
+# ClusterRole with permission to restart deployments
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: deployment-restart
+  namespace: default
+rules:
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "patch"]
+
+---
+# Bind the role to the service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pod-restart-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: pod-restart-sa
+  namespace: default
+roleRef:
+  kind: Role
+  name: deployment-restart
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# CronJob to restart pods at 2 AM IST daily
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cold-backend-restart
+  namespace: default
+spec:
+  schedule: "30 20 * * *"  # 20:30 UTC = 2:00 AM IST
+  timeZone: "Asia/Kolkata"  # Use IST timezone directly (K8s 1.27+)
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: pod-restart-sa
+          containers:
+          - name: kubectl
+            image: bitnami/kubectl:1.28
+            command:
+            - /bin/sh
+            - -c
+            - |
+              echo "=== Cold Backend Pod Restart ==="
+              echo "Time: $(date)"
+              echo ""
+              echo "Restarting employee deployment..."
+              kubectl rollout restart deployment/cold-backend-employee -n default
+              echo ""
+              echo "Restarting customer deployment..."
+              kubectl rollout restart deployment/cold-backend-customer -n default
+              echo ""
+              echo "Waiting for rollout to complete..."
+              kubectl rollout status deployment/cold-backend-employee -n default --timeout=120s
+              kubectl rollout status deployment/cold-backend-customer -n default --timeout=120s
+              echo ""
+              echo "=== Restart completed successfully ==="
+          restartPolicy: OnFailure
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
