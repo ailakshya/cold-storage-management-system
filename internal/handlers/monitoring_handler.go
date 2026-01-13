@@ -1492,3 +1492,150 @@ func formatBytes(bytes int64) string {
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }
+
+// ======================================
+// Prometheus Direct Metrics Endpoints
+// ======================================
+
+const prometheusURL = "http://192.168.15.110:30090"
+
+// PrometheusNodeMetric represents a node metric from Prometheus
+type PrometheusNodeMetric struct {
+	Name       string  `json:"name"`
+	IP         string  `json:"ip"`
+	Role       string  `json:"role"`
+	CPUPercent float64 `json:"cpu_percent"`
+	MemPercent float64 `json:"mem_percent"`
+	DiskUsed   float64 `json:"disk_used_gb"`
+	DiskTotal  float64 `json:"disk_total_gb"`
+	Status     string  `json:"status"`
+}
+
+// GetPrometheusMetrics fetches real-time metrics directly from Prometheus
+func (h *MonitoringHandler) GetPrometheusMetrics(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	// Node configuration
+	nodes := []struct {
+		Name string
+		IP   string
+		Role string
+	}{
+		{"k3s-node1", "192.168.15.110", "control-plane"},
+		{"k3s-node2", "192.168.15.111", "control-plane"},
+		{"k3s-node3", "192.168.15.112", "control-plane"},
+		{"db-node1", "192.168.15.120", "database"},
+		{"db-node2", "192.168.15.121", "database"},
+		{"db-node3", "192.168.15.122", "database"},
+		{"backup-server", "192.168.15.195", "backup"},
+	}
+
+	results := make([]PrometheusNodeMetric, 0, len(nodes))
+
+	// Create HTTP client with timeout
+	client := &http.Client{Timeout: 5 * time.Second}
+
+	for _, node := range nodes {
+		metric := PrometheusNodeMetric{
+			Name:   node.Name,
+			IP:     node.IP,
+			Role:   node.Role,
+			Status: "unknown",
+		}
+
+		// Query CPU usage
+		cpuQuery := fmt.Sprintf(`100 - (avg by(instance) (irate(node_cpu_seconds_total{instance="%s:9100",mode="idle"}[5m])) * 100)`, node.IP)
+		cpuVal, err := queryPrometheus(ctx, client, cpuQuery)
+		if err == nil {
+			metric.CPUPercent = cpuVal
+			metric.Status = "healthy"
+		}
+
+		// Query Memory usage
+		memQuery := fmt.Sprintf(`100 * (1 - (node_memory_MemAvailable_bytes{instance="%s:9100"} / node_memory_MemTotal_bytes{instance="%s:9100"}))`, node.IP, node.IP)
+		memVal, err := queryPrometheus(ctx, client, memQuery)
+		if err == nil {
+			metric.MemPercent = memVal
+		}
+
+		// Query Disk usage
+		diskUsedQuery := fmt.Sprintf(`(node_filesystem_size_bytes{instance="%s:9100",mountpoint="/"} - node_filesystem_avail_bytes{instance="%s:9100",mountpoint="/"}) / 1024 / 1024 / 1024`, node.IP, node.IP)
+		diskUsedVal, err := queryPrometheus(ctx, client, diskUsedQuery)
+		if err == nil {
+			metric.DiskUsed = diskUsedVal
+		}
+
+		diskTotalQuery := fmt.Sprintf(`node_filesystem_size_bytes{instance="%s:9100",mountpoint="/"} / 1024 / 1024 / 1024`, node.IP)
+		diskTotalVal, err := queryPrometheus(ctx, client, diskTotalQuery)
+		if err == nil {
+			metric.DiskTotal = diskTotalVal
+		}
+
+		results = append(results, metric)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"nodes":        results,
+		"last_updated": time.Now().Format(time.RFC3339),
+		"source":       "prometheus",
+	})
+}
+
+// queryPrometheus executes a PromQL query and returns the first result value
+func queryPrometheus(ctx context.Context, client *http.Client, query string) (float64, error) {
+	url := fmt.Sprintf("%s/api/v1/query?query=%s", prometheusURL, query)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+
+	var result struct {
+		Status string `json:"status"`
+		Data   struct {
+			ResultType string `json:"resultType"`
+			Result     []struct {
+				Metric map[string]string `json:"metric"`
+				Value  []interface{}     `json:"value"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return 0, err
+	}
+
+	if result.Status != "success" || len(result.Data.Result) == 0 {
+		return 0, fmt.Errorf("no data")
+	}
+
+	// Value is [timestamp, "value_string"]
+	if len(result.Data.Result[0].Value) < 2 {
+		return 0, fmt.Errorf("invalid value format")
+	}
+
+	valStr, ok := result.Data.Result[0].Value[1].(string)
+	if !ok {
+		return 0, fmt.Errorf("value is not string")
+	}
+
+	val, err := strconv.ParseFloat(valStr, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return val, nil
+}

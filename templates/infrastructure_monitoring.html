@@ -991,26 +991,29 @@
             });
         }
 
-        // Update K3s Node Charts
+        // Update K3s Node Charts (fetches from Prometheus)
         async function updateNodeCharts() {
             const nodeColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
             try {
-                const response = await fetch('/api/monitoring/nodes', {
+                // Use Prometheus endpoint for real-time metrics
+                const response = await fetch('/api/monitoring/prometheus/nodes', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
 
                 if (data.nodes && data.nodes.length > 0) {
-                    // Sort: k3s nodes first, then backup server
+                    // Sort: k3s nodes first, then db nodes, then backup server
                     const sortedNodes = data.nodes.sort((a, b) => {
-                        if (a.node_name.startsWith('k3s-') && !b.node_name.startsWith('k3s-')) return -1;
-                        if (!a.node_name.startsWith('k3s-') && b.node_name.startsWith('k3s-')) return 1;
-                        return a.node_name.localeCompare(b.node_name);
+                        if (a.name.startsWith('k3s-') && !b.name.startsWith('k3s-')) return -1;
+                        if (!a.name.startsWith('k3s-') && b.name.startsWith('k3s-')) return 1;
+                        if (a.name.startsWith('db-') && !b.name.startsWith('db-')) return -1;
+                        if (!a.name.startsWith('db-') && b.name.startsWith('db-')) return 1;
+                        return a.name.localeCompare(b.name);
                     });
 
-                    const labels = sortedNodes.map(n => n.node_name.replace('k3s-', '').replace('backup-server', 'backup'));
+                    const labels = sortedNodes.map(n => n.name.replace('k3s-', '').replace('db-', 'db').replace('backup-server', 'backup'));
                     const cpuData = sortedNodes.map(n => n.cpu_percent || 0);
-                    const memData = sortedNodes.map(n => n.memory_percent || 0);
+                    const memData = sortedNodes.map(n => n.mem_percent || 0);
 
                     // Color based on value for CPU
                     const cpuColors = cpuData.map(v => {

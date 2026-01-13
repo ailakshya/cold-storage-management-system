@@ -536,6 +536,7 @@ func NewRouter(
 		monitoringAPI.HandleFunc("/nodes", monitoringHandler.GetLatestNodeMetrics).Methods("GET")
 		monitoringAPI.HandleFunc("/nodes/{name}/history", monitoringHandler.GetNodeMetricsHistory).Methods("GET")
 		monitoringAPI.HandleFunc("/cluster/overview", monitoringHandler.GetClusterOverview).Methods("GET")
+		monitoringAPI.HandleFunc("/prometheus/nodes", monitoringHandler.GetPrometheusMetrics).Methods("GET")
 
 		// PostgreSQL Metrics
 		monitoringAPI.HandleFunc("/postgres", monitoringHandler.GetLatestPostgresMetrics).Methods("GET")
