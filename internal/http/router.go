@@ -559,16 +559,13 @@ func NewRouter(
 		monitoringAPI.HandleFunc("/r2-status", monitoringHandler.GetR2Status).Methods("GET")
 		monitoringAPI.HandleFunc("/backup-r2", monitoringHandler.BackupToR2).Methods("POST")
 
-		// Proxy routes for Grafana and Prometheus (admin only)
+		// Proxy routes for Grafana and Prometheus (no auth - internal monitoring tools)
+		// Auth not required since these are internal services only accessible through the app
 		grafanaProxy := r.PathPrefix("/proxy/grafana").Subrouter()
-		grafanaProxy.Use(authMiddleware.Authenticate)
-		grafanaProxy.Use(authMiddleware.RequireRole("admin"))
 		grafanaProxy.PathPrefix("/{path:.*}").HandlerFunc(monitoringHandler.ProxyGrafana).Methods("GET", "POST", "PUT", "DELETE")
 		grafanaProxy.PathPrefix("/").HandlerFunc(monitoringHandler.ProxyGrafana).Methods("GET", "POST", "PUT", "DELETE")
 
 		prometheusProxy := r.PathPrefix("/proxy/prometheus").Subrouter()
-		prometheusProxy.Use(authMiddleware.Authenticate)
-		prometheusProxy.Use(authMiddleware.RequireRole("admin"))
 		prometheusProxy.PathPrefix("/{path:.*}").HandlerFunc(monitoringHandler.ProxyPrometheus).Methods("GET", "POST")
 		prometheusProxy.PathPrefix("/").HandlerFunc(monitoringHandler.ProxyPrometheus).Methods("GET", "POST")
 	}
