@@ -1639,3 +1639,71 @@ func queryPrometheus(ctx context.Context, client *http.Client, query string) (fl
 
 	return val, nil
 }
+
+// ======================================
+// Proxy Endpoints for Grafana & Prometheus
+// ======================================
+
+const grafanaURL = "http://192.168.15.110:30300"
+
+// ProxyGrafana proxies requests to Grafana
+func (h *MonitoringHandler) ProxyGrafana(w http.ResponseWriter, r *http.Request) {
+	proxyRequest(w, r, grafanaURL)
+}
+
+// ProxyPrometheus proxies requests to Prometheus
+func (h *MonitoringHandler) ProxyPrometheus(w http.ResponseWriter, r *http.Request) {
+	proxyRequest(w, r, prometheusURL)
+}
+
+// proxyRequest forwards HTTP requests to target URL
+func proxyRequest(w http.ResponseWriter, r *http.Request, targetBase string) {
+	// Get the path after /proxy/grafana or /proxy/prometheus
+	vars := mux.Vars(r)
+	path := vars["path"]
+	if path == "" {
+		path = "/"
+	} else {
+		path = "/" + path
+	}
+
+	// Build target URL with query string
+	targetURL := targetBase + path
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	// Create proxy request
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
+		return
+	}
+
+	// Copy headers
+	for key, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	// Execute request
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		http.Error(w, "Failed to reach target: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Copy response headers
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	// Set status and copy body
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
+}
