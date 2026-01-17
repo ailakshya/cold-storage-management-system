@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Service Identification -->
+    <key>Label</key>
+    <string>com.coldstore.server</string>
+
+    <!-- Program and Arguments -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/coldstore/server</string>
+    </array>
+
+    <!-- Working Directory -->
+    <key>WorkingDirectory</key>
+    <string>/opt/coldstore</string>
+
+    <!-- Environment Variables -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>DB_HOST</key>
+        <string>localhost</string>
+        <key>DB_PORT</key>
+        <string>5432</string>
+        <key>DB_USER</key>
+        <string>cold_user</string>
+        <key>DB_PASSWORD</key>
+        <string>SecurePostgresPassword123</string>
+        <key>DB_NAME</key>
+        <string>cold_db</string>
+        <key>JWT_SECRET</key>
+        <string>your-jwt-secret-here</string>
+        <key>APP_ENV</key>
+        <string>production</string>
+        <key>PORT</key>
+        <string>8080</string>
+        <key>GIN_MODE</key>
+        <string>release</string>
+    </dict>
+
+    <!-- Auto-start on boot -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- Keep the service alive -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <!-- Restart on failure -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <!-- Resource limits -->
+    <key>SoftResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>65536</integer>
+    </dict>
+    <key>HardResourceLimits</key>
+    <dict>
+        <key>NumberOfFiles</key>
+        <integer>65536</integer>
+    </dict>
+
+    <!-- Logging -->
+    <key>StandardOutPath</key>
+    <string>/var/log/coldstore/server.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/coldstore/server.error.log</string>
+
+    <!-- Nice level (priority) -->
+    <key>Nice</key>
+    <integer>-5</integer>
+
+    <!-- Session Type -->
+    <key>SessionCreate</key>
+    <false/>
+
+    <!-- Process Type -->
+    <key>ProcessType</key>
+    <string>Standard</string>
+</dict>
+</plist>

@@ -1,0 +1,363 @@
+name: Deploy to Mac Mini HA
+
+on:
+  push:
+    branches:
+      - production
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g., v2.0.0) - leave empty for auto'
+        required: false
+        type: string
+      deploy_target:
+        description: 'Deployment target'
+        required: false
+        type: choice
+        options:
+          - both
+          - mac-only
+          - linux-only
+        default: both
+
+env:
+  MAC_MINI_HOST: 192.168.15.240
+  LINUX_HOST: 192.168.15.241
+  MAC_MINI_USER: admin
+  LINUX_USER: admin
+  DEPLOY_PATH: /opt/coldstore
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          cache: true
+
+      - name: Generate version
+        id: version
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION=$(echo "${{ inputs.version }}" | xargs)
+          else
+            VERSION="v2.0.${{ github.run_number }}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "=== Building version: ${VERSION} ==="
+
+      - name: Build for Mac Mini M4 (darwin/arm64)
+        run: |
+          echo "Building for Mac Mini M4..."
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build \
+            -ldflags="-w -s -X main.Version=${{ steps.version.outputs.version }}" \
+            -o server-darwin-arm64 \
+            ./cmd/server
+          ls -lh server-darwin-arm64
+
+      - name: Build for Linux (linux/amd64)
+        run: |
+          echo "Building for Linux server..."
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-w -s -X main.Version=${{ steps.version.outputs.version }}" \
+            -o server-linux-amd64 \
+            ./cmd/server
+          ls -lh server-linux-amd64
+
+      - name: Create deployment packages
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Mac Mini package
+          mkdir -p coldstore-mac-${VERSION}
+          cp server-darwin-arm64 coldstore-mac-${VERSION}/server
+          cp -r templates coldstore-mac-${VERSION}/ 2>/dev/null || true
+          cp -r static coldstore-mac-${VERSION}/ 2>/dev/null || true
+          cp -r configs coldstore-mac-${VERSION}/ 2>/dev/null || true
+          cp deploy/macos/com.coldstore.server.plist coldstore-mac-${VERSION}/ 2>/dev/null || true
+          tar -czf coldstore-mac-${VERSION}.tar.gz coldstore-mac-${VERSION}
+
+          # Linux package
+          mkdir -p coldstore-linux-${VERSION}
+          cp server-linux-amd64 coldstore-linux-${VERSION}/server
+          cp -r templates coldstore-linux-${VERSION}/ 2>/dev/null || true
+          cp -r static coldstore-linux-${VERSION}/ 2>/dev/null || true
+          cp -r configs coldstore-linux-${VERSION}/ 2>/dev/null || true
+          cp deploy/linux/coldstore.service coldstore-linux-${VERSION}/ 2>/dev/null || true
+          tar -czf coldstore-linux-${VERSION}.tar.gz coldstore-linux-${VERSION}
+
+          ls -lh *.tar.gz
+
+      - name: Upload Mac artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coldstore-mac-${{ steps.version.outputs.version }}
+          path: coldstore-mac-${{ steps.version.outputs.version }}.tar.gz
+          retention-days: 7
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coldstore-linux-${{ steps.version.outputs.version }}
+          path: coldstore-linux-${{ steps.version.outputs.version }}.tar.gz
+          retention-days: 7
+
+  deploy-mac-mini:
+    needs: build
+    runs-on: self-hosted
+    if: github.event.inputs.deploy_target != 'linux-only'
+    timeout-minutes: 10
+
+    steps:
+      - name: Download Mac artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coldstore-mac-${{ needs.build.outputs.version }}
+
+      - name: Deploy to Mac Mini M4
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.MAC_MINI_SSH_KEY }}
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          TAR_FILE="coldstore-mac-${VERSION}.tar.gz"
+
+          echo "=== Deploying to Mac Mini (${{ env.MAC_MINI_HOST }}) ==="
+
+          # Setup SSH key
+          mkdir -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/mac_mini_key
+          chmod 600 ~/.ssh/mac_mini_key
+
+          # Copy package to Mac Mini
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/mac_mini_key \
+            ${TAR_FILE} ${{ env.MAC_MINI_USER }}@${{ env.MAC_MINI_HOST }}:/tmp/
+
+          # Deploy on Mac Mini
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/mac_mini_key \
+            ${{ env.MAC_MINI_USER }}@${{ env.MAC_MINI_HOST }} << 'DEPLOY_SCRIPT'
+
+            VERSION="${{ needs.build.outputs.version }}"
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+            # Stop service
+            sudo launchctl unload /Library/LaunchDaemons/com.coldstore.server.plist 2>/dev/null || true
+
+            # Backup current version
+            if [ -f ${DEPLOY_PATH}/server ]; then
+              sudo mv ${DEPLOY_PATH}/server ${DEPLOY_PATH}/server.backup
+            fi
+
+            # Extract new version
+            cd /tmp
+            tar xzf coldstore-mac-${VERSION}.tar.gz
+            sudo cp -r coldstore-mac-${VERSION}/* ${DEPLOY_PATH}/
+            sudo chmod +x ${DEPLOY_PATH}/server
+
+            # Update plist if present
+            if [ -f ${DEPLOY_PATH}/com.coldstore.server.plist ]; then
+              sudo cp ${DEPLOY_PATH}/com.coldstore.server.plist /Library/LaunchDaemons/
+            fi
+
+            # Start service
+            sudo launchctl load /Library/LaunchDaemons/com.coldstore.server.plist
+
+            # Cleanup
+            rm -rf /tmp/coldstore-mac-${VERSION}*
+
+            # Health check
+            sleep 5
+            if curl -s http://localhost:8080/health | grep -q "ok"; then
+              echo "Mac Mini deployment successful"
+            else
+              echo "Warning: Health check failed"
+              exit 1
+            fi
+
+          DEPLOY_SCRIPT
+
+          rm -f ~/.ssh/mac_mini_key
+
+      - name: Rollback on failure
+        if: failure()
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.MAC_MINI_SSH_KEY }}
+        run: |
+          echo "=== Rolling back Mac Mini deployment ==="
+          mkdir -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/mac_mini_key
+          chmod 600 ~/.ssh/mac_mini_key
+
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/mac_mini_key \
+            ${{ env.MAC_MINI_USER }}@${{ env.MAC_MINI_HOST }} << 'ROLLBACK_SCRIPT'
+
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+            sudo launchctl unload /Library/LaunchDaemons/com.coldstore.server.plist 2>/dev/null || true
+
+            if [ -f ${DEPLOY_PATH}/server.backup ]; then
+              sudo mv ${DEPLOY_PATH}/server.backup ${DEPLOY_PATH}/server
+              sudo launchctl load /Library/LaunchDaemons/com.coldstore.server.plist
+              echo "Rollback completed"
+            else
+              echo "No backup found, manual intervention required"
+            fi
+
+          ROLLBACK_SCRIPT
+
+          rm -f ~/.ssh/mac_mini_key
+
+  deploy-linux:
+    needs: build
+    runs-on: self-hosted
+    if: github.event.inputs.deploy_target != 'mac-only'
+    timeout-minutes: 10
+
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: coldstore-linux-${{ needs.build.outputs.version }}
+
+      - name: Deploy to Linux Server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LINUX_SSH_KEY }}
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          TAR_FILE="coldstore-linux-${VERSION}.tar.gz"
+
+          echo "=== Deploying to Linux Server (${{ env.LINUX_HOST }}) ==="
+
+          # Setup SSH key
+          mkdir -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/linux_key
+          chmod 600 ~/.ssh/linux_key
+
+          # Copy package to Linux server
+          scp -o StrictHostKeyChecking=no -i ~/.ssh/linux_key \
+            ${TAR_FILE} ${{ env.LINUX_USER }}@${{ env.LINUX_HOST }}:/tmp/
+
+          # Deploy on Linux server
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/linux_key \
+            ${{ env.LINUX_USER }}@${{ env.LINUX_HOST }} << 'DEPLOY_SCRIPT'
+
+            VERSION="${{ needs.build.outputs.version }}"
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+            # Stop service
+            sudo systemctl stop coldstore 2>/dev/null || true
+
+            # Backup current version
+            if [ -f ${DEPLOY_PATH}/server ]; then
+              sudo mv ${DEPLOY_PATH}/server ${DEPLOY_PATH}/server.backup
+            fi
+
+            # Extract new version
+            cd /tmp
+            tar xzf coldstore-linux-${VERSION}.tar.gz
+            sudo cp -r coldstore-linux-${VERSION}/* ${DEPLOY_PATH}/
+            sudo chmod +x ${DEPLOY_PATH}/server
+
+            # Update systemd service if present
+            if [ -f ${DEPLOY_PATH}/coldstore.service ]; then
+              sudo cp ${DEPLOY_PATH}/coldstore.service /etc/systemd/system/
+              sudo systemctl daemon-reload
+            fi
+
+            # Start service
+            sudo systemctl start coldstore
+
+            # Cleanup
+            rm -rf /tmp/coldstore-linux-${VERSION}*
+
+            # Health check
+            sleep 5
+            if curl -s http://localhost:8080/health | grep -q "ok"; then
+              echo "Linux deployment successful"
+            else
+              echo "Warning: Health check failed"
+              exit 1
+            fi
+
+          DEPLOY_SCRIPT
+
+          rm -f ~/.ssh/linux_key
+
+      - name: Rollback on failure
+        if: failure()
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.LINUX_SSH_KEY }}
+        run: |
+          echo "=== Rolling back Linux deployment ==="
+          mkdir -p ~/.ssh
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/linux_key
+          chmod 600 ~/.ssh/linux_key
+
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/linux_key \
+            ${{ env.LINUX_USER }}@${{ env.LINUX_HOST }} << 'ROLLBACK_SCRIPT'
+
+            DEPLOY_PATH="${{ env.DEPLOY_PATH }}"
+
+            sudo systemctl stop coldstore 2>/dev/null || true
+
+            if [ -f ${DEPLOY_PATH}/server.backup ]; then
+              sudo mv ${DEPLOY_PATH}/server.backup ${DEPLOY_PATH}/server
+              sudo systemctl start coldstore
+              echo "Rollback completed"
+            else
+              echo "No backup found, manual intervention required"
+            fi
+
+          ROLLBACK_SCRIPT
+
+          rm -f ~/.ssh/linux_key
+
+  health-check:
+    needs: [build, deploy-mac-mini, deploy-linux]
+    runs-on: self-hosted
+    if: always() && (needs.deploy-mac-mini.result == 'success' || needs.deploy-linux.result == 'success')
+    timeout-minutes: 5
+
+    steps:
+      - name: Final health check
+        run: |
+          echo "=== Final Health Check ==="
+
+          # Check Mac Mini
+          if curl -s --connect-timeout 5 http://${{ env.MAC_MINI_HOST }}:8080/health | grep -q "ok"; then
+            echo "Mac Mini (Primary): HEALTHY"
+          else
+            echo "Mac Mini (Primary): UNHEALTHY or UNREACHABLE"
+          fi
+
+          # Check Linux Server
+          if curl -s --connect-timeout 5 http://${{ env.LINUX_HOST }}:8080/health | grep -q "ok"; then
+            echo "Linux Server (Secondary): HEALTHY"
+          else
+            echo "Linux Server (Secondary): UNHEALTHY or UNREACHABLE"
+          fi
+
+          # Check PostgreSQL replication
+          echo ""
+          echo "=== PostgreSQL Status ==="
+          curl -s http://${{ env.MAC_MINI_HOST }}:8080/api/infrastructure/postgresql/status || echo "Could not check PostgreSQL status"
+
+      - name: Summary
+        run: |
+          VERSION="${{ needs.build.outputs.version }}"
+          echo ""
+          echo "======================================"
+          echo "Deployment Summary"
+          echo "======================================"
+          echo "Version: ${VERSION}"
+          echo "Mac Mini Status: ${{ needs.deploy-mac-mini.result }}"
+          echo "Linux Status: ${{ needs.deploy-linux.result }}"
+          echo "======================================"

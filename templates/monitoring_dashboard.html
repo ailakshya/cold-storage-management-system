@@ -17,6 +17,7 @@
     <link href="/static/css/inventory-theme.css" rel="stylesheet">
     <script src="/static/js/prefetch.js?v=5"></script>
     <script src="/static/js/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
     <style>
         * { font-family: 'Space Grotesk', sans-serif; }
         .neu-border { border: 1px solid var(--border-color, #e0e6ed); box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-radius: 16px; }
@@ -42,6 +43,7 @@
             <div class="flex items-center gap-4">
                 <a href="/admin/dashboard" class="hover:text-gray-300"><i class="bi bi-arrow-left"></i> Dashboard</a>
                 <span class="text-xl md:text-2xl font-bold"><i class="bi bi-graph-up-arrow"></i> Monitoring</span>
+                <span id="envBadge" class="px-3 py-1 rounded text-sm bg-gray-700">Loading...</span>
             </div>
             <div class="flex flex-wrap items-center gap-2 md:gap-4 w-full md:w-auto">
                 <select id="timeRange" onchange="changeTimeRange()" class="bg-gray-800 text-white px-3 py-2 rounded text-sm">
@@ -475,6 +477,19 @@
             const data = await fetchAPI('/dashboard');
             if (!data) return;
 
+            // Update environment badge
+            if (data.environment) {
+                const envBadge = document.getElementById('envBadge');
+                envBadge.textContent = data.environment;
+                if (data.environment === 'POC') {
+                    envBadge.className = 'px-3 py-1 rounded text-sm bg-orange-600 font-bold';
+                } else if (data.environment === 'Production (K3s)') {
+                    envBadge.className = 'px-3 py-1 rounded text-sm bg-green-600 font-bold';
+                } else {
+                    envBadge.className = 'px-3 py-1 rounded text-sm bg-blue-600 font-bold';
+                }
+            }
+
             if (data.cluster_overview) {
                 const c = data.cluster_overview;
                 document.getElementById('summary-nodes').textContent = `${c.healthy_nodes}/${c.total_nodes}`;
@@ -557,8 +572,124 @@
             }
         }
 
-        function updateNodeCharts(nodes) {
-            // Sort: k3s nodes first, then backup server
+        async function updateNodeCharts(nodes) {
+            // Fetch historical data for charts
+            const historyData = await fetchAPI(`/metrics/history?range=${currentTimeRange}`);
+            if (!historyData || !historyData.nodes) {
+                // Fallback to current values bar chart if history not available
+                updateNodeChartsBarFallback(nodes);
+                return;
+            }
+
+            // Update CPU chart with time-series data
+            const cpuDatasets = [];
+            const colors = ['#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6'];
+            let nodeIndex = 0;
+
+            for (const [nodeName, metrics] of Object.entries(historyData.nodes)) {
+                if (!metrics || metrics.length === 0) continue;
+
+                const displayName = nodeName.replace('coldstore-', '');
+                const data = metrics.map(m => ({ x: new Date(m.time), y: m.cpu_percent || 0 }));
+
+                cpuDatasets.push({
+                    label: displayName,
+                    data: data,
+                    borderColor: colors[nodeIndex % colors.length],
+                    backgroundColor: colors[nodeIndex % colors.length] + '20',
+                    tension: 0.3,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                });
+                nodeIndex++;
+            }
+
+            // Update Memory chart with time-series data
+            const memDatasets = [];
+            nodeIndex = 0;
+
+            for (const [nodeName, metrics] of Object.entries(historyData.nodes)) {
+                if (!metrics || metrics.length === 0) continue;
+
+                const displayName = nodeName.replace('coldstore-', '');
+                const data = metrics.map(m => ({ x: new Date(m.time), y: m.memory_percent || 0 }));
+
+                memDatasets.push({
+                    label: displayName,
+                    data: data,
+                    borderColor: colors[nodeIndex % colors.length],
+                    backgroundColor: colors[nodeIndex % colors.length] + '20',
+                    tension: 0.3,
+                    fill: false,
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 4
+                });
+                nodeIndex++;
+            }
+
+            const timeSeriesConfig = {
+                type: 'line',
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top',
+                            labels: { font: { size: 11, weight: '600' } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                displayFormats: {
+                                    minute: 'HH:mm',
+                                    hour: 'HH:mm'
+                                }
+                            },
+                            grid: { display: false },
+                            ticks: { font: { size: 10 } }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: 'rgba(0,0,0,0.05)' },
+                            ticks: { callback: v => v + '%', font: { size: 10 } }
+                        }
+                    }
+                }
+            };
+
+            if (cpuChart) cpuChart.destroy();
+            cpuChart = new Chart(document.getElementById('cpuChart'), {
+                ...timeSeriesConfig,
+                data: { datasets: cpuDatasets }
+            });
+
+            if (memoryChart) memoryChart.destroy();
+            memoryChart = new Chart(document.getElementById('memoryChart'), {
+                ...timeSeriesConfig,
+                data: { datasets: memDatasets }
+            });
+        }
+
+        function updateNodeChartsBarFallback(nodes) {
+            // Fallback bar chart for current values only
             const sortedNodes = nodes.sort((a, b) => {
                 if (a.node_name.startsWith('k3s-') && !b.node_name.startsWith('k3s-')) return -1;
                 if (!a.node_name.startsWith('k3s-') && b.node_name.startsWith('k3s-')) return 1;
@@ -569,7 +700,6 @@
             const cpuData = sortedNodes.map(n => n.cpu_percent || 0);
             const memData = sortedNodes.map(n => n.memory_percent || 0);
 
-            // Color based on value
             const cpuColors = cpuData.map(v => v < 50 ? '#22c55e' : v < 75 ? '#f59e0b' : '#ef4444');
             const memColors = memData.map(v => v < 60 ? '#3b82f6' : v < 80 ? '#f59e0b' : '#ef4444');
 

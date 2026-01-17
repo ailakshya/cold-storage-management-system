@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Room Layout Sheets</title>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            .page-break { page-break-after: always; }
+            body { margin: 0; padding: 0; }
+        }
+
+        @page {
+            size: A4 landscape;
+            margin: 8mm;
+        }
+
+        * {
+            font-family: Arial, sans-serif;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #f5f5f5;
+            padding: 10px;
+        }
+
+        .no-print {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+
+        .page {
+            background: white;
+            width: 279mm;
+            height: 190mm;
+            padding: 5mm;
+            margin-bottom: 15px;
+            border: 1px solid #000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-header {
+            text-align: center;
+            border-bottom: 2px solid #000;
+            padding: 6px 0;
+            margin-bottom: 4mm;
+        }
+
+        .page-header h1 {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .content-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Side by side for Gallery + Room */
+        .side-by-side {
+            flex: 1;
+            display: flex;
+            gap: 4mm;
+        }
+
+        .room-block {
+            border: 2px solid #000;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .room-block.gallery {
+            flex: 0 0 55mm;
+        }
+
+        .room-block.gallery-small {
+            flex: 1;
+            min-width: 80mm;
+        }
+
+        .gallery-row {
+            flex: 1;
+            display: flex;
+            gap: 4mm;
+        }
+
+        .room-block.single {
+            max-width: 100%;
+        }
+
+        .room-title {
+            background: #000;
+            color: white;
+            text-align: center;
+            font-weight: bold;
+            font-size: 13px;
+            padding: 4px;
+        }
+
+        .room-info {
+            font-size: 9px;
+            text-align: center;
+            color: #333;
+            padding: 2px;
+            background: #e0e0e0;
+            border-bottom: 1px solid #000;
+        }
+
+        .grid-wrapper {
+            flex: 1;
+            padding: 2px;
+        }
+
+        .grid-table {
+            border-collapse: collapse;
+            width: 100%;
+            height: 100%;
+            table-layout: fixed;
+        }
+
+        .grid-table th, .grid-table td {
+            border: 1px solid #888;
+            text-align: center;
+            vertical-align: middle;
+        }
+
+        .grid-table th {
+            background: #e8e8e8;
+            font-weight: bold;
+            font-size: 10px;
+            height: 18px;
+        }
+
+        .grid-table .row-header {
+            background: #e8e8e8;
+            font-weight: bold;
+            width: 28px;
+            font-size: 9px;
+        }
+
+        /* Gatar numbers - dark enough to print visible */
+        .grid-table td {
+            font-size: 9px;
+            color: #444;
+        }
+
+        .legend-row {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 6px;
+            border: 1px solid #000;
+            background: #f5f5f5;
+            margin-top: 3mm;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .legend-box {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 11px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <h2>Room Layout Sheets (A4 Landscape)</h2>
+        <p><strong>22 pages:</strong> 2 Gallery pages + 5 floors x 4 rooms</p>
+        <p><strong>Gatar numbers are light</strong> - easy to write markings over them</p>
+        <button onclick="window.print()" style="padding: 12px 24px; font-size: 16px; cursor: pointer; background: #22c55e; color: white; border: 2px solid #000; font-weight: bold;">
+            PRINT ALL SHEETS
+        </button>
+    </div>
+
+    <div id="sheets"></div>
+
+    <script>
+        const floors = ['0', '1', '2', '3', '4'];
+
+        const gatarRanges = {
+            '1': { '0': [1,140], '1': [141,280], '2': [281,420], '3': [421,560], '4': [561,680] },
+            '2': { '0': [681,820], '1': [821,960], '2': [961,1100], '3': [1101,1240], '4': [1241,1360] },
+            '3': { '0': [1361,1500], '1': [1501,1640], '2': [1641,1780], '3': [1781,1920], '4': [1921,2040] },
+            '4': { '0': [2041,2160], '1': [2121,2260], '2': [2261,2400], '3': [2401,2540], '4': [2601,2720] },
+            'G': { '0': [2727,2756], '1': [2757,2784], '2': [2785,2812], '3': [2813,2840], '4': [2841,2868] }
+        };
+
+        function getFloorCols(roomId, floor) {
+            if (roomId === 'G') return 2;
+            if (floor === '4') return 12;
+            return 14;
+        }
+
+        function getFloorRows(roomId, floor) {
+            if (roomId === 'G') return floor === '0' ? 15 : 14;
+            return 10;
+        }
+
+        function getFloorLabel(floor) {
+            return floor === '0' ? 'Ground Floor' : floor === '4' ? 'Top Floor' : 'Floor ' + floor;
+        }
+
+        function generateGrid(roomId, roomName, floor, cssClass = '') {
+            const range = gatarRanges[roomId][floor];
+            const cols = getFloorCols(roomId, floor);
+            const rows = getFloorRows(roomId, floor);
+
+            let html = `
+                <div class="room-block ${cssClass}">
+                    <div class="room-title">${roomName}</div>
+                    <div class="room-info">Gatars ${range[0]}-${range[1]} | ${cols} cols x ${rows} rows</div>
+                    <div class="grid-wrapper">
+                        <table class="grid-table">
+                            <thead><tr><th></th>`;
+
+            for (let c = 1; c <= cols; c++) {
+                html += `<th>C${c}</th>`;
+            }
+            html += '</tr></thead><tbody>';
+
+            let gatarNum = range[0];
+            for (let r = 1; r <= rows; r++) {
+                html += `<tr><td class="row-header">R${r}</td>`;
+                for (let c = 1; c <= cols; c++) {
+                    html += gatarNum <= range[1] ? `<td>${gatarNum++}</td>` : '<td></td>';
+                }
+                html += '</tr>';
+            }
+
+            html += '</tbody></table></div></div>';
+            return html;
+        }
+
+        function legend(showConveyor) {
+            return `
+                <div class="legend-row">
+                    <div class="legend-item"><div class="legend-box">G</div>Gallery</div>
+                    <div class="legend-item"><div class="legend-box">E</div>Entry</div>
+                    <div class="legend-item"><div class="legend-box">S</div>Stairs</div>
+                    <div class="legend-item"><div class="legend-box">→</div>Path</div>
+                    ${showConveyor ? '<div class="legend-item"><div class="legend-box">C</div>Conveyor</div>' : ''}
+                </div>`;
+        }
+
+        let html = '';
+
+        // Gallery Page 1: Floors 0, 1, 2
+        html += `
+            <div class="page page-break">
+                <div class="page-header"><h1>GALLERY - Floors 0, 1, 2</h1></div>
+                <div class="content-wrapper">
+                    <div class="gallery-row">
+                        ${generateGrid('G', 'GALLERY F0', '0', 'gallery-small')}
+                        ${generateGrid('G', 'GALLERY F1', '1', 'gallery-small')}
+                        ${generateGrid('G', 'GALLERY F2', '2', 'gallery-small')}
+                    </div>
+                    ${legend(true)}
+                </div>
+            </div>`;
+
+        // Gallery Page 2: Floors 3, 4
+        html += `
+            <div class="page page-break">
+                <div class="page-header"><h1>GALLERY - Floors 3, 4</h1></div>
+                <div class="content-wrapper">
+                    <div class="gallery-row">
+                        ${generateGrid('G', 'GALLERY F3', '3', 'gallery-small')}
+                        ${generateGrid('G', 'GALLERY F4', '4', 'gallery-small')}
+                    </div>
+                    ${legend(true)}
+                </div>
+            </div>`;
+
+        // Room pages for each floor
+        floors.forEach((floor) => {
+            const label = getFloorLabel(floor);
+
+            // Room 1
+            html += `
+                <div class="page page-break">
+                    <div class="page-header"><h1>${label} - Room 1</h1></div>
+                    <div class="content-wrapper">
+                        ${generateGrid('1', 'ROOM 1 (SEED)', floor, 'single')}
+                        ${legend(false)}
+                    </div>
+                </div>`;
+
+            // Room 2
+            html += `
+                <div class="page page-break">
+                    <div class="page-header"><h1>${label} - Room 2</h1></div>
+                    <div class="content-wrapper">
+                        ${generateGrid('2', 'ROOM 2 (SEED)', floor, 'single')}
+                        ${legend(false)}
+                    </div>
+                </div>`;
+
+            // Room 3
+            html += `
+                <div class="page page-break">
+                    <div class="page-header"><h1>${label} - Room 3</h1></div>
+                    <div class="content-wrapper">
+                        ${generateGrid('3', 'ROOM 3 (SELL)', floor, 'single')}
+                        ${legend(false)}
+                    </div>
+                </div>`;
+
+            // Room 4
+            html += `
+                <div class="page page-break">
+                    <div class="page-header"><h1>${label} - Room 4</h1></div>
+                    <div class="content-wrapper">
+                        ${generateGrid('4', 'ROOM 4 (SELL)', floor, 'single')}
+                        ${legend(false)}
+                    </div>
+                </div>`;
+        });
+
+        document.getElementById('sheets').innerHTML = html;
+    </script>
+</body>
+</html>

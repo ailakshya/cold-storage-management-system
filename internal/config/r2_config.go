@@ -13,25 +13,62 @@ const (
 )
 
 // Environment prefix for R2 backups
-// Values: "production-beta" (current K3s), "poc" (new HA VMs), "local" (dev)
-var R2BackupPrefix = "production-beta"
+// Values: "mac-mini-ha" (Mac Mini + Linux HA), "production-beta" (K3s), "poc" (test VMs), "local" (dev)
+var R2BackupPrefix = "mac-mini-ha"
 
 // GetR2BackupPrefix returns the backup prefix based on the connected database
 func GetR2BackupPrefix() string {
 	return R2BackupPrefix
 }
 
+// IsPOCEnvironment returns true if running in POC/test environment
+func IsPOCEnvironment() bool {
+	return R2BackupPrefix == "poc"
+}
+
+// IsMacMiniHAEnvironment returns true if running in Mac Mini HA environment
+func IsMacMiniHAEnvironment() bool {
+	return R2BackupPrefix == "mac-mini-ha"
+}
+
+// IsProductionEnvironment returns true if running in any production environment
+func IsProductionEnvironment() bool {
+	return R2BackupPrefix == "mac-mini-ha" || R2BackupPrefix == "production-beta"
+}
+
+// GetEnvironmentName returns human-readable environment name
+func GetEnvironmentName() string {
+	switch R2BackupPrefix {
+	case "mac-mini-ha":
+		return "Production (Mac Mini HA)"
+	case "poc":
+		return "POC"
+	case "production-beta":
+		return "Production (K3s)"
+	case "local":
+		return "Local Development"
+	default:
+		return "Unknown"
+	}
+}
+
 // SetR2BackupPrefixFromDB sets the backup prefix based on the database host
 func SetR2BackupPrefixFromDB(host string) {
 	switch host {
+	// Mac Mini HA cluster (Production)
+	case "192.168.15.240", "192.168.15.241":
+		R2BackupPrefix = "mac-mini-ha"
+	// POC test VMs
 	case "192.168.15.230", "192.168.15.231":
 		R2BackupPrefix = "poc"
+	// Legacy K3s production
 	case "192.168.15.210":
 		R2BackupPrefix = "production-beta"
+	// Local development
 	case "localhost", "/var/run/postgresql":
 		R2BackupPrefix = "local"
 	default:
-		R2BackupPrefix = "production-beta"
+		R2BackupPrefix = "mac-mini-ha"
 	}
 }
 
@@ -44,8 +81,24 @@ var CommonPasswords = []string{
 }
 
 // Database fallback configuration - will try all passwords for each host
-// Order: POC Primary -> POC Standby -> VIP-DB -> Backup server -> Localhost
+// Order: Mac Mini Primary -> Linux Secondary -> POC VMs -> VIP-DB -> Backup -> Localhost
 var DatabaseFallbacks = []DatabaseConfig{
+	// Mac Mini HA (Production)
+	{
+		Name:     "Mac Mini Primary (192.168.15.240)",
+		Host:     "192.168.15.240",
+		Port:     5432,
+		User:     "cold_user",
+		Database: "cold_db",
+	},
+	{
+		Name:     "Linux Secondary (192.168.15.241)",
+		Host:     "192.168.15.241",
+		Port:     5432,
+		User:     "cold_user",
+		Database: "cold_db",
+	},
+	// POC test environment
 	{
 		Name:     "POC Primary (192.168.15.230)",
 		Host:     "192.168.15.230",
@@ -60,6 +113,7 @@ var DatabaseFallbacks = []DatabaseConfig{
 		User:     "cold_user",
 		Database: "cold_db",
 	},
+	// Legacy K3s production
 	{
 		Name:     "VIP-DB (Primary)",
 		Host:     "192.168.15.210",
@@ -74,6 +128,7 @@ var DatabaseFallbacks = []DatabaseConfig{
 		User:     "postgres",
 		Database: "cold_db",
 	},
+	// Local fallback
 	{
 		Name:     "Localhost (Disaster Recovery)",
 		Host:     "localhost",

@@ -525,6 +525,7 @@ func NewRouter(
 
 		// Dashboard overview
 		monitoringAPI.HandleFunc("/dashboard", monitoringHandler.GetDashboardData).Methods("GET")
+		monitoringAPI.HandleFunc("/environment", monitoringHandler.GetEnvironmentInfo).Methods("GET")
 
 		// API Analytics
 		monitoringAPI.HandleFunc("/api/analytics", monitoringHandler.GetAPIAnalytics).Methods("GET")
@@ -535,6 +536,7 @@ func NewRouter(
 		// Node Metrics
 		monitoringAPI.HandleFunc("/nodes", monitoringHandler.GetLatestNodeMetrics).Methods("GET")
 		monitoringAPI.HandleFunc("/nodes/{name}/history", monitoringHandler.GetNodeMetricsHistory).Methods("GET")
+		monitoringAPI.HandleFunc("/metrics/history", monitoringHandler.GetAllNodesMetricsHistory).Methods("GET")
 		monitoringAPI.HandleFunc("/cluster/overview", monitoringHandler.GetClusterOverview).Methods("GET")
 
 		// PostgreSQL Metrics

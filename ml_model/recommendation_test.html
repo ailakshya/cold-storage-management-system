@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage Recommendation System - Test View</title>
+    <style>
+        * {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            box-sizing: border-box;
+        }
+        body {
+            background: #FFF9E6;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .header p {
+            margin: 5px 0 0;
+            color: #666;
+        }
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .card {
+            background: white;
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 15px;
+        }
+        .card-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: bold;
+        }
+        .card-value {
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .card.blue { background: #dbeafe; }
+        .card.yellow { background: #fef3c7; }
+        .card.green { background: #d1fae5; }
+        .card.orange { background: #fed7aa; }
+
+        .section {
+            background: white;
+            border: 3px solid #000;
+            box-shadow: 4px 4px 0 #000;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .section h2 {
+            margin: 0 0 15px;
+            border-bottom: 2px solid #000;
+            padding-bottom: 10px;
+        }
+
+        .room-tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+        .room-tab {
+            padding: 10px 20px;
+            border: 3px solid #000;
+            background: #e5e7eb;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .room-tab:hover { background: #fef3c7; }
+        .room-tab.active { background: #fbbf24; }
+        .room-tab.seed { border-color: #16a34a; }
+        .room-tab.seed.active { background: #22c55e; color: white; }
+        .room-tab.sell { border-color: #ea580c; }
+        .room-tab.sell.active { background: #f97316; color: white; }
+
+        .floor-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 15px;
+        }
+        .floor-tab {
+            padding: 8px 15px;
+            border: 2px solid #000;
+            background: #f3f4f6;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .floor-tab:hover { background: #fef3c7; }
+        .floor-tab.active { background: #fbbf24; }
+
+        .grid-container {
+            background: #f3f4f6;
+            padding: 15px;
+            border: 2px solid #000;
+            overflow-x: auto;
+        }
+        .gatar-grid {
+            display: grid;
+            gap: 3px;
+            justify-content: center;
+        }
+        .gatar-cell {
+            width: 42px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: bold;
+            border: 2px solid #000;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .gatar-cell:hover {
+            transform: scale(1.15);
+            z-index: 10;
+            box-shadow: 3px 3px 0 #000;
+        }
+        .gatar-cell.empty { background: #f9fafb; color: #9ca3af; border-color: #d1d5db; }
+        .gatar-cell.light { background: #fef3c7; }
+        .gatar-cell.medium { background: #fed7aa; }
+        .gatar-cell.heavy { background: #fb923c; }
+        .gatar-cell.full { background: #f97316; color: white; }
+        .gatar-cell.gallery {
+            border: 3px solid #3b82f6 !important;
+            box-shadow: inset 0 0 0 2px #93c5fd;
+        }
+        .gatar-cell.gallery.empty {
+            background: #dbeafe;
+            color: #3b82f6;
+        }
+        .gatar-cell.recommended {
+            background: #22c55e !important;
+            color: white !important;
+            animation: pulse 1s infinite;
+        }
+        .column-header {
+            text-align: center;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 5px;
+            background: #e5e7eb;
+            border: 1px solid #000;
+        }
+        .column-header.gallery-col {
+            background: #3b82f6;
+            color: white;
+        }
+        .row-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 10px;
+            padding: 5px;
+            background: #e5e7eb;
+            border: 1px solid #000;
+        }
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            50% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+        }
+
+        .legend {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .legend-box {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #000;
+        }
+
+        .rec-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .rec-card {
+            background: #f0fdf4;
+            border: 2px solid #16a34a;
+            padding: 15px;
+        }
+        .rec-card.sell {
+            background: #fff7ed;
+            border-color: #ea580c;
+        }
+        .rec-card h3 {
+            margin: 0 0 10px;
+            font-size: 14px;
+        }
+        .rec-list {
+            font-size: 12px;
+        }
+        .rec-list div {
+            padding: 5px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .test-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .test-controls select, .test-controls input {
+            padding: 8px 12px;
+            border: 2px solid #000;
+            font-size: 14px;
+        }
+        .test-controls button {
+            padding: 10px 20px;
+            border: 3px solid #000;
+            background: #22c55e;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            box-shadow: 3px 3px 0 #000;
+        }
+        .test-controls button:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 5px 5px 0 #000;
+        }
+
+        .info-banner {
+            background: linear-gradient(to right, #fef3c7, #fed7aa);
+            padding: 15px;
+            border: 2px solid #000;
+            margin-bottom: 15px;
+        }
+        .floor-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .comparison {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .comparison > div {
+            border: 2px solid #000;
+            padding: 15px;
+        }
+        .comparison h3 {
+            margin: 0 0 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #000;
+        }
+        .current-view { background: #fef3c7; }
+        .recommended-view { background: #d1fae5; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>
+                <span style="font-size: 32px;">🧪</span>
+                Storage Recommendation System - Test View
+            </h1>
+            <p>Standalone testing page - Compare current storage vs recommended placements</p>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="card blue">
+                <div class="card-label">TOTAL BAGS</div>
+                <div class="card-value" id="totalBags">-</div>
+            </div>
+            <div class="card yellow">
+                <div class="card-label">OCCUPIED GATARS</div>
+                <div class="card-value" id="occupiedGatars">-</div>
+            </div>
+            <div class="card green">
+                <div class="card-label">EMPTY GATARS</div>
+                <div class="card-value" id="emptyGatars">-</div>
+            </div>
+            <div class="card orange">
+                <div class="card-label">CAPACITY USED</div>
+                <div class="card-value" id="capacityUsed">-</div>
+            </div>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="section">
+            <h2>🎯 Test Recommendation System</h2>
+            <div class="test-controls">
+                <div>
+                    <label><strong>Category:</strong></label>
+                    <select id="testCategory">
+                        <option value="seed">SEED (Room 1, 2, G)</option>
+                        <option value="sell">SELL (Room 3, 4, G)</option>
+                    </select>
+                </div>
+                <div>
+                    <label><strong>Quantity:</strong></label>
+                    <select id="testQuantity">
+                        <option value="small">Small (1-20 bags)</option>
+                        <option value="medium">Medium (20-50 bags)</option>
+                        <option value="large">Large (50+ bags)</option>
+                    </select>
+                </div>
+                <button onclick="showRecommendations()">Show Recommendations</button>
+                <button onclick="clearRecommendations()" style="background: #ef4444;">Clear</button>
+            </div>
+
+            <div class="rec-panel" id="recPanel" style="display: none;">
+                <!-- Recommendations will be shown here -->
+            </div>
+        </div>
+
+        <!-- Room Visualization -->
+        <div class="section">
+            <h2>📦 Storage Grid View</h2>
+
+            <div class="legend">
+                <div class="legend-item"><div class="legend-box" style="background: #dbeafe; border: 3px solid #3b82f6;"></div> Gallery (Col 7)</div>
+                <div class="legend-item"><div class="legend-box" style="background: #f9fafb;"></div> Empty</div>
+                <div class="legend-item"><div class="legend-box" style="background: #fef3c7;"></div> Light (&lt;50)</div>
+                <div class="legend-item"><div class="legend-box" style="background: #fed7aa;"></div> Medium (50-100)</div>
+                <div class="legend-item"><div class="legend-box" style="background: #fb923c;"></div> Heavy (100-150)</div>
+                <div class="legend-item"><div class="legend-box" style="background: #f97316;"></div> Full (150+)</div>
+                <div class="legend-item"><div class="legend-box" style="background: #22c55e;"></div> Recommended</div>
+            </div>
+
+            <div style="background: #eff6ff; border: 2px solid #3b82f6; padding: 10px; margin-bottom: 15px;">
+                <strong>🚶 Gallery Access Path:</strong> Column 7 (blue ★) = Center walkway for quick access.
+                <strong>Small quantities</strong> should be placed near gallery for fast retrieval.
+            </div>
+
+            <div style="background: #fef3c7; border: 2px solid #f59e0b; padding: 10px; margin-bottom: 15px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <strong>📊 Column Layout:</strong>
+                    <div style="font-size: 12px; margin-top: 5px;">
+                        <span style="background: #fee2e2; padding: 2px 6px; margin: 2px;">C1-C6: Left side</span>
+                        <span style="background: #dbeafe; padding: 2px 6px; margin: 2px; font-weight: bold;">C7: GALLERY ★</span>
+                        <span style="background: #fee2e2; padding: 2px 6px; margin: 2px;">C8-C14: Right side</span>
+                    </div>
+                </div>
+                <div>
+                    <strong>⚪ Empty Cells?</strong>
+                    <div style="font-size: 12px; margin-top: 5px;">
+                        Occupancy: <strong>94.8%</strong> (2,695 / 2,842 gatars). Empty = available for new storage.
+                    </div>
+                </div>
+            </div>
+
+            <div class="room-tabs" id="roomTabs">
+                <div class="room-tab seed active" data-room="1">Room 1 (Seed)</div>
+                <div class="room-tab seed" data-room="2">Room 2 (Seed)</div>
+                <div class="room-tab" data-room="G">Gallery</div>
+                <div class="room-tab sell" data-room="3">Room 3 (Sell)</div>
+                <div class="room-tab sell" data-room="4">Room 4 (Sell)</div>
+            </div>
+
+            <div class="floor-tabs" id="floorTabs">
+                <div class="floor-tab active" data-floor="0">Floor 0 (Ground)</div>
+                <div class="floor-tab" data-floor="1">Floor 1</div>
+                <div class="floor-tab" data-floor="2">Floor 2</div>
+                <div class="floor-tab" data-floor="3">Floor 3</div>
+                <div class="floor-tab" data-floor="4">Floor 4 (Top)</div>
+            </div>
+
+            <div class="info-banner">
+                <div class="floor-info">
+                    <div>
+                        <strong id="floorTitle">Room 1 - Floor 0</strong>
+                        <span id="floorRange" style="color: #666; margin-left: 10px;">(Gatar 1-140)</span>
+                    </div>
+                    <div>
+                        <strong id="floorItems">0</strong> items |
+                        <strong id="floorOccupied">0</strong> / <span id="floorTotal">140</span> gatars
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-container">
+                <div class="gatar-grid" id="gatarGrid">
+                    <!-- Grid will be rendered here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparison View -->
+        <div class="section">
+            <h2>📊 Current vs Recommended Comparison</h2>
+            <div class="comparison">
+                <div class="current-view">
+                    <h3>Current Storage Pattern</h3>
+                    <ul>
+                        <li>Items far from gallery: <strong id="farItems">-</strong></li>
+                        <li>Customers in multiple rooms: <strong>29%</strong></li>
+                        <li>Floor distribution: <strong>Even (20% each)</strong></li>
+                        <li>Category mixing: <strong>Some</strong></li>
+                    </ul>
+                </div>
+                <div class="recommended-view">
+                    <h3>Recommendation System Pattern</h3>
+                    <ul>
+                        <li>Small qty near gallery: <strong>100%</strong></li>
+                        <li>Customer clustering: <strong>25% weight</strong></li>
+                        <li>Floor priority: <strong>Lower floors first</strong></li>
+                        <li>Category strict: <strong>100% enforced</strong></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Validation Checklist -->
+        <div class="section">
+            <h2>✅ Validation Checklist</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h4>Small Quantity (1-20 bags)</h4>
+                    <ul>
+                        <li>Should be placed NEAR gallery (Distance = 0)</li>
+                        <li>Should prefer Floor 0 (Ground floor)</li>
+                        <li>Columns 6-7-8 (center)</li>
+                    </ul>
+
+                    <h4>Medium Quantity (20-50 bags)</h4>
+                    <ul>
+                        <li>Can be in MID columns (Distance = 1-2)</li>
+                        <li>Columns 4-5 or 9-10</li>
+                    </ul>
+                </div>
+                <div>
+                    <h4>Large Quantity (50+ bags)</h4>
+                    <ul>
+                        <li>Can go DEEP (Distance = 3-6)</li>
+                        <li>Columns 1-3 or 11-14</li>
+                        <li>Fewer trips needed, walking OK</li>
+                    </ul>
+
+                    <h4>Category Rules</h4>
+                    <ul>
+                        <li>SEED items → Room 1, 2, G only</li>
+                        <li>SELL items → Room 3, 4, G only</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let data = null;
+        let currentRoom = '1';
+        let currentFloor = '0';
+        let recommendedGatars = new Set();
+
+        // Gatar ranges
+        const gatarRanges = {
+            '1': {
+                '0': { start: 1, end: 140, cols: 14, rows: 10 },
+                '1': { start: 141, end: 280, cols: 14, rows: 10 },
+                '2': { start: 281, end: 420, cols: 14, rows: 10 },
+                '3': { start: 421, end: 560, cols: 14, rows: 10 },
+                '4': { start: 561, end: 680, cols: 12, rows: 10 }
+            },
+            '2': {
+                '0': { start: 681, end: 820, cols: 14, rows: 10 },
+                '1': { start: 821, end: 960, cols: 14, rows: 10 },
+                '2': { start: 961, end: 1100, cols: 14, rows: 10 },
+                '3': { start: 1101, end: 1240, cols: 14, rows: 10 },
+                '4': { start: 1241, end: 1360, cols: 12, rows: 10 }
+            },
+            '3': {
+                '0': { start: 1361, end: 1500, cols: 14, rows: 10 },
+                '1': { start: 1501, end: 1640, cols: 14, rows: 10 },
+                '2': { start: 1641, end: 1780, cols: 14, rows: 10 },
+                '3': { start: 1781, end: 1920, cols: 14, rows: 10 },
+                '4': { start: 1921, end: 2040, cols: 12, rows: 10 }
+            },
+            '4': {
+                '0': { start: 2041, end: 2160, cols: 14, rows: 10 },
+                '1': { start: 2121, end: 2260, cols: 14, rows: 10 },
+                '2': { start: 2261, end: 2400, cols: 14, rows: 10 },
+                '3': { start: 2401, end: 2540, cols: 14, rows: 10 },
+                '4': { start: 2601, end: 2720, cols: 12, rows: 10 }
+            },
+            'G': {
+                '0': { start: 2727, end: 2756, cols: 2, rows: 15 },
+                '1': { start: 2757, end: 2784, cols: 2, rows: 14 },
+                '2': { start: 2785, end: 2812, cols: 2, rows: 14 },
+                '3': { start: 2813, end: 2840, cols: 2, rows: 14 },
+                '4': { start: 2841, end: 2868, cols: 2, rows: 14 }
+            }
+        };
+
+        // Load data
+        async function loadData() {
+            try {
+                const response = await fetch('test_data.json');
+                data = await response.json();
+                updateSummary();
+                renderGrid();
+            } catch (e) {
+                console.error('Error loading data:', e);
+                document.getElementById('gatarGrid').innerHTML = '<p style="color:red;">Error loading test_data.json. Run the Python script first.</p>';
+            }
+        }
+
+        function updateSummary() {
+            document.getElementById('totalBags').textContent = data.total_items.toLocaleString();
+            const occupied = Object.keys(data.gatar_data).length;
+            document.getElementById('occupiedGatars').textContent = occupied.toLocaleString();
+            document.getElementById('emptyGatars').textContent = (2842 - occupied).toLocaleString();
+            document.getElementById('capacityUsed').textContent = ((data.total_items / 140000) * 100).toFixed(1) + '%';
+
+            // Calculate far items
+            let farItems = 0;
+            // Simplified - just show percentage
+            document.getElementById('farItems').textContent = '40.6%';
+        }
+
+        function getGatarAtPosition(range, row, col) {
+            const cols = range.cols;
+            if (cols === 2) {
+                return range.start + (row * cols) + col;
+            }
+            const pairIndex = Math.floor(col / 2);
+            const isLeftCol = col % 2 === 0;
+            const baseForPair = range.start + (pairIndex * 20);
+            const gatarOffset = isLeftCol ? (row * 2 + 1) : (row * 2 + 2);
+            return baseForPair + gatarOffset - 1;
+        }
+
+        function getCellClass(items) {
+            if (items === 0) return 'empty';
+            if (items < 50) return 'light';
+            if (items < 100) return 'medium';
+            if (items < 150) return 'heavy';
+            return 'full';
+        }
+
+        function renderGrid() {
+            const range = gatarRanges[currentRoom]?.[currentFloor];
+            if (!range) {
+                document.getElementById('gatarGrid').innerHTML = '<p>No data for this floor</p>';
+                return;
+            }
+
+            const cols = range.cols;
+            const rows = range.rows;
+
+            // Update info
+            const roomLabel = currentRoom === 'G' ? 'Gallery' : `Room ${currentRoom}`;
+            document.getElementById('floorTitle').textContent = `${roomLabel} - Floor ${currentFloor}`;
+            document.getElementById('floorRange').textContent = `(Gatar ${range.start}-${range.end})`;
+            document.getElementById('floorTotal').textContent = range.end - range.start + 1;
+
+            // Calculate floor stats
+            let floorItems = 0;
+            let floorOccupied = 0;
+            for (let g = range.start; g <= range.end; g++) {
+                const gData = data.gatar_data[g];
+                if (gData) {
+                    floorItems += gData.items;
+                    floorOccupied++;
+                }
+            }
+            document.getElementById('floorItems').textContent = floorItems.toLocaleString();
+            document.getElementById('floorOccupied').textContent = floorOccupied;
+
+            // Render grid with column headers
+            let html = '';
+            const grid = document.getElementById('gatarGrid');
+
+            // +1 for row labels column
+            grid.style.gridTemplateColumns = `40px repeat(${cols}, 42px)`;
+
+            // Column headers row
+            html += '<div class="row-label"></div>'; // Empty corner
+            for (let col = 0; col < cols; col++) {
+                const colNum = col + 1;
+                const isGallery = (cols > 2) && (colNum === 7); // Only column 7 is gallery
+                const headerClass = isGallery ? 'column-header gallery-col' : 'column-header';
+                const label = isGallery ? `C${colNum}★` : `C${colNum}`;
+                html += `<div class="${headerClass}">${label}</div>`;
+            }
+
+            // Data rows
+            for (let row = 0; row < rows; row++) {
+                // Row label
+                html += `<div class="row-label">R${row + 1}</div>`;
+
+                for (let col = 0; col < cols; col++) {
+                    const colNum = col + 1;
+                    const isGalleryCol = (cols > 2) && (colNum === 7); // Only column 7 is gallery
+
+                    const gatar = getGatarAtPosition(range, row, col);
+                    if (gatar > range.end) {
+                        html += '<div class="gatar-cell" style="visibility:hidden;"></div>';
+                        continue;
+                    }
+
+                    const gData = data.gatar_data[gatar];
+                    const items = gData ? gData.items : 0;
+                    let cellClass = getCellClass(items);
+
+                    // Add gallery class for columns 6-7-8
+                    if (isGalleryCol) {
+                        cellClass += ' gallery';
+                    }
+
+                    if (recommendedGatars.has(gatar)) {
+                        cellClass = 'recommended';
+                    }
+
+                    html += `<div class="gatar-cell ${cellClass}" title="Gatar ${gatar}: ${items} bags (Col ${colNum})" onclick="showGatarInfo(${gatar}, ${items})">${gatar}</div>`;
+                }
+            }
+
+            grid.innerHTML = html;
+        }
+
+        function showGatarInfo(gatar, items) {
+            alert(`Gatar ${gatar}\nItems: ${items} bags`);
+        }
+
+        function showRecommendations() {
+            const category = document.getElementById('testCategory').value;
+            const quantity = document.getElementById('testQuantity').value;
+            const key = `${category}_${quantity}`;
+
+            const recs = data.recommendations[key];
+            if (!recs) {
+                alert('No recommendations found');
+                return;
+            }
+
+            // Show recommended gatars on grid
+            recommendedGatars.clear();
+            recs.forEach(r => recommendedGatars.add(r.gatar));
+
+            // Show panel
+            const panel = document.getElementById('recPanel');
+            panel.style.display = 'grid';
+
+            let html = `
+                <div class="rec-card ${category}">
+                    <h3>Top 10 Recommendations for ${category.toUpperCase()} - ${quantity.toUpperCase()}</h3>
+                    <div class="rec-list">
+            `;
+
+            recs.forEach((r, i) => {
+                html += `<div>#${i+1}: Room ${r.room}, Floor ${r.floor}, Gatar ${r.gatar} (Score: ${r.score.toFixed(1)}, Dist: ${r.distance})</div>`;
+            });
+
+            html += '</div></div>';
+
+            html += `
+                <div class="rec-card">
+                    <h3>Placement Logic</h3>
+                    <div class="rec-list">
+                        <div><strong>Category:</strong> ${category.toUpperCase()}</div>
+                        <div><strong>Quantity:</strong> ${quantity}</div>
+                        <div><strong>Rooms:</strong> ${category === 'seed' ? '1, 2, G' : '3, 4, G'}</div>
+                        <div><strong>Gallery Distance:</strong> ${quantity === 'small' ? '0 (near)' : quantity === 'medium' ? '1-2 (mid)' : '3-6 (deep OK)'}</div>
+                        <div><strong>Floor Priority:</strong> 0 > 1 > 2 > 3 > 4</div>
+                    </div>
+                </div>
+            `;
+
+            html += `
+                <div class="rec-card">
+                    <h3>Score Breakdown</h3>
+                    <div class="rec-list">
+                        <div>Load Balance: 25%</div>
+                        <div>Customer Clustering: 25%</div>
+                        <div>Gallery Proximity: 20%</div>
+                        <div>Floor Score: 15%</div>
+                        <div>Capacity: 10%</div>
+                        <div>Room Proximity: 5%</div>
+                    </div>
+                </div>
+            `;
+
+            panel.innerHTML = html;
+
+            // Jump to the room of first recommendation
+            currentRoom = recs[0].room;
+            currentFloor = recs[0].floor;
+            updateRoomTabs();
+            updateFloorTabs();
+            renderGrid();
+        }
+
+        function clearRecommendations() {
+            recommendedGatars.clear();
+            document.getElementById('recPanel').style.display = 'none';
+            renderGrid();
+        }
+
+        function updateRoomTabs() {
+            document.querySelectorAll('.room-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.room === currentRoom) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        function updateFloorTabs() {
+            document.querySelectorAll('.floor-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.floor === currentFloor) {
+                    tab.classList.add('active');
+                }
+            });
+        }
+
+        // Event listeners
+        document.getElementById('roomTabs').addEventListener('click', (e) => {
+            if (e.target.classList.contains('room-tab')) {
+                currentRoom = e.target.dataset.room;
+                currentFloor = '0';
+                updateRoomTabs();
+                updateFloorTabs();
+                renderGrid();
+            }
+        });
+
+        document.getElementById('floorTabs').addEventListener('click', (e) => {
+            if (e.target.classList.contains('floor-tab')) {
+                currentFloor = e.target.dataset.floor;
+                updateFloorTabs();
+                renderGrid();
+            }
+        });
+
+        // Load on page load
+        loadData();
+    </script>
+</body>
+</html>

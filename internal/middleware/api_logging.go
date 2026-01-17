@@ -53,12 +53,11 @@ func NewAPILoggingMiddleware(repo *repositories.MetricsRepository) *APILoggingMi
 
 // asyncLogWriter writes logs asynchronously to avoid blocking requests
 func (m *APILoggingMiddleware) asyncLogWriter() {
-	for log := range m.logChan {
+	for logEntry := range m.logChan {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := m.repo.InsertAPILog(ctx, log); err != nil {
-			// Log error but don't block
-			// Use standard log since we can't import a logger here
-			_ = err // Silently ignore - metrics logging shouldn't affect requests
+		if err := m.repo.InsertAPILog(ctx, logEntry); err != nil {
+			// Log error but don't block requests
+			log.Printf("[APILogging] Failed to insert API log: %v (path: %s, status: %d)", err, logEntry.Path, logEntry.StatusCode)
 		}
 		cancel()
 	}

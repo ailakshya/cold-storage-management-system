@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	"cold-backend/internal/config"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -283,8 +285,25 @@ type dbNode struct {
 	Port int
 }
 
-// getDBNodes returns the list of bare metal PostgreSQL nodes
+// getDBNodes returns the list of PostgreSQL nodes based on environment
 func getDBNodes() []dbNode {
+	// Mac Mini HA environment (Production)
+	if config.IsMacMiniHAEnvironment() {
+		return []dbNode{
+			{"coldstore-primary", "192.168.15.240", 5432},
+			{"coldstore-archive", "192.168.15.241", 5432},
+		}
+	}
+
+	// POC environment uses VMs 230 and 231
+	if config.IsPOCEnvironment() {
+		return []dbNode{
+			{"POC-Primary-VM230", "192.168.15.230", 5432},
+			{"POC-Standby-VM231", "192.168.15.231", 5432},
+		}
+	}
+
+	// Legacy K3s production uses bare metal nodes
 	return []dbNode{
 		{"db-node1", "192.168.15.120", 5432},
 		{"db-node2", "192.168.15.121", 5432},

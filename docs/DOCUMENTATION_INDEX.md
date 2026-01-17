@@ -24,6 +24,11 @@ Complete documentation for the Cold Storage Management System.
 1. **[TEST_RESULTS.md](TEST_RESULTS.md)** - Comprehensive test results
 2. **[ROLE_BASED_ACCESS_TEST.md](ROLE_BASED_ACCESS_TEST.md)** - Role testing guide
 
+### For Production Deployment
+1. **[PRODUCTION_SETUP_GUIDE.md](PRODUCTION_SETUP_GUIDE.md)** - Complete production deployment guide
+2. **[QUICK_DEPLOYMENT_REFERENCE.md](QUICK_DEPLOYMENT_REFERENCE.md)** - Quick command reference
+3. **[POC_DEPLOYMENT_GUIDE.md](POC_DEPLOYMENT_GUIDE.md)** - POC environment documentation
+
 ---
 
 ## Documentation Files
@@ -216,6 +221,22 @@ Complete documentation for the Cold Storage Management System.
 - Review test results
 - Understand limitations
 
+### "I need to deploy to production"
+→ Read **[PRODUCTION_SETUP_GUIDE.md](PRODUCTION_SETUP_GUIDE.md)**
+- Complete step-by-step deployment
+- Infrastructure setup
+- Database replication
+- Monitoring stack
+- Security hardening
+- Troubleshooting guide
+
+### "I need quick deployment commands"
+→ Read **[QUICK_DEPLOYMENT_REFERENCE.md](QUICK_DEPLOYMENT_REFERENCE.md)**
+- Fast command reference
+- Quick troubleshooting
+- Common operations
+- Verification commands
+
 ---
 
 ## Documentation Coverage
@@ -265,6 +286,11 @@ Complete documentation for the Cold Storage Management System.
 - ✅ Docker setup
 - ✅ Systemd service
 - ✅ Security checklist
+- ✅ Proxmox VM setup
+- ✅ PostgreSQL HA configuration
+- ✅ K3s cluster deployment
+- ✅ Monitoring stack setup
+- ✅ R2 backup configuration
 
 **Troubleshooting:**
 - ✅ Common issues
@@ -278,12 +304,12 @@ Complete documentation for the Cold Storage Management System.
 - ⚠️ Performance tuning guide
 - ⚠️ Scaling strategies
 - ⚠️ Load balancing setup
-- ⚠️ Monitoring and logging
+- ✅ Monitoring and logging (Prometheus)
 - ⚠️ CI/CD pipeline
 - ⚠️ Docker Compose setup
-- ⚠️ Kubernetes deployment
-- ⚠️ Backup automation
-- ⚠️ Disaster recovery
+- ✅ Kubernetes deployment (K3s)
+- ✅ Backup automation (R2 1-minute backups)
+- ✅ Disaster recovery (Database replication + R2)
 
 **Additional Documentation:**
 - ⚠️ Video tutorials
@@ -316,6 +342,11 @@ Complete documentation for the Cold Storage Management System.
 1. ROLE_BASED_ACCESS_TEST.md (30 minutes)
 2. TEST_RESULTS.md (10 minutes)
 3. API_DOCUMENTATION.md - Error Handling (5 minutes)
+
+### For Production Deployment
+1. PRODUCTION_SETUP_GUIDE.md (2-3 hours to read and execute)
+2. QUICK_DEPLOYMENT_REFERENCE.md (quick reference during deployment)
+3. POC_DEPLOYMENT_GUIDE.md (optional - POC specifics)
 
 ---
 
@@ -381,7 +412,10 @@ pkill -f cold-backend
 | DATABASE_SCHEMA.md | ~600 | ~4,500 | Database Design |
 | TEST_RESULTS.md | ~400 | ~3,000 | Test Results |
 | ROLE_BASED_ACCESS_TEST.md | ~500 | ~3,500 | Testing Guide |
-| **TOTAL** | **~3,100** | **~24,500** | **Complete** |
+| **PRODUCTION_SETUP_GUIDE.md** | **2,211** | **~16,000** | **Production Deployment** |
+| **QUICK_DEPLOYMENT_REFERENCE.md** | **363** | **~2,500** | **Quick Deploy** |
+| POC_DEPLOYMENT_GUIDE.md | ~600 | ~4,500 | POC Environment |
+| **TOTAL** | **~5,674** | **~47,500** | **Complete** |
 
 ---
 
@@ -444,6 +478,7 @@ Contributions to documentation are welcome:
 |---------|------|---------|
 | 1.0.0 | 2025-12-13 | Initial complete documentation |
 | 1.4.75 | 2025-12-18 | Multi-language support, offline mode, room config improvements |
+| 2.0.0 | 2026-01-12 | Production deployment guide, Proxmox setup, PostgreSQL HA, K3s cluster, monitoring stack |
 
 ---
 
@@ -455,7 +490,10 @@ All documentation is proprietary and confidential.
 
 **Documentation Status: ✅ Complete**
 
-All core documentation is complete and up-to-date. The system is ready for use with comprehensive guides for setup, development, API integration, testing, and deployment.
+All core documentation is complete and up-to-date. The system is ready for use with comprehensive guides for setup, development, API integration, testing, and production deployment.
 
-**Last Updated:** 2025-12-18
+**NEW: Production Deployment Guide**
+Complete step-by-step guide for deploying the Cold Storage Management System on production servers with High Availability, including Proxmox VM setup, PostgreSQL streaming replication, K3s cluster, Prometheus monitoring, and Cloudflare R2 backups.
+
+**Last Updated:** 2026-01-12
 **Maintained By:** Cold Storage Development Team

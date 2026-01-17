@@ -66,6 +66,12 @@
                         Infrastructure Monitoring
                     </h1>
                     <p class="text-gray-600 text-sm md:text-base">Cold Storage HA Cluster Status & Failover Control</p>
+                    <div class="mt-2">
+                        <span id="envBadgeInfra" class="px-3 py-1 rounded text-sm bg-gray-300">Loading...</span>
+                        <span id="pocInfoBadge" class="hidden px-3 py-1 rounded text-sm bg-blue-100 text-blue-800 ml-2">
+                            <i class="bi bi-info-circle"></i> <span id="pocInfoText"></span>
+                        </span>
+                    </div>
                 </div>
                 <div class="text-left md:text-right w-full md:w-auto">
                     <div class="text-sm text-gray-600">Last Update</div>
@@ -1162,6 +1168,36 @@
             }
         }
 
+        async function loadEnvironmentInfo() {
+            try {
+                const response = await fetch('/api/monitoring/environment', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                if (data.environment) {
+                    const envBadge = document.getElementById('envBadgeInfra');
+                    envBadge.textContent = data.environment;
+
+                    if (data.environment === 'POC') {
+                        envBadge.className = 'px-3 py-1 rounded text-sm bg-orange-600 text-white font-bold';
+
+                        // Show POC-specific info
+                        const pocInfo = document.getElementById('pocInfoBadge');
+                        const pocInfoText = document.getElementById('pocInfoText');
+                        pocInfo.classList.remove('hidden');
+                        pocInfoText.textContent = `VMs: ${data.primary_vm || '230'} (Primary), ${data.standby_vm || '231'} (Standby)`;
+                    } else if (data.environment === 'Production (K3s)') {
+                        envBadge.className = 'px-3 py-1 rounded text-sm bg-green-600 text-white font-bold';
+                    } else {
+                        envBadge.className = 'px-3 py-1 rounded text-sm bg-blue-600 text-white font-bold';
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load environment info:', error);
+            }
+        }
+
         async function checkPostgreSQLPods() {
             try {
                 const response = await fetch('/api/infrastructure/postgresql-pods', {
@@ -1488,6 +1524,7 @@
         }
 
         // Initial load and auto-refresh every 30 seconds
+        loadEnvironmentInfo();
         refreshAll();
         setInterval(refreshAll, 30000);
 

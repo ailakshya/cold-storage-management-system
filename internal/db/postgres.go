@@ -304,6 +304,11 @@ func TryConnectWithFallback() (*pgxpool.Pool, string, string, bool) {
 
 			cancel()
 			log.Printf("[DB] Successfully connected to %s", dbConfig.Name)
+
+			// Set R2 backup prefix based on connected host for POC environment
+			config.SetR2BackupPrefixFromDB(dbConfig.Host)
+			log.Printf("[DB] R2 backup prefix set to: %s", config.GetR2BackupPrefix())
+
 			// Return connection URI for psql
 			connURI := dbConfig.ConnectionURI(password)
 			// Disaster recovery mode: VIP and 195 failed, but localhost/socket connected

@@ -22,7 +22,6 @@ import (
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/health"
 	"cold-backend/internal/middleware"
-	"cold-backend/internal/monitoring"
 	"cold-backend/internal/repositories"
 	"cold-backend/internal/services"
 	"cold-backend/internal/sms"
@@ -390,9 +389,6 @@ func main() {
 	// Initialize health checker
 	healthChecker := health.NewHealthChecker(pool)
 
-	// Start monitoring dashboard server in background
-	go monitoring.NewMonitoringServer(pool, 9090).Start()
-
 	// Initialize JWT manager
 	jwtManager := auth.NewJWTManager(cfg)
 
@@ -642,6 +638,13 @@ func main() {
 			log.Println("[Monitoring] TimescaleDB monitoring components initialized")
 		} else {
 			log.Println("[Monitoring] TimescaleDB not available, time-series metrics disabled")
+
+			// For POC environment without TimescaleDB, use main database for API logging
+			if config.IsPOCEnvironment() {
+				log.Println("[Monitoring] POC environment detected - enabling API logging to main database")
+				metricsRepo = repositories.NewMetricsRepository(pool)
+				apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(metricsRepo)
+			}
 		}
 
 		// Always initialize monitoring handler (R2 backup/restore works without TimescaleDB)

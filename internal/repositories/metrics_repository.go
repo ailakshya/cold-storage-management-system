@@ -30,13 +30,13 @@ func (r *MetricsRepository) InsertAPILog(ctx context.Context, log *models.APIReq
 	query := `
 		INSERT INTO api_request_logs (
 			method, path, status_code, duration_ms, request_size, response_size,
-			user_id, user_email, user_role, ip_address, user_agent, error_message
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`
+			user_id, ip_address, user_agent, error_message
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	_, err := r.pool.Exec(ctx, query,
 		log.Method, log.Path, log.StatusCode, log.DurationMs,
-		log.RequestSize, log.ResponseSize, log.UserID, log.UserEmail,
-		log.UserRole, log.IPAddress, log.UserAgent, log.ErrorMessage)
+		log.RequestSize, log.ResponseSize, log.UserID,
+		log.IPAddress, log.UserAgent, log.ErrorMessage)
 	return err
 }
 
@@ -54,7 +54,7 @@ func (r *MetricsRepository) GetAPIAnalytics(ctx context.Context, duration time.D
 			COALESCE(SUM(response_size), 0) AS total_response_bytes,
 			COUNT(DISTINCT user_id) AS unique_users
 		FROM api_request_logs
-		WHERE time > NOW() - $1::INTERVAL`
+		WHERE created_at > NOW() - $1::INTERVAL`
 
 	var analytics models.APIAnalytics
 	analytics.TimeRange = duration.String()
@@ -91,7 +91,7 @@ func (r *MetricsRepository) GetTopEndpoints(ctx context.Context, duration time.D
 			PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95_duration,
 			MAX(duration_ms) AS max_duration
 		FROM api_request_logs
-		WHERE time > NOW() - $1::INTERVAL
+		WHERE created_at > NOW() - $1::INTERVAL
 		GROUP BY path
 		ORDER BY total_requests DESC
 		LIMIT $2`
@@ -125,7 +125,7 @@ func (r *MetricsRepository) GetSlowestEndpoints(ctx context.Context, duration ti
 			PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) AS p95_duration,
 			MAX(duration_ms) AS max_duration
 		FROM api_request_logs
-		WHERE time > NOW() - $1::INTERVAL
+		WHERE created_at > NOW() - $1::INTERVAL
 		GROUP BY path
 		HAVING COUNT(*) >= 10
 		ORDER BY avg_duration DESC
@@ -154,7 +154,7 @@ func (r *MetricsRepository) GetErrorsByStatus(ctx context.Context, duration time
 	query := `
 		SELECT status_code, COUNT(*) AS count
 		FROM api_request_logs
-		WHERE time > NOW() - $1::INTERVAL AND status_code >= 400
+		WHERE created_at > NOW() - $1::INTERVAL AND status_code >= 400
 		GROUP BY status_code
 		ORDER BY count DESC`
 
@@ -179,11 +179,11 @@ func (r *MetricsRepository) GetErrorsByStatus(ctx context.Context, duration time
 // GetRecentAPILogs returns recent API request logs
 func (r *MetricsRepository) GetRecentAPILogs(ctx context.Context, limit int, offset int) ([]models.APIRequestLog, error) {
 	query := `
-		SELECT time, request_id, method, path, status_code, duration_ms,
-			request_size, response_size, user_id, user_email, user_role,
+		SELECT created_at, request_id, method, path, status_code, duration_ms,
+			request_size, response_size, user_id,
 			ip_address, user_agent, error_message
 		FROM api_request_logs
-		ORDER BY time DESC
+		ORDER BY created_at DESC
 		LIMIT $1 OFFSET $2`
 
 	rows, err := r.pool.Query(ctx, query, limit, offset)
@@ -197,8 +197,7 @@ func (r *MetricsRepository) GetRecentAPILogs(ctx context.Context, limit int, off
 		var log models.APIRequestLog
 		if err := rows.Scan(&log.Time, &log.RequestID, &log.Method, &log.Path,
 			&log.StatusCode, &log.DurationMs, &log.RequestSize, &log.ResponseSize,
-			&log.UserID, &log.UserEmail, &log.UserRole, &log.IPAddress,
-			&log.UserAgent, &log.ErrorMessage); err != nil {
+			&log.UserID, &log.IPAddress, &log.UserAgent, &log.ErrorMessage); err != nil {
 			continue
 		}
 		logs = append(logs, log)
