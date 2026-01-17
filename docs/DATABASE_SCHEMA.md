@@ -2,9 +2,9 @@
 
 Complete database schema and entity relationship documentation for the Cold Storage Management System.
 
-**Database:** PostgreSQL 15+
-**Schema Version:** 1.0.0
-**Last Updated:** 2025-12-13
+**Database:** PostgreSQL 17 (CloudNative-PG)
+**Schema Version:** 1.5.173
+**Last Updated:** 2026-01-17
 
 ---
 
@@ -116,15 +116,119 @@ Complete database schema and entity relationship documentation for the Cold Stor
 
 ## Tables Overview
 
+### Main Application Database
+
+**Core Business Tables:**
+
 | Table | Purpose | Records | Key Fields |
 |-------|---------|---------|------------|
-| **users** | System users (employees, accountants, admins) | Low | email, role, password_hash |
+| **users** | System users (employee, accountant, admin, guard) | Low | email, role, password_hash, is_active |
 | **customers** | Cold storage customers | Medium | phone (unique), name, village |
-| **entries** | Storage entries (truck arrivals) | High | truck_number, customer_id, expected_quantity |
+| **entries** | Storage entries (truck arrivals) | High | truck_number, customer_id, expected_quantity, deleted_at |
 | **room_entries** | Physical storage locations | High | entry_id, room_no, floor, gate_no |
+| **room_entry_gatars** | Gatar-level tracking for room entries | High | room_entry_id, gatar_number, quantity |
 | **entry_events** | Entry lifecycle events | High | entry_id, event_type |
-| **rent_payments** | Payment records | High | entry_id, total_rent, amount_paid, balance |
 | **system_settings** | Application configuration | Very Low | setting_key (unique), setting_value |
+
+**Family & Customer Features:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **family_members** | Customer family members | Medium | customer_id, name, relation, phone |
+| **customer_activity_logs** | Customer portal activity tracking | High | customer_id, activity_type, ip_address |
+| **customer_otps** | Customer OTP codes for portal login | Medium | customer_id, otp_code, expires_at |
+| **customer_login_logs** | Customer portal login audit | High | customer_id, ip_address, success |
+
+**Guard & Token System:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **guard_entries** | Guard register truck entries | High | token_number, customer_name, seed_quantity, sell_quantity |
+| **token_colors** | Daily token color assignments | Low | date (unique), color |
+| **skipped_tokens** | Skipped/lost token tracking | Low | token_number, color, reason |
+
+**Gate Pass & Invoicing:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **gate_passes** | Gate pass requests/approvals | High | entry_id, requested_quantity, status, family_member_id |
+| **gate_pass_pickup_gatars** | Pickup gatar tracking | High | gate_pass_id, gatar_number, quantity_picked |
+| **invoices** | Loading invoices | High | entry_id, invoice_number, total_amount |
+| **invoice_items** | Invoice line items | High | invoice_id, description, quantity, rate |
+
+**Financial & Accounting:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **rent_payments** | Payment records | High | entry_id, total_rent, amount_paid, balance, receipt_number, family_member_id |
+| **ledger_entries** | Double-entry accounting ledger | High | customer_id, entry_type, debit, credit, balance |
+| **debt_requests** | Debt approval workflow | Medium | customer_id, amount, status, approved_by |
+| **online_transactions** | Razorpay payment transactions | Medium | customer_id, razorpay_order_id, amount, status |
+
+**Audit & Logging:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **login_logs** | User login audit trail | High | user_id, ip_address, success, user_agent |
+| **room_entry_edit_logs** | Room entry edit history | Medium | room_entry_id, old_values, new_values, edited_by |
+| **entry_edit_logs** | Entry edit history | Medium | entry_id, field_name, old_value, new_value |
+| **entry_management_logs** | Entry reassignment/merge logs | Low | action_type, source_entry_id, target_entry_id |
+| **admin_action_logs** | Admin action audit trail | Medium | user_id, action_type, description |
+| **merge_history** | Customer merge history | Low | source_customer_id, target_customer_id, merged_by |
+
+**Communication:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **sms_logs** | SMS/WhatsApp delivery logs | High | phone_number, message, status, provider |
+
+**Security & Session:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **totp_secrets** | 2FA TOTP secrets | Very Low | user_id, secret, enabled |
+| **totp_backup_codes** | 2FA backup codes | Very Low | user_id, code, used |
+| **totp_verification_attempts** | 2FA attempt tracking | Low | user_id, success, ip_address |
+
+**Infrastructure:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **external_databases** | External DB connections | Very Low | name, host, port, credentials |
+| **deployment_config** | Deployment configurations | Very Low | name, repository, branch |
+| **deployment_history** | Deployment history | Medium | config_id, version, status, deployed_by |
+| **infra_config** | Infrastructure settings | Very Low | key, value |
+| **cluster_nodes** | K8s cluster nodes | Very Low | name, ip_address, role, status |
+| **ssh_keys** | SSH keys for provisioning | Very Low | name, public_key, private_key |
+| **node_provision_logs** | Node provisioning logs | Low | node_id, log_text, created_at |
+| **infra_action_logs** | Infrastructure action logs | Medium | action_type, node_id, user_id |
+
+**Season Management:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **season_requests** | Season change requests (dual approval) | Very Low | season_name, requested_by, approved_by, status |
+
+**Protected Settings:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **pending_setting_changes** | Protected setting change requests | Low | setting_key, old_value, new_value, requested_by |
+| **protected_settings** | List of protected settings | Very Low | setting_key, requires_dual_approval |
+
+### TimescaleDB Metrics Database
+
+**Performance Monitoring:**
+
+| Table | Purpose | Records | Key Fields |
+|-------|---------|---------|------------|
+| **api_request_logs** | API request logging (hypertable) | Very High | endpoint, method, status_code, duration_ms, timestamp |
+| **node_metrics** | K8s node metrics (hypertable) | Very High | node_name, cpu_usage, memory_usage, disk_usage, timestamp |
+| **postgres_metrics** | PostgreSQL metrics (hypertable) | Very High | connections, transactions, cache_hit_ratio, timestamp |
+| **monitoring_alerts** | System alerts (hypertable) | High | alert_type, severity, message, resolved, timestamp |
+| **alert_thresholds** | Alert threshold configuration | Very Low | metric_name, warning_threshold, critical_threshold |
+| **backup_history** | Backup history tracking | Medium | backup_type, size_bytes, success, duration_seconds |
+| **vip_status** | VIP availability tracking | High | vip_address, is_available, checked_at |
 
 ---
 

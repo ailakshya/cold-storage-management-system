@@ -630,10 +630,12 @@ func main() {
 			// Initialize API logging middleware
 			apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(metricsRepo)
 
-			// Initialize and start metrics collector
-			metricsCollector = services.NewMetricsCollector(metricsRepo)
-			metricsCollector.Start()
-			defer metricsCollector.Stop()
+			// MetricsCollector DISABLED - causes goroutine leak
+			// Use external Prometheus + Grafana for infrastructure monitoring instead
+			// metricsCollector = services.NewMetricsCollector(metricsRepo)
+			// metricsCollector.Start()
+			// defer metricsCollector.Stop()
+			_ = metricsCollector // Silence unused variable warning
 
 			log.Println("[Monitoring] TimescaleDB monitoring components initialized")
 		} else {

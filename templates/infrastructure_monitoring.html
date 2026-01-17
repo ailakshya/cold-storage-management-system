@@ -128,6 +128,80 @@
             </div>
         </div>
 
+        <!-- App Health & External Tools -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <!-- App Health Stats -->
+            <div class="neu-border bg-white p-4">
+                <h3 class="font-bold mb-3 flex items-center gap-2">
+                    <i class="bi bi-activity"></i> App Health
+                </h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <div class="text-sm text-gray-600">Goroutines</div>
+                        <div id="appGoroutines" class="text-2xl font-bold">--</div>
+                        <div id="goroutineStatus" class="text-xs text-gray-500">Loading...</div>
+                    </div>
+                    <div>
+                        <div class="text-sm text-gray-600">Memory (Alloc)</div>
+                        <div id="appMemory" class="text-2xl font-bold">-- MB</div>
+                        <div id="memoryStatus" class="text-xs text-gray-500">Loading...</div>
+                    </div>
+                </div>
+                <div class="mt-3 pt-3 border-t grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-gray-600">Total Alloc:</span>
+                        <span id="appTotalAlloc" class="font-medium">-- MB</span>
+                    </div>
+                    <div>
+                        <span class="text-gray-600">GC Cycles:</span>
+                        <span id="appNumGC" class="font-medium">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- External Monitoring Tools -->
+            <div class="neu-border bg-white p-4">
+                <h3 class="font-bold mb-3 flex items-center gap-2">
+                    <i class="bi bi-tools"></i> Monitoring Tools
+                </h3>
+                <div class="space-y-3">
+                    <a href="/proxy/grafana/" target="_blank"
+                       class="flex items-center justify-between p-3 bg-orange-50 rounded-lg hover:bg-orange-100 transition">
+                        <div class="flex items-center gap-3">
+                            <i class="bi bi-graph-up-arrow text-orange-600 text-xl"></i>
+                            <div>
+                                <div class="font-medium">Grafana Dashboard</div>
+                                <div class="text-xs text-gray-500">Visualize metrics & create alerts</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-gray-400"></i>
+                    </a>
+                    <a href="/proxy/prometheus/graph" target="_blank"
+                       class="flex items-center justify-between p-3 bg-red-50 rounded-lg hover:bg-red-100 transition">
+                        <div class="flex items-center gap-3">
+                            <i class="bi bi-fire text-red-600 text-xl"></i>
+                            <div>
+                                <div class="font-medium">Prometheus</div>
+                                <div class="text-xs text-gray-500">Query metrics & targets</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-gray-400"></i>
+                    </a>
+                    <a href="/health/detailed" target="_blank"
+                       class="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition">
+                        <div class="flex items-center gap-3">
+                            <i class="bi bi-heart-pulse text-green-600 text-xl"></i>
+                            <div>
+                                <div class="font-medium">Health Endpoint</div>
+                                <div class="text-xs text-gray-500">Raw JSON health data</div>
+                            </div>
+                        </div>
+                        <i class="bi bi-box-arrow-up-right text-gray-400"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+
         <!-- PostgreSQL Cluster Detail -->
         <div class="neu-border bg-white p-6 mb-6">
             <h2 class="text-2xl font-bold mb-4">
@@ -923,26 +997,29 @@
             });
         }
 
-        // Update K3s Node Charts
+        // Update K3s Node Charts (fetches from Prometheus)
         async function updateNodeCharts() {
             const nodeColors = ['#3b82f6', '#10b981', '#8b5cf6', '#f59e0b', '#ef4444', '#06b6d4'];
             try {
-                const response = await fetch('/api/monitoring/nodes', {
+                // Use Prometheus endpoint for real-time metrics
+                const response = await fetch('/api/monitoring/prometheus/nodes', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await response.json();
 
                 if (data.nodes && data.nodes.length > 0) {
-                    // Sort: k3s nodes first, then backup server
+                    // Sort: k3s nodes first, then db nodes, then backup server
                     const sortedNodes = data.nodes.sort((a, b) => {
-                        if (a.node_name.startsWith('k3s-') && !b.node_name.startsWith('k3s-')) return -1;
-                        if (!a.node_name.startsWith('k3s-') && b.node_name.startsWith('k3s-')) return 1;
-                        return a.node_name.localeCompare(b.node_name);
+                        if (a.name.startsWith('k3s-') && !b.name.startsWith('k3s-')) return -1;
+                        if (!a.name.startsWith('k3s-') && b.name.startsWith('k3s-')) return 1;
+                        if (a.name.startsWith('db-') && !b.name.startsWith('db-')) return -1;
+                        if (!a.name.startsWith('db-') && b.name.startsWith('db-')) return 1;
+                        return a.name.localeCompare(b.name);
                     });
 
-                    const labels = sortedNodes.map(n => n.node_name.replace('k3s-', '').replace('backup-server', 'backup'));
+                    const labels = sortedNodes.map(n => n.name.replace('k3s-', '').replace('db-', 'db').replace('backup-server', 'backup'));
                     const cpuData = sortedNodes.map(n => n.cpu_percent || 0);
-                    const memData = sortedNodes.map(n => n.memory_percent || 0);
+                    const memData = sortedNodes.map(n => n.mem_percent || 0);
 
                     // Color based on value for CPU
                     const cpuColors = cpuData.map(v => {
@@ -1511,6 +1588,60 @@
             }
         }
 
+        // Fetch App Health from /health/detailed endpoint
+        async function fetchAppHealth() {
+            try {
+                const response = await fetch('/health/detailed', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await response.json();
+
+                // Update goroutines
+                const goroutines = data.goroutines || 0;
+                document.getElementById('appGoroutines').textContent = goroutines;
+
+                // Set goroutine status with warning thresholds
+                const goroutineStatus = document.getElementById('goroutineStatus');
+                if (goroutines > 500) {
+                    goroutineStatus.textContent = 'Critical - Possible leak!';
+                    goroutineStatus.className = 'text-xs text-red-600 font-bold';
+                    document.getElementById('appGoroutines').className = 'text-2xl font-bold text-red-600';
+                } else if (goroutines > 100) {
+                    goroutineStatus.textContent = 'Warning - High count';
+                    goroutineStatus.className = 'text-xs text-yellow-600';
+                    document.getElementById('appGoroutines').className = 'text-2xl font-bold text-yellow-600';
+                } else {
+                    goroutineStatus.textContent = 'Normal';
+                    goroutineStatus.className = 'text-xs text-green-600';
+                    document.getElementById('appGoroutines').className = 'text-2xl font-bold text-green-600';
+                }
+
+                // Update memory stats
+                const memory = data.memory || {};
+                const allocMB = memory.alloc_mb || 0;
+                document.getElementById('appMemory').textContent = allocMB.toFixed(1) + ' MB';
+                document.getElementById('appTotalAlloc').textContent = (memory.total_alloc_mb || 0).toFixed(1) + ' MB';
+                document.getElementById('appNumGC').textContent = memory.num_gc || 0;
+
+                // Set memory status
+                const memoryStatus = document.getElementById('memoryStatus');
+                if (allocMB > 500) {
+                    memoryStatus.textContent = 'High usage';
+                    memoryStatus.className = 'text-xs text-yellow-600';
+                } else {
+                    memoryStatus.textContent = 'Normal';
+                    memoryStatus.className = 'text-xs text-green-600';
+                }
+
+            } catch (error) {
+                console.error('Failed to fetch app health:', error);
+                document.getElementById('appGoroutines').textContent = 'Error';
+                document.getElementById('appMemory').textContent = 'Error';
+                document.getElementById('goroutineStatus').textContent = 'Failed to fetch';
+                document.getElementById('goroutineStatus').className = 'text-xs text-red-600';
+            }
+        }
+
         function refreshAll() {
             checkK3sCluster();
             checkPostgreSQL();
@@ -1520,6 +1651,7 @@
             checkBackendPods();
             checkR2Storage();
             updateNodeCharts();
+            fetchAppHealth();
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }
 

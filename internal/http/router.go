@@ -1,8 +1,10 @@
 package http
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/middleware"
@@ -538,6 +540,7 @@ func NewRouter(
 		monitoringAPI.HandleFunc("/nodes/{name}/history", monitoringHandler.GetNodeMetricsHistory).Methods("GET")
 		monitoringAPI.HandleFunc("/metrics/history", monitoringHandler.GetAllNodesMetricsHistory).Methods("GET")
 		monitoringAPI.HandleFunc("/cluster/overview", monitoringHandler.GetClusterOverview).Methods("GET")
+		monitoringAPI.HandleFunc("/prometheus/nodes", monitoringHandler.GetPrometheusMetrics).Methods("GET")
 
 		// PostgreSQL Metrics
 		monitoringAPI.HandleFunc("/postgres", monitoringHandler.GetLatestPostgresMetrics).Methods("GET")
@@ -560,6 +563,15 @@ func NewRouter(
 		monitoringAPI.HandleFunc("/r2-status", monitoringHandler.GetR2Status).Methods("GET")
 		monitoringAPI.HandleFunc("/backup-r2", monitoringHandler.BackupToR2).Methods("POST")
 	}
+
+	// Proxy routes for Grafana and Prometheus (no auth - standalone handlers)
+	grafanaProxy := r.PathPrefix("/proxy/grafana").Subrouter()
+	grafanaProxy.PathPrefix("/{path:.*}").HandlerFunc(proxyGrafanaHandler).Methods("GET", "POST", "PUT", "DELETE")
+	grafanaProxy.PathPrefix("/").HandlerFunc(proxyGrafanaHandler).Methods("GET", "POST", "PUT", "DELETE")
+
+	prometheusProxy := r.PathPrefix("/proxy/prometheus").Subrouter()
+	prometheusProxy.PathPrefix("/{path:.*}").HandlerFunc(proxyPrometheusHandler).Methods("GET", "POST")
+	prometheusProxy.PathPrefix("/").HandlerFunc(proxyPrometheusHandler).Methods("GET", "POST")
 
 	// Protected API routes - Deployments (admin only)
 	if deploymentHandler != nil {
@@ -721,11 +733,10 @@ func NewRouter(
 		vizAPI.HandleFunc("/gatar-search", roomVisualizationHandler.SearchByGatar).Methods("GET")
 	}
 
-	// Health endpoints (basic health for K8s probes, detailed requires auth)
+	// Health endpoints (no auth - for monitoring)
 	r.HandleFunc("/health", healthHandler.BasicHealth).Methods("GET")
 	r.HandleFunc("/health/ready", healthHandler.ReadinessHealth).Methods("GET")
-	// Detailed health exposes internal info - require admin
-	r.HandleFunc("/health/detailed", authMiddleware.Authenticate(authMiddleware.RequireAdmin(http.HandlerFunc(healthHandler.DetailedHealth))).ServeHTTP).Methods("GET")
+	r.HandleFunc("/health/detailed", healthHandler.DetailedHealth).Methods("GET")
 
 	// Metrics endpoint - require admin authentication to protect internal metrics
 	r.Handle("/metrics", authMiddleware.Authenticate(authMiddleware.RequireAdmin(promhttp.Handler())))
@@ -797,4 +808,63 @@ func NewCustomerRouter(
 	// Note: /health/detailed and /metrics are intentionally NOT exposed on customer portal
 
 	return r
+}
+
+// Standalone proxy handlers for Grafana and Prometheus
+// Use internal K8s service names to avoid external redirects
+const (
+	grafanaTargetURL    = "http://grafana.default.svc.cluster.local:3000"
+	prometheusTargetURL = "http://prometheus.default.svc.cluster.local:9090"
+)
+
+func proxyGrafanaHandler(w http.ResponseWriter, r *http.Request) {
+	proxyToTarget(w, r, grafanaTargetURL)
+}
+
+func proxyPrometheusHandler(w http.ResponseWriter, r *http.Request) {
+	proxyToTarget(w, r, prometheusTargetURL)
+}
+
+func proxyToTarget(w http.ResponseWriter, r *http.Request, targetBase string) {
+	vars := mux.Vars(r)
+	path := vars["path"]
+	if path == "" {
+		path = "/"
+	} else {
+		path = "/" + path
+	}
+
+	targetURL := targetBase + path
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, targetURL, r.Body)
+	if err != nil {
+		http.Error(w, "Failed to create proxy request", http.StatusInternalServerError)
+		return
+	}
+
+	for key, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(key, value)
+		}
+	}
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		http.Error(w, "Failed to reach target: "+err.Error(), http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	for key, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	w.WriteHeader(resp.StatusCode)
+	io.Copy(w, resp.Body)
 }

@@ -3,8 +3,8 @@
 Complete documentation for the Cold Storage Management System.
 
 **Project:** Cold Storage Management System
-**Version:** 1.4.75
-**Last Updated:** 2025-12-18
+**Version:** 1.5.173
+**Last Updated:** 2026-01-17
 
 ---
 

@@ -1,0 +1,227 @@
+# Prometheus + Grafana Stack for Cold Storage Monitoring
+# Replaces the in-app MetricsCollector that caused goroutine leaks
+#
+# Deploy: kubectl apply -f k8s/prometheus-grafana.yaml
+# Access Grafana: http://<node-ip>:30300 (admin/admin)
+# Access Prometheus: http://<node-ip>:30090
+
+---
+# Prometheus ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: default
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      evaluation_interval: 30s
+
+    scrape_configs:
+      # K3s nodes (110, 111, 112)
+      - job_name: 'k3s-nodes'
+        static_configs:
+          - targets:
+            - '192.168.15.110:9100'
+            - '192.168.15.111:9100'
+            - '192.168.15.112:9100'
+        relabel_configs:
+          - source_labels: [__address__]
+            regex: '192.168.15.110:.*'
+            target_label: node
+            replacement: 'k3s-node1'
+          - source_labels: [__address__]
+            regex: '192.168.15.111:.*'
+            target_label: node
+            replacement: 'k3s-node2'
+          - source_labels: [__address__]
+            regex: '192.168.15.112:.*'
+            target_label: node
+            replacement: 'k3s-node3'
+
+      # Database nodes (120, 121, 122)
+      - job_name: 'db-nodes'
+        static_configs:
+          - targets:
+            - '192.168.15.120:9100'
+            - '192.168.15.121:9100'
+            - '192.168.15.122:9100'
+        relabel_configs:
+          - source_labels: [__address__]
+            regex: '192.168.15.120:.*'
+            target_label: node
+            replacement: 'db-node1'
+          - source_labels: [__address__]
+            regex: '192.168.15.121:.*'
+            target_label: node
+            replacement: 'db-node2'
+          - source_labels: [__address__]
+            regex: '192.168.15.122:.*'
+            target_label: node
+            replacement: 'db-node3'
+
+      # Backup server (195)
+      - job_name: 'backup-server'
+        static_configs:
+          - targets: ['192.168.15.195:9100']
+        relabel_configs:
+          - target_label: node
+            replacement: 'backup-server'
+
+      # Cold Backend App health endpoints
+      - job_name: 'cold-backend'
+        metrics_path: /health/detailed
+        static_configs:
+          - targets: ['192.168.15.200:8080']
+        relabel_configs:
+          - target_label: app
+            replacement: 'cold-backend-employee'
+
+---
+# Prometheus Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prometheus
+  template:
+    metadata:
+      labels:
+        app: prometheus
+    spec:
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.48.0
+        args:
+          - '--config.file=/etc/prometheus/prometheus.yml'
+          - '--storage.tsdb.path=/prometheus'
+          - '--storage.tsdb.retention.time=15d'
+          - '--web.enable-lifecycle'
+          - '--web.external-url=/proxy/prometheus/'
+          - '--web.route-prefix=/'
+        ports:
+        - containerPort: 9090
+        volumeMounts:
+        - name: config
+          mountPath: /etc/prometheus
+        - name: data
+          mountPath: /prometheus
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+      volumes:
+      - name: config
+        configMap:
+          name: prometheus-config
+      - name: data
+        emptyDir: {}
+
+---
+# Prometheus Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: default
+spec:
+  type: NodePort
+  ports:
+  - port: 9090
+    targetPort: 9090
+    nodePort: 30090
+  selector:
+    app: prometheus
+
+---
+# Grafana ConfigMap for datasources
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources
+  namespace: default
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://prometheus:9090
+        isDefault: true
+        editable: false
+
+---
+# Grafana Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+      - name: grafana
+        image: grafana/grafana:10.2.2
+        ports:
+        - containerPort: 3000
+        env:
+        - name: GF_SECURITY_ADMIN_PASSWORD
+          value: "admin"  # Change this in production!
+        - name: GF_USERS_ALLOW_SIGN_UP
+          value: "false"
+        - name: GF_SERVER_ROOT_URL
+          value: "/proxy/grafana/"
+        - name: GF_SERVER_SERVE_FROM_SUB_PATH
+          value: "true"
+        volumeMounts:
+        - name: datasources
+          mountPath: /etc/grafana/provisioning/datasources
+        - name: data
+          mountPath: /var/lib/grafana
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: datasources
+        configMap:
+          name: grafana-datasources
+      - name: data
+        emptyDir: {}
+
+---
+# Grafana Service (NodePort for external access)
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: default
+spec:
+  type: NodePort
+  ports:
+  - port: 3000
+    targetPort: 3000
+    nodePort: 30300
+  selector:
+    app: grafana
