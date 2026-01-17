@@ -228,3 +228,11 @@ func (h *PageHandler) SMSLogsPage(w http.ResponseWriter, r *http.Request) {
 func (h *PageHandler) PortfolioPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "portfolio.html", nil)
 }
+
+// ItemsInStockPage serves the items in stock inventory page
+func (h *PageHandler) ItemsInStockPage(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
+	h.templates.ExecuteTemplate(w, "items_in_stock.html", nil)
+}

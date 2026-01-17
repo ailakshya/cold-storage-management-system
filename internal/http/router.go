@@ -45,6 +45,7 @@ func NewRouter(
 	accountHandler *handlers.AccountHandler,
 	entryRoomHandler *handlers.EntryRoomHandler,
 	roomVisualizationHandler *handlers.RoomVisualizationHandler,
+	itemsInStockHandler *handlers.ItemsInStockHandler,
 	setupHandler *handlers.SetupHandler,
 	ledgerHandler *handlers.LedgerHandler,
 	debtHandler *handlers.DebtHandler,
@@ -144,6 +145,7 @@ func NewRouter(
 	r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
 	r.HandleFunc("/room-visualization", pageHandler.RoomVisualizationPage).Methods("GET")
+	r.HandleFunc("/items-in-stock", pageHandler.ItemsInStockPage).Methods("GET")
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 	r.HandleFunc("/customer-edit", pageHandler.CustomerEditPage).Methods("GET")
 	r.HandleFunc("/merge-history", pageHandler.MergeHistoryPage).Methods("GET")
@@ -227,13 +229,13 @@ func NewRouter(
 	entriesAPI.HandleFunc("/next-thock-preview", entryHandler.GetNextThockPreview).Methods("GET")
 	entriesAPI.HandleFunc("/{id}", entryHandler.GetEntry).Methods("GET")
 	entriesAPI.HandleFunc("/{id}", entryHandler.UpdateEntry).Methods("PUT")
-	entriesAPI.HandleFunc("/{id}/reassign", entryHandler.ReassignEntry).Methods("PUT") // Requires can_manage_entries permission
+	entriesAPI.HandleFunc("/{id}/reassign", entryHandler.ReassignEntry).Methods("PUT")           // Requires can_manage_entries permission
 	entriesAPI.HandleFunc("/{id}/family-member", entryHandler.UpdateFamilyMember).Methods("PUT") // Requires can_manage_entries permission
-	entriesAPI.HandleFunc("/{id}/soft-delete", entryHandler.SoftDeleteEntry).Methods("DELETE") // Admin only
-	entriesAPI.HandleFunc("/{id}/restore", entryHandler.RestoreEntry).Methods("PUT") // Admin only
-	entriesAPI.HandleFunc("/bulk-reassign", entryHandler.BulkReassignEntries).Methods("POST") // Requires can_manage_entries permission
-	entriesAPI.HandleFunc("/bulk-delete", entryHandler.BulkSoftDeleteEntries).Methods("POST") // Admin only - bulk soft delete
-	entriesAPI.HandleFunc("/deleted", entryHandler.GetDeletedEntries).Methods("GET") // Admin only - get all deleted entries
+	entriesAPI.HandleFunc("/{id}/soft-delete", entryHandler.SoftDeleteEntry).Methods("DELETE")   // Admin only
+	entriesAPI.HandleFunc("/{id}/restore", entryHandler.RestoreEntry).Methods("PUT")             // Admin only
+	entriesAPI.HandleFunc("/bulk-reassign", entryHandler.BulkReassignEntries).Methods("POST")    // Requires can_manage_entries permission
+	entriesAPI.HandleFunc("/bulk-delete", entryHandler.BulkSoftDeleteEntries).Methods("POST")    // Admin only - bulk soft delete
+	entriesAPI.HandleFunc("/deleted", entryHandler.GetDeletedEntries).Methods("GET")             // Admin only - get all deleted entries
 	entriesAPI.HandleFunc("/customer/{customer_id}", entryHandler.ListEntriesByCustomer).Methods("GET")
 
 	// Protected API routes - Room Entries (employees and admins only for creation/update, LOADING MODE ONLY)
@@ -459,9 +461,9 @@ func NewRouter(
 		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.CompleteGatePass)),
 	).ServeHTTP).Methods("POST")
 	// Static paths must come before dynamic {id} paths
-	gatePassAPI.HandleFunc("/pickups/all", gatePassHandler.ListAllPickups).Methods("GET")   // All pickups for activity log
+	gatePassAPI.HandleFunc("/pickups/all", gatePassHandler.ListAllPickups).Methods("GET")               // All pickups for activity log
 	gatePassAPI.HandleFunc("/pickups/by-thock", gatePassHandler.GetPickupHistoryByThock).Methods("GET") // Pickups by thock number
-	gatePassAPI.HandleFunc("/{id}/pickups", gatePassHandler.GetPickupHistory).Methods("GET") // View only - allowed in any mode
+	gatePassAPI.HandleFunc("/{id}/pickups", gatePassHandler.GetPickupHistory).Methods("GET")            // View only - allowed in any mode
 	gatePassAPI.HandleFunc("/pickup", operationModeMiddleware.RequireUnloadingMode(
 		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.RecordPickup)),
 	).ServeHTTP).Methods("POST")
@@ -583,7 +585,7 @@ func NewRouter(
 		deployAPI.HandleFunc("/{id}/history", deploymentHandler.GetDeploymentHistory).Methods("GET")
 
 		// Deployment operations
-		deployAPI.HandleFunc("/{id}/deploy", deploymentHandler.Deploy).Methods("POST")           // SSE streaming
+		deployAPI.HandleFunc("/{id}/deploy", deploymentHandler.Deploy).Methods("POST")          // SSE streaming
 		deployAPI.HandleFunc("/{id}/deploy-sync", deploymentHandler.DeploySync).Methods("POST") // Non-streaming
 		deployAPI.HandleFunc("/{id}/rollback", deploymentHandler.Rollback).Methods("POST")
 
@@ -729,6 +731,14 @@ func NewRouter(
 		vizAPI.HandleFunc("/gatar-details", roomVisualizationHandler.GetGatarDetails).Methods("GET")
 		vizAPI.HandleFunc("/gatar-stock", roomVisualizationHandler.GetPerGatarStock).Methods("GET")
 		vizAPI.HandleFunc("/gatar-search", roomVisualizationHandler.SearchByGatar).Methods("GET")
+	}
+
+	// Protected API routes - Items in Stock (all authenticated users)
+	if itemsInStockHandler != nil {
+		stockAPI := r.PathPrefix("/api/items-in-stock").Subrouter()
+		stockAPI.Use(authMiddleware.Authenticate)
+		stockAPI.HandleFunc("", itemsInStockHandler.GetItemsInStock).Methods("GET")
+		stockAPI.HandleFunc("/summary", itemsInStockHandler.GetSummary).Methods("GET")
 	}
 
 	// Health endpoints (no auth - for monitoring)

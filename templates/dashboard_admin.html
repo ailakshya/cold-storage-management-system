@@ -82,6 +82,7 @@
         .page-button.bg-\[\#A8D5FF\] { background: linear-gradient(135deg, #90C8FF 0%, #70B8F8 100%) !important; color: #1a4a7c !important; }
         .page-button.bg-\[\#F5C518\] { background: linear-gradient(135deg, #F8D040 0%, #E8B800 100%) !important; color: #6e5c00 !important; }
         .page-button.bg-\[\#DFCCFB\] { background: linear-gradient(135deg, #D0B8F8 0%, #B8A0F0 100%) !important; color: #4a2d7c !important; }
+        .page-button.bg-\[\#D4F1F4\] { background: linear-gradient(135deg, #B8E8ED 0%, #90D8DF 100%) !important; color: #0a4a5c !important; }
 
         /* Tablet/Phone Portrait Optimizations */
         @media (max-width: 1023px) and (orientation: portrait) {
@@ -286,7 +287,11 @@
                     </button>
                     <button class="page-button bg-[#F5C518] w-full" onclick="navigate('/room-visualization')">
                         <i class="bi bi-grid-3x3-gap"></i>
-                        <span data-i18n="in_stock">In Stock</span>
+                        <span data-i18n="room_visualization">Room Visual</span>
+                    </button>
+                    <button class="page-button bg-[#D4F1F4] w-full" onclick="navigate('/items-in-stock')">
+                        <i class="bi bi-box-seam"></i>
+                        <span>Items in Stock</span>
                     </button>
                     <button class="page-button bg-[#DFCCFB] w-full" onclick="navigate('/events')">
                         <i class="bi bi-calendar-event"></i>

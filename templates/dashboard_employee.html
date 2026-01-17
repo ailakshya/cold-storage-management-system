@@ -65,6 +65,7 @@
         .page-button.bg-\[\#FFB3BA\] { background: linear-gradient(135deg, #FFA0AA 0%, #FF8090 100%) !important; color: #7c2d35 !important; }
         .page-button.bg-\[\#FFDFBA\] { background: linear-gradient(135deg, #FFD0A0 0%, #FFC080 100%) !important; color: #7c4a1a !important; }
         .page-button.bg-\[\#FFD3B6\] { background: linear-gradient(135deg, #FFC4A0 0%, #FFB080 100%) !important; color: #7c3d1a !important; }
+        .page-button.bg-\[\#D4F1F4\] { background: linear-gradient(135deg, #B8E8ED 0%, #90D8DF 100%) !important; color: #0a4a5c !important; }
 
         /* Modern employee badge */
         .employee-badge {
@@ -179,6 +180,12 @@
                 <i class="bi bi-bar-chart-fill"></i>
                 <span data-i18n="stock_overview">Stock Overview</span>
                 <small class="text-xs opacity-75" data-i18n="view_room_occupancy">View room occupancy</small>
+            </button>
+
+            <button class="page-button bg-[#D4F1F4]" onclick="navigate('/items-in-stock')">
+                <i class="bi bi-box-seam"></i>
+                <span>Items in Stock</span>
+                <small class="text-xs opacity-75">View current inventory</small>
             </button>
 
             <button class="page-button bg-[#FFB3BA]" data-mode="unloading" onclick="navigate('/gate-pass-entry')">

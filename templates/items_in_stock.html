@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="manifest" href="/static/manifest.json" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title data-i18n-page-title="page_title_items_stock">
+      Items in Stock - Cold Storage
+    </title>
+    <link rel="stylesheet" href="/static/css/bootstrap-icons.min.css" />
+    <link href="/static/css/tailwind.min.css" rel="stylesheet" />
+    <link href="/static/css/arbitrary.css" rel="stylesheet" />
+    <link href="/static/css/fonts.css" rel="stylesheet" />
+    <link href="/static/css/dark-mode.css" rel="stylesheet" />
+    <style>
+      * {
+        font-family: "Space Grotesk", sans-serif;
+      }
+      .neu-border {
+        border: 3px solid #000;
+        box-shadow: 4px 4px 0 #000;
+        transition: all 0.2s ease;
+      }
+      .neu-border:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 6px 6px 0 #000;
+      }
+      .neu-input {
+        border: 3px solid #000;
+        box-shadow: 4px 4px 0 #000;
+        padding: 0.75rem;
+        font-size: 1rem;
+      }
+      .neu-button {
+        border: 3px solid #000;
+        box-shadow: 4px 4px 0 #000;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+        cursor: pointer;
+      }
+      .neu-button:hover {
+        transform: translate(-2px, -2px);
+        box-shadow: 6px 6px 0 #000;
+      }
+      .neu-button:active {
+        transform: translate(2px, 2px);
+        box-shadow: 2px 2px 0 #000;
+      }
+      .item-card {
+        border: 3px solid #000;
+        box-shadow: 4px 4px 0 #000;
+        margin-bottom: 1rem;
+        background: white;
+        transition: all 0.2s ease;
+      }
+      .item-card:hover {
+        transform: translate(-1px, -1px);
+        box-shadow: 5px 5px 0 #000;
+      }
+      @keyframes spin {
+        from {
+          transform: rotate(0deg);
+        }
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .spin-animation {
+        animation: spin 1s linear infinite;
+      }
+      .progress-bar {
+        height: 8px;
+        background: #e5e7eb;
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        transition: width 0.3s ease;
+      }
+    </style>
+    <script src="/static/js/theme.js"></script>
+  </head>
+  <body class="bg-[#FFF9E6] min-h-screen p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+      <!-- Header -->
+      <header
+        class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 neu-border bg-white p-4"
+      >
+        <div class="flex items-center gap-4 mb-3 md:mb-0">
+          <button onclick="goBack()" class="neu-button bg-gray-200 py-2 px-3">
+            <i class="bi bi-arrow-left"></i>
+          </button>
+          <div class="flex items-center gap-3">
+            <i class="bi bi-box-seam text-4xl text-blue-600"></i>
+            <div>
+              <h1
+                class="text-2xl md:text-3xl font-bold"
+                data-i18n="items_in_stock"
+              >
+                Items in Stock
+              </h1>
+              <p class="text-gray-600 text-sm" data-i18n="current_inventory">
+                Current inventory overview
+              </p>
+            </div>
+          </div>
+        </div>
+        <button
+          onclick="theme.toggle()"
+          class="neu-border bg-gray-200 px-3 py-2"
+          title="Toggle Dark Mode"
+        >
+          <i class="bi bi-moon-fill theme-icon-moon"></i>
+          <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+        </button>
+      </header>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div
+          class="neu-border bg-gradient-to-br from-blue-400 to-blue-600 text-white p-4 md:p-6"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm opacity-90" data-i18n="total_items">
+                Total Items
+              </p>
+              <p class="text-2xl md:text-3xl font-bold mt-2" id="totalItems">
+                0
+              </p>
+            </div>
+            <i class="bi bi-boxes text-4xl md:text-5xl opacity-50"></i>
+          </div>
+        </div>
+        <div
+          class="neu-border bg-gradient-to-br from-green-400 to-green-600 text-white p-4 md:p-6"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm opacity-90" data-i18n="total_quantity">
+                Total Quantity
+              </p>
+              <p class="text-2xl md:text-3xl font-bold mt-2" id="totalQuantity">
+                0
+              </p>
+            </div>
+            <i class="bi bi-box-seam text-4xl md:text-5xl opacity-50"></i>
+          </div>
+        </div>
+        <div
+          class="neu-border bg-gradient-to-br from-purple-400 to-purple-600 text-white p-4 md:p-6"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm opacity-90" data-i18n="total_customers">
+                Customers
+              </p>
+              <p
+                class="text-2xl md:text-3xl font-bold mt-2"
+                id="totalCustomers"
+              >
+                0
+              </p>
+            </div>
+            <i class="bi bi-people text-4xl md:text-5xl opacity-50"></i>
+          </div>
+        </div>
+        <div
+          class="neu-border bg-gradient-to-br from-orange-400 to-orange-600 text-white p-4 md:p-6"
+        >
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm opacity-90" data-i18n="capacity_used">
+                Capacity
+              </p>
+              <p class="text-2xl md:text-3xl font-bold mt-2" id="capacityUsed">
+                0%
+              </p>
+            </div>
+            <i class="bi bi-speedometer text-4xl md:text-5xl opacity-50"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search and Filters -->
+      <div class="neu-border bg-white p-4 mb-6">
+        <div class="flex gap-3 flex-wrap">
+          <div class="flex-1 min-w-[250px]">
+            <input
+              type="text"
+              id="searchInput"
+              class="w-full neu-input"
+              placeholder="Search by thock, customer, phone..."
+              oninput="filterItems()"
+            />
+          </div>
+          <div class="flex gap-2 flex-wrap">
+            <button
+              onclick="filterByRoom(null)"
+              id="filter-all"
+              class="filter-btn neu-button bg-gray-200 py-2 px-3 text-sm"
+            >
+              All
+            </button>
+            <button
+              onclick="filterByRoom('1')"
+              id="filter-1"
+              class="filter-btn neu-button bg-green-100 py-2 px-3 text-sm"
+            >
+              R1
+            </button>
+            <button
+              onclick="filterByRoom('2')"
+              id="filter-2"
+              class="filter-btn neu-button bg-green-100 py-2 px-3 text-sm"
+            >
+              R2
+            </button>
+            <button
+              onclick="filterByRoom('3')"
+              id="filter-3"
+              class="filter-btn neu-button bg-orange-100 py-2 px-3 text-sm"
+            >
+              R3
+            </button>
+            <button
+              onclick="filterByRoom('4')"
+              id="filter-4"
+              class="filter-btn neu-button bg-orange-100 py-2 px-3 text-sm"
+            >
+              R4
+            </button>
+            <button
+              onclick="filterByRoom('G')"
+              id="filter-G"
+              class="filter-btn neu-button bg-purple-100 py-2 px-3 text-sm"
+            >
+              Gallery
+            </button>
+          </div>
+          <button
+            onclick="loadData()"
+            class="neu-button bg-blue-500 text-white text-sm"
+          >
+            <i class="bi bi-arrow-clockwise" id="refreshIcon"></i>
+            <span class="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Two Column Layout -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Item Cards (2 columns) -->
+        <div class="lg:col-span-2">
+          <div class="neu-border bg-white p-4 md:p-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+              <i class="bi bi-grid text-blue-600"></i>
+              <span data-i18n="item_breakdown">Item Breakdown</span>
+              <span class="text-sm font-normal text-gray-500"
+                >(<span id="itemCount">0</span> items)</span
+              >
+            </h2>
+            <div id="itemsContainer">
+              <div class="text-center py-12">
+                <i class="bi bi-hourglass-split text-6xl text-gray-400"></i>
+                <p class="text-gray-600 mt-4" data-i18n="loading">
+                  Loading items...
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Sidebar -->
+        <div class="lg:col-span-1">
+          <!-- Room Breakdown -->
+          <div class="neu-border bg-white p-4 md:p-6 mb-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+              <i class="bi bi-building text-blue-600"></i>
+              <span data-i18n="room_breakdown">Room Breakdown</span>
+            </h2>
+            <div id="roomBreakdown" class="space-y-3">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+
+          <!-- Floor Breakdown -->
+          <div class="neu-border bg-white p-4 md:p-6">
+            <h2 class="text-xl font-bold mb-4 flex items-center gap-2">
+              <i class="bi bi-layers text-purple-600"></i>
+              <span data-i18n="floor_breakdown">Floor Breakdown</span>
+            </h2>
+            <div id="floorBreakdown" class="space-y-3">
+              <!-- Filled by JS -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/js/i18n.js"></script>
+    <script>
+      const token = localStorage.getItem("token");
+      if (!token) window.location.href = "/login";
+
+      let allItems = [];
+      let currentRoomFilter = null;
+
+      async function loadData() {
+        const refreshIcon = document.getElementById("refreshIcon");
+        if (refreshIcon) refreshIcon.classList.add("spin-animation");
+
+        try {
+          const [itemsRes, summaryRes] = await Promise.all([
+            fetch("/api/items-in-stock", {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+            fetch("/api/items-in-stock/summary", {
+              headers: { Authorization: `Bearer ${token}` },
+            }),
+          ]);
+
+          if (!itemsRes.ok || !summaryRes.ok) {
+            throw new Error("Failed to load data");
+          }
+
+          const itemsData = await itemsRes.json();
+          const summaryData = await summaryRes.json();
+
+          allItems = itemsData.items || [];
+          updateSummary(summaryData);
+          renderItems();
+        } catch (error) {
+          console.error("Error loading data:", error);
+          document.getElementById("itemsContainer").innerHTML = `
+                    <div class="text-center py-12">
+                        <i class="bi bi-exclamation-circle text-6xl text-red-400"></i>
+                        <p class="text-red-600 mt-4">Failed to load data. Please refresh.</p>
+                    </div>
+                `;
+        } finally {
+          if (refreshIcon) {
+            setTimeout(
+              () => refreshIcon.classList.remove("spin-animation"),
+              500,
+            );
+          }
+        }
+      }
+
+      function updateSummary(summary) {
+        document.getElementById("totalItems").textContent =
+          summary.total_items?.toLocaleString("en-IN") || "0";
+        document.getElementById("totalQuantity").textContent =
+          summary.total_quantity?.toLocaleString("en-IN") || "0";
+        document.getElementById("totalCustomers").textContent =
+          summary.total_customers?.toLocaleString("en-IN") || "0";
+        document.getElementById("capacityUsed").textContent =
+          (summary.capacity_used?.toFixed(1) || "0") + "%";
+
+        // Room breakdown
+        const roomDiv = document.getElementById("roomBreakdown");
+        const roomColors = {
+          "Room 1": "bg-green-500",
+          "Room 2": "bg-green-500",
+          "Room 3": "bg-orange-500",
+          "Room 4": "bg-orange-500",
+          "Room G": "bg-purple-500",
+        };
+        const roomBgColors = {
+          "Room 1": "bg-green-50",
+          "Room 2": "bg-green-50",
+          "Room 3": "bg-orange-50",
+          "Room 4": "bg-orange-50",
+          "Room G": "bg-purple-50",
+        };
+
+        const byRoom = summary.by_room || {};
+        const maxRoomQty = Math.max(
+          ...Object.values(byRoom).map((r) => r.quantity || 0),
+          1,
+        );
+
+        roomDiv.innerHTML = Object.keys(byRoom)
+          .sort()
+          .map((roomKey) => {
+            const room = byRoom[roomKey];
+            const pct = (room.quantity / maxRoomQty) * 100;
+            const color = roomColors[roomKey] || "bg-blue-500";
+            const bgColor = roomBgColors[roomKey] || "bg-blue-50";
+
+            return `
+                    <div class="p-3 ${bgColor} rounded border-2 border-gray-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold">${roomKey}</span>
+                            <span class="text-sm text-gray-600">${room.items} items</span>
+                        </div>
+                        <div class="progress-bar mb-2">
+                            <div class="progress-fill ${color}" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="text-sm font-bold text-gray-700">${room.quantity.toLocaleString("en-IN")} bags</div>
+                    </div>
+                `;
+          })
+          .join("");
+
+        // Floor breakdown
+        const floorDiv = document.getElementById("floorBreakdown");
+        const floorColors = [
+          "bg-blue-500",
+          "bg-green-500",
+          "bg-yellow-500",
+          "bg-orange-500",
+          "bg-purple-500",
+        ];
+        const floorBgColors = [
+          "bg-blue-50",
+          "bg-green-50",
+          "bg-yellow-50",
+          "bg-orange-50",
+          "bg-purple-50",
+        ];
+        const byFloor = summary.by_floor || {};
+        const maxFloorQty = Math.max(...Object.values(byFloor), 1);
+
+        floorDiv.innerHTML = [
+          "Floor 0",
+          "Floor 1",
+          "Floor 2",
+          "Floor 3",
+          "Floor 4",
+        ]
+          .map((floor, idx) => {
+            const qty = byFloor[floor] || 0;
+            const pct = (qty / maxFloorQty) * 100;
+
+            return `
+                    <div class="p-3 ${floorBgColors[idx]} rounded border-2 border-gray-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="font-bold">${floor}</span>
+                        </div>
+                        <div class="progress-bar mb-2">
+                            <div class="progress-fill ${floorColors[idx]}" style="width: ${pct}%"></div>
+                        </div>
+                        <div class="text-sm font-bold text-gray-700">${qty.toLocaleString("en-IN")} bags</div>
+                    </div>
+                `;
+          })
+          .join("");
+      }
+
+      function renderItems() {
+        const container = document.getElementById("itemsContainer");
+        const searchTerm = document
+          .getElementById("searchInput")
+          .value.toLowerCase();
+
+        // Filter items
+        let filtered = allItems;
+        if (currentRoomFilter !== null) {
+          filtered = filtered.filter((i) => i.room_no === currentRoomFilter);
+        }
+        if (searchTerm) {
+          filtered = filtered.filter(
+            (i) =>
+              i.thock_number.toLowerCase().includes(searchTerm) ||
+              i.customer_name.toLowerCase().includes(searchTerm) ||
+              i.phone.includes(searchTerm) ||
+              (i.village && i.village.toLowerCase().includes(searchTerm)),
+          );
+        }
+
+        document.getElementById("itemCount").textContent = filtered.length;
+
+        if (filtered.length === 0) {
+          container.innerHTML = `
+                    <div class="text-center py-12">
+                        <i class="bi bi-inbox text-6xl text-gray-400"></i>
+                        <p class="text-gray-600 mt-4">No items found</p>
+                    </div>
+                `;
+          return;
+        }
+
+        // Sort by quantity (highest first)
+        filtered.sort((a, b) => b.current_qty - a.current_qty);
+
+        const floorColors = {
+          0: "bg-blue-100",
+          1: "bg-green-100",
+          2: "bg-yellow-100",
+          3: "bg-orange-100",
+          4: "bg-purple-100",
+        };
+        const roomColors = {
+          1: "text-green-600",
+          2: "text-green-600",
+          3: "text-orange-600",
+          4: "text-orange-600",
+          G: "text-purple-600",
+        };
+
+        container.innerHTML = filtered
+          .map((item) => {
+            const thockColor =
+              parseInt(item.thock_number) <= 1500
+                ? "text-green-600"
+                : "text-orange-600";
+            const roomColor = roomColors[item.room_no] || "text-blue-600";
+
+            return `
+                    <div class="item-card">
+                        <div class="p-4">
+                            <div class="flex justify-between items-start gap-4">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3 mb-3 flex-wrap">
+                                        <h3 class="text-xl font-bold ${thockColor}">${item.thock_number}</h3>
+                                        <span class="${floorColors[item.floor]} px-3 py-1 rounded text-sm font-bold">F${item.floor}</span>
+                                        <span class="text-sm ${roomColor} font-bold">Room ${item.room_no}</span>
+                                    </div>
+                                    
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-3 text-sm">
+                                        <div>
+                                            <i class="bi bi-person text-gray-500"></i>
+                                            <span class="font-semibold">${item.customer_name}</span>
+                                            ${item.family_member_name ? `<span class="text-gray-500">(${item.family_member_name})</span>` : ""}
+                                        </div>
+                                        <div>
+                                            <i class="bi bi-telephone text-gray-500"></i>
+                                            <span>${item.phone}</span>
+                                        </div>
+                                        ${
+                                          item.village
+                                            ? `
+                                            <div>
+                                                <i class="bi bi-geo-alt text-gray-500"></i>
+                                                <span>${item.village}</span>
+                                            </div>
+                                        `
+                                            : ""
+                                        }
+                                        <div>
+                                            <i class="bi bi-calendar text-gray-500"></i>
+                                            <span>${item.days_stored} days stored</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="bg-gray-50 p-2 rounded text-xs break-all">
+                                        <i class="bi bi-pin-map text-gray-500"></i>
+                                        <span class="font-mono">Gatars: ${item.gatar_locations}</span>
+                                    </div>
+                                </div>
+
+                                <div class="text-right flex-shrink-0">
+                                    <p class="text-3xl font-bold text-blue-600">${item.current_qty.toLocaleString("en-IN")}</p>
+                                    <p class="text-sm text-gray-600">bags</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+          })
+          .join("");
+      }
+
+      function filterItems() {
+        renderItems();
+      }
+
+      function filterByRoom(room) {
+        currentRoomFilter = room;
+
+        // Update filter buttons
+        document.querySelectorAll(".filter-btn").forEach((btn) => {
+          btn.classList.remove("ring-2", "ring-black");
+        });
+        const activeBtn =
+          room === null
+            ? document.getElementById("filter-all")
+            : document.getElementById(`filter-${room}`);
+        if (activeBtn) activeBtn.classList.add("ring-2", "ring-black");
+
+        renderItems();
+      }
+
+      function goBack() {
+        window.history.back();
+      }
+
+      // Initialize
+      filterByRoom(null);
+      loadData();
+    </script>
+  </body>
+</html>

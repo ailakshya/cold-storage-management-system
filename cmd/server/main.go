@@ -12,21 +12,21 @@ import (
 	"strconv"
 	"time"
 
+	"cold-backend/installer"
 	"cold-backend/internal/auth"
 	"cold-backend/internal/cache"
 	"cold-backend/internal/config"
 	"cold-backend/internal/database"
 	"cold-backend/internal/db"
 	"cold-backend/internal/g"
-	h "cold-backend/internal/http"
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/health"
+	h "cold-backend/internal/http"
 	"cold-backend/internal/middleware"
 	"cold-backend/internal/monitoring"
 	"cold-backend/internal/repositories"
 	"cold-backend/internal/services"
 	"cold-backend/internal/sms"
-	"cold-backend/installer"
 	"cold-backend/migrations"
 	"cold-backend/static"
 
@@ -501,7 +501,7 @@ func main() {
 		userService := services.NewUserService(userRepo, jwtManager)
 		customerService := services.NewCustomerService(customerRepo)
 		entryService := services.NewEntryService(entryRepo, customerRepo, entryEventRepo)
-		entryService.SetSettingRepo(systemSettingRepo)      // Wire SettingRepo for skip thock ranges
+		entryService.SetSettingRepo(systemSettingRepo)     // Wire SettingRepo for skip thock ranges
 		entryService.SetFamilyMemberRepo(familyMemberRepo) // Wire FamilyMemberRepo for family member auto-assign
 		printerService := services.NewPrinterService()
 		printerHandler := handlers.NewPrinterHandler(printerService)
@@ -681,6 +681,9 @@ func main() {
 		// Initialize room visualization handler (visual storage occupancy map)
 		roomVisualizationHandler := handlers.NewRoomVisualizationHandler(pool)
 
+		// Initialize items in stock handler (current inventory overview)
+		itemsInStockHandler := handlers.NewItemsInStockHandler(pool)
+
 		// Initialize customer activity log handler (for admin to view customer portal logs)
 		customerActivityLogRepo := repositories.NewCustomerActivityLogRepository(pool)
 		customerActivityLogHandler := handlers.NewCustomerActivityLogHandler(customerActivityLogRepo)
@@ -728,7 +731,7 @@ func main() {
 		restoreHandler := handlers.NewRestoreHandler(restoreService)
 
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {
