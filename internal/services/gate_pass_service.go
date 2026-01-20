@@ -12,11 +12,11 @@ import (
 )
 
 type GatePassService struct {
-	GatePassRepo       *repositories.GatePassRepository
-	EntryRepo          *repositories.EntryRepository
-	EntryEventRepo     *repositories.EntryEventRepository
-	PickupRepo         *repositories.GatePassPickupRepository
-	RoomEntryRepo      *repositories.RoomEntryRepository
+	GatePassRepo   *repositories.GatePassRepository
+	EntryRepo      *repositories.EntryRepository
+	EntryEventRepo *repositories.EntryEventRepository
+	PickupRepo     *repositories.GatePassPickupRepository
+	RoomEntryRepo  *repositories.RoomEntryRepository
 }
 
 func NewGatePassService(
@@ -148,25 +148,28 @@ func (s *GatePassService) ApproveGatePass(ctx context.Context, id int, req *mode
 			currentInventory = 0
 		}
 
-		// Get pending quantity from other gate passes (excluding this one)
-		pendingQty, err := s.GatePassRepo.GetPendingQuantityForEntry(ctx, *gatePass.EntryID)
+		// Calculate total already allocated to other gate passes (excluding this one)
+		// This includes pending, approved, and partially_completed gate passes
+		totalAllocated, err := s.GatePassRepo.GetTotalApprovedQuantityForEntry(ctx, *gatePass.EntryID)
 		if err != nil {
-			pendingQty = 0
+			totalAllocated = 0
 		}
-		// Subtract this gate pass's requested quantity since it's included in pending
-		pendingQty -= gatePass.RequestedQuantity
+		// Subtract this gate pass's requested quantity since it's already included in the total
+		totalAllocated -= gatePass.RequestedQuantity
 
-		// Calculate effective available inventory
-		effectiveInventory := currentInventory - pendingQty
-		if effectiveInventory < 0 {
-			effectiveInventory = 0
+		// Calculate available inventory
+		availableInventory := currentInventory - totalAllocated
+		if availableInventory < 0 {
+			availableInventory = 0
 		}
 
-		// Validate approved quantity
-		if req.ApprovedQuantity > effectiveInventory {
+		// Validate approved quantity doesn't exceed available stock
+		if req.ApprovedQuantity > availableInventory {
 			return errors.New("insufficient inventory: approved quantity (" +
 				strconv.Itoa(req.ApprovedQuantity) + ") exceeds available stock (" +
-				strconv.Itoa(effectiveInventory) + ")")
+				strconv.Itoa(availableInventory) + "). Current inventory: " +
+				strconv.Itoa(currentInventory) + ", already allocated: " +
+				strconv.Itoa(totalAllocated) + ")")
 		}
 	}
 

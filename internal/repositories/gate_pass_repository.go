@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"cold-backend/internal/models"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cold-backend/internal/models"
 )
 
 type GatePassRepository struct {
@@ -127,16 +128,16 @@ func (r *GatePassRepository) ListAllGatePasses(ctx context.Context) ([]map[strin
 		var gatePass map[string]interface{} = make(map[string]interface{})
 
 		var (
-			id, customerID, totalPickedUp int
-			thockNumber, status, customerName, customerPhone, customerVillage, requestSource string
-			requestedQty int
-			approvedQty, gateNo, remarks, approvedByName, issuedByName, familyMemberName *string
+			id, customerID, totalPickedUp                                                                      int
+			thockNumber, status, customerName, customerPhone, customerVillage, requestSource                   string
+			requestedQty                                                                                       int
+			approvedQty, gateNo, remarks, approvedByName, issuedByName, familyMemberName                       *string
 			entryID, approvedByID, entryQty, finalApprovedQty, createdByCustomerID, issuedByID, familyMemberID *int
-			paymentVerified bool
-			paymentAmount *float64
-			issuedAt interface{}
-			expiresAt, approvalExpiresAt *interface{}
-			completedAt *interface{}
+			paymentVerified                                                                                    bool
+			paymentAmount                                                                                      *float64
+			issuedAt                                                                                           interface{}
+			expiresAt, approvalExpiresAt                                                                       *interface{}
+			completedAt                                                                                        *interface{}
 		)
 
 		err := rows.Scan(
@@ -263,14 +264,14 @@ func (r *GatePassRepository) ListPendingGatePasses(ctx context.Context) ([]map[s
 		var gatePass map[string]interface{} = make(map[string]interface{})
 
 		var (
-			id, customerID int
-			thockNumber, customerName, customerPhone, requestSource string
-			requestedQty int
+			id, customerID                                                                                                int
+			thockNumber, customerName, customerPhone, requestSource                                                       string
+			requestedQty                                                                                                  int
 			gateNo, remarks, issuedByName, customerVillage, rooms, floors, gatars, qtyBreakdown, remark, familyMemberName *string
-			entryID, entryQty, createdByCustomerID, totalQty, familyMemberID *int
-			paymentVerified, isExpired bool
-			paymentAmount *float64
-			issuedAt, expiresAt interface{}
+			entryID, entryQty, createdByCustomerID, totalQty, familyMemberID                                              *int
+			paymentVerified, isExpired                                                                                    bool
+			paymentAmount                                                                                                 *float64
+			issuedAt, expiresAt                                                                                           interface{}
 		)
 
 		err := rows.Scan(
@@ -422,16 +423,22 @@ func (r *GatePassRepository) UpdatePickupQuantity(ctx context.Context, gatePassI
 	return err
 }
 
-// ExpireGatePasses marks gate passes as expired if approval period has passed
+// ExpireGatePasses marks gate passes as expired if their time windows have passed
+// - PENDING passes: Expire after 30 hours (expires_at) if not approved
+// - APPROVED passes: Expire after 15 hours (approval_expires_at) if not picked up
 func (r *GatePassRepository) ExpireGatePasses(ctx context.Context) error {
 	query := `
 		UPDATE gate_passes
 		SET status = 'expired',
 		    final_approved_quantity = total_picked_up,
 		    updated_at = CURRENT_TIMESTAMP
-		WHERE approval_expires_at IS NOT NULL
-		  AND approval_expires_at < CURRENT_TIMESTAMP
-		  AND status IN ('approved', 'partially_completed')
+		WHERE (
+		    -- Expire PENDING gate passes after 30-hour approval window
+		    (status = 'pending' AND expires_at IS NOT NULL AND expires_at < CURRENT_TIMESTAMP)
+		    OR
+		    -- Expire APPROVED/PARTIALLY_COMPLETED gate passes after 15-hour pickup window
+		    (status IN ('approved', 'partially_completed') AND approval_expires_at IS NOT NULL AND approval_expires_at < CURRENT_TIMESTAMP)
+		)
 	`
 
 	_, err := r.DB.Exec(ctx, query)
@@ -589,14 +596,14 @@ func (r *GatePassRepository) ListByCustomerID(ctx context.Context, customerID in
 		var gatePass map[string]interface{} = make(map[string]interface{})
 
 		var (
-			id, requestedQty, totalPickedUp int
-			thockNumber, status, requestSource string
+			id, requestedQty, totalPickedUp                                int
+			thockNumber, status, requestSource                             string
 			approvedQty, gateNo, remarks, approvedByName, familyMemberName *string
-			entryID, entryQty, finalApprovedQty, familyMemberID *int
-			paymentVerified bool
-			paymentAmount *float64
-			issuedAt interface{}
-			expiresAt, approvalExpiresAt, completedAt *interface{}
+			entryID, entryQty, finalApprovedQty, familyMemberID            *int
+			paymentVerified                                                bool
+			paymentAmount                                                  *float64
+			issuedAt                                                       interface{}
+			expiresAt, approvalExpiresAt, completedAt                      *interface{}
 		)
 
 		err := rows.Scan(
@@ -678,7 +685,7 @@ func (r *GatePassRepository) GetTotalApprovedQuantityForEntry(ctx context.Contex
 		), 0)
 		FROM gate_passes
 		WHERE entry_id = $1
-		AND status IN ('approved', 'completed', 'partially_completed')
+		AND status IN ('pending', 'approved', 'completed', 'partially_completed')
 	`
 
 	var totalApproved int
