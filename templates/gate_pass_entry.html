@@ -1397,6 +1397,7 @@
 
         // PER-FAMILY-MEMBER: Each family member can take out based on THEIR payment, not the whole customer's
         const familyMemberId = document.getElementById("familyMemberId").value;
+        const familyMemberNameForLookup = document.getElementById("familyMemberName").value;
         const totalExpectedItems = customerEntries.reduce(
           (sum, e) => sum + (e.expected_quantity || 0),
           0,
@@ -1407,9 +1408,10 @@
         let fmBalance = balanceDue;
         let fmOutgoing = 0;
 
-        if (familyMemberId && cachedFamilyMembers.length > 0) {
+        // CRITICAL FIX: Match by NAME instead of ID since accounts summary doesn't have family member IDs
+        if (familyMemberNameForLookup && cachedFamilyMembers.length > 0) {
           const fmData = cachedFamilyMembers.find(
-            (fm) => fm.id == familyMemberId,
+            (fm) => fm.name && fm.name.toLowerCase() === familyMemberNameForLookup.toLowerCase(),
           );
           if (fmData) {
             fmPaid = fmData.paid || 0;
@@ -1748,6 +1750,7 @@
           // PER-FAMILY-MEMBER: Each family member can take out based on THEIR payment, not the whole customer's
           const familyMemberId =
             document.getElementById("familyMemberId").value;
+          const familyMemberNameForDisplay = document.getElementById("familyMemberName").value;
           const totalExpectedItems = customerEntries.reduce(
             (sum, e) => sum + (e.expected_quantity || 0),
             0,
@@ -1758,10 +1761,11 @@
           let fmBalance = balanceDue;
           let fmOutgoing = totalOutgoing;
 
-          if (familyMemberId && cachedFamilyMembers.length > 0) {
-            // Find the specific family member's payment data
+          // CRITICAL FIX: Match by NAME instead of ID since accounts summary doesn't have family member IDs
+          if (familyMemberNameForDisplay && cachedFamilyMembers.length > 0) {
+            // Find the specific family member's payment data by name
             const fmData = cachedFamilyMembers.find(
-              (fm) => fm.id == familyMemberId,
+              (fm) => fm.name && fm.name.toLowerCase() === familyMemberNameForDisplay.toLowerCase(),
             );
             if (fmData) {
               fmPaid = fmData.paid || 0;
@@ -1953,6 +1957,7 @@
 
         // PER-FAMILY-MEMBER: Calculate how many items the family member has paid for
         const familyMemberId = document.getElementById("familyMemberId").value;
+        const familyMemberNameForSubmit = document.getElementById("familyMemberName").value;
         const totalExpectedItems = customerEntries.reduce(
           (sum, e) => sum + (e.expected_quantity || 0),
           0,
@@ -1963,9 +1968,10 @@
         let fmBalance = balanceDue;
         let fmOutgoing = 0;
 
-        if (familyMemberId && cachedFamilyMembers.length > 0) {
+        // CRITICAL FIX: Match by NAME instead of ID since accounts summary doesn't have family member IDs
+        if (familyMemberNameForSubmit && cachedFamilyMembers.length > 0) {
           const fmData = cachedFamilyMembers.find(
-            (fm) => fm.id == familyMemberId,
+            (fm) => fm.name && fm.name.toLowerCase() === familyMemberNameForSubmit.toLowerCase(),
           );
           if (fmData) {
             fmPaid = fmData.paid || 0;
