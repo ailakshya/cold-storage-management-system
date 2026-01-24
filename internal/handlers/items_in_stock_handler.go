@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"time"
 
-	"cold-backend/internal/middleware"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cold-backend/internal/middleware"
 )
 
 // ItemsInStockHandler handles items in stock endpoints
@@ -113,7 +114,7 @@ func (h *ItemsInStockHandler) queryItemsInStock(ctx context.Context) ([]ItemInSt
 			SUM(re.quantity) - COALESCE(
 				(SELECT SUM(gp.total_picked_up) 
 				 FROM gate_passes gp 
-				 WHERE gp.entry_id = e.id 
+				 WHERE gp.thock_number = e.thock_number 
 				 AND gp.status IN ('completed', 'partially_completed', 'approved')
 				), 0
 			) as current_qty,
@@ -129,7 +130,7 @@ func (h *ItemsInStockHandler) queryItemsInStock(ctx context.Context) ([]ItemInSt
 		HAVING SUM(re.quantity) - COALESCE(
 			(SELECT SUM(gp.total_picked_up) 
 			 FROM gate_passes gp 
-			 WHERE gp.entry_id = e.id 
+			 WHERE gp.thock_number = e.thock_number 
 			 AND gp.status IN ('completed', 'partially_completed', 'approved')
 			), 0
 		) > 0
