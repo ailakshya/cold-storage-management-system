@@ -1423,8 +1423,11 @@
             }
           }
         } else if (!familyMemberId && cachedFamilyMembers.length > 0) {
+          // No family member selected - find entries without family member (null family_member_id)
+          // These use family member with name like "No Family Member" or the Customer's Name
+          const customerName = document.getElementById("customerName").textContent.trim();
           const noFmData = cachedFamilyMembers.find(
-            (fm) => !fm.id || fm.name === "No Family Member" || fm.name === "",
+            (fm) => !fm.name || fm.name === "No Family Member" || fm.name === "" || (customerName && fm.name.toLowerCase() === customerName.toLowerCase()),
           );
           if (noFmData) {
             fmPaid = noFmData.paid || 0;
@@ -1785,11 +1788,11 @@
               });
             }
           } else if (!familyMemberId && cachedFamilyMembers.length > 0) {
-            // No family member selected - find entries without family member (null family_member_id)
-            // These use family member with name like "No Family Member" or ID = 0/null
+            // No family member selected - find entries without family member
+            // These use family member with name like "No Family Member" or the Customer's Name
+            const customerName = document.getElementById("customerName").textContent.trim();
             const noFmData = cachedFamilyMembers.find(
-              (fm) =>
-                !fm.id || fm.name === "No Family Member" || fm.name === "",
+              (fm) => !fm.name || fm.name === "No Family Member" || fm.name === "" || (customerName && fm.name.toLowerCase() === customerName.toLowerCase()),
             );
             if (noFmData) {
               fmPaid = noFmData.paid || 0;
@@ -1983,8 +1986,10 @@
             }
           }
         } else if (!familyMemberId && cachedFamilyMembers.length > 0) {
+          // No family member selected - find entries without family member
+          const customerName = document.getElementById("customerName").textContent.trim();
           const noFmData = cachedFamilyMembers.find(
-            (fm) => !fm.id || fm.name === "No Family Member" || fm.name === "",
+            (fm) => !fm.name || fm.name === "No Family Member" || fm.name === "" || (customerName && fm.name.toLowerCase() === customerName.toLowerCase()),
           );
           if (noFmData) {
             fmPaid = noFmData.paid || 0;
