@@ -1,0 +1,53 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cold-postgres
+  namespace: default
+spec:
+  # Optimized for Single Node (No need for 3 replicas on 1 machine)
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+
+  enableSuperuserAccess: true
+  superuserSecret:
+    name: cold-postgres-superuser
+
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: "4GB" # Increased for 1TB SSD node (assuming 16GB+ RAM)
+      effective_cache_size: "12GB"
+      work_mem: "64MB"
+    pg_hba:
+      - host replication replicator 10.42.0.0/16 scram-sha-256
+      - host all replicator 10.42.0.0/16 scram-sha-256
+
+  # Use the standard local-path (mapped to ZFS fast-pool in our plan)
+  storage:
+    storageClass: local-path
+    size: 50Gi
+
+  walStorage:
+    storageClass: local-path
+    size: 20Gi
+
+  resources:
+    requests:
+      memory: "2Gi"
+      cpu: "1000m"
+    limits:
+      memory: "8Gi"
+      cpu: "4000m"
+
+  bootstrap:
+    initdb:
+      database: cold_db
+      owner: cold_user
+      secret:
+        name: cold-postgres-superuser
+
+  # Optional: Backup to HDD pool (Needs configuration of a backup implementation)
+  # backup:
+  #   barmanObjectStore:
+  #     destinationPath: /mass-pool/backups
+  #     ...
