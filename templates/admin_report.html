@@ -244,7 +244,75 @@
                     </tbody>
                     <tfoot id="analyticsSummaryFooter" class="border-t-2 border-black bg-gray-100 font-bold">
                     </tfoot>
-                </table>
+                    </table>
+            </div>
+        </div>
+
+        <!-- Items Out Details Section -->
+        <div class="mt-8">
+            <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                <i class="bi bi-box-arrow-right text-red-600"></i> Items Out Details
+                <span class="ml-auto text-sm font-normal bg-red-100 text-red-700 px-3 py-1 rounded-full" id="itemsOutCount">0 items out</span>
+            </h2>
+
+            <!-- Items Out Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card bg-red-100">
+                    <p class="text-xs text-gray-600">Total Items Out</p>
+                    <p class="text-2xl font-bold text-red-600" id="totalItemsOut">0</p>
+                </div>
+                <div class="stat-card bg-orange-100">
+                    <p class="text-xs text-gray-600">Completed Gate Passes</p>
+                    <p class="text-2xl font-bold text-orange-600" id="completedGatePasses">0</p>
+                </div>
+                <div class="stat-card bg-yellow-100">
+                    <p class="text-xs text-gray-600">Partial Pickups</p>
+                    <p class="text-2xl font-bold text-yellow-600" id="partialPickups">0</p>
+                </div>
+                <div class="stat-card bg-green-100">
+                    <p class="text-xs text-gray-600">Unique Customers</p>
+                    <p class="text-2xl font-bold text-green-600" id="uniqueCustomersOut">0</p>
+                </div>
+            </div>
+
+            <!-- Items Out Table -->
+            <div class="neu-border p-6 bg-white">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
+                    <h3 class="font-bold text-lg flex items-center gap-2">
+                        <i class="bi bi-table text-red-700"></i> Outgoing Items Breakdown
+                    </h3>
+                    <div class="flex gap-2">
+                        <input type="text" id="itemsOutSearch" placeholder="Search customer, thok..." 
+                               class="neu-border p-2 text-sm w-48" oninput="filterItemsOutTable()">
+                        <button onclick="exportItemsOutCSV()" class="neu-button bg-green-500 text-white text-sm py-2 px-3">
+                            <i class="bi bi-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-sm">
+                        <thead>
+                            <tr class="border-b-2 border-black bg-red-100">
+                                <th class="p-3 text-left">Date/Time</th>
+                                <th class="p-3 text-left">Customer</th>
+                                <th class="p-3 text-left">Phone</th>
+                                <th class="p-3 text-left">Thok No</th>
+                                <th class="p-3 text-center">Qty Out</th>
+                                <th class="p-3 text-center">Status</th>
+                                <th class="p-3 text-left">Issued By</th>
+                                <th class="p-3 text-left">Approved By</th>
+                                <th class="p-3 text-left">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsOutTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center p-4 text-gray-500">Loading...</td>
+                            </tr>
+                        </tbody>
+                        <tfoot id="itemsOutTableFooter" class="border-t-2 border-black bg-red-100 font-bold">
+                        </tfoot>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1079,6 +1147,198 @@
             `;
         }
 
+        // Cache for filtered items out data
+        let cachedItemsOut = [];
+
+        // Calculate Items Out statistics (completed and partially_completed gate passes)
+        function calculateItemsOutStats() {
+            const { start, end } = getDateRange();
+            
+            function isInRange(dateStr) {
+                if (!dateStr) return false;
+                const localDate = getLocalDateStr(dateStr);
+                return localDate >= start && localDate <= end;
+            }
+
+            // Filter gate passes that have items out (completed or partially_completed with pickups)
+            const itemsOut = allGatePasses.filter(gp => {
+                const status = (gp.status || '').toLowerCase();
+                const hasPickups = gp.total_picked_up > 0;
+                const isRelevantStatus = status === 'completed' || status === 'partially_completed';
+                
+                // Check date range based on issued_at or completed_at
+                const checkDate = gp.completed_at || gp.issued_at;
+                return isRelevantStatus && hasPickups && isInRange(checkDate);
+            });
+
+            // Sort by date (most recent first)
+            itemsOut.sort((a, b) => {
+                const dateA = new Date(b.completed_at || b.issued_at);
+                const dateB = new Date(a.completed_at || a.issued_at);
+                return dateA - dateB;
+            });
+
+            cachedItemsOut = itemsOut;
+            return itemsOut;
+        }
+
+        // Render Items Out Summary Stats
+        function renderItemsOutSummary(itemsOut) {
+            let totalItemsOut = 0;
+            let completedCount = 0;
+            let partialCount = 0;
+            const uniqueCustomers = new Set();
+
+            itemsOut.forEach(gp => {
+                totalItemsOut += gp.total_picked_up || 0;
+                if ((gp.status || '').toLowerCase() === 'completed') {
+                    completedCount++;
+                } else {
+                    partialCount++;
+                }
+                if (gp.customer_phone) {
+                    uniqueCustomers.add(gp.customer_phone);
+                }
+            });
+
+            document.getElementById('itemsOutCount').textContent = `${totalItemsOut.toLocaleString('en-IN')} items out`;
+            document.getElementById('totalItemsOut').textContent = totalItemsOut.toLocaleString('en-IN');
+            document.getElementById('completedGatePasses').textContent = completedCount;
+            document.getElementById('partialPickups').textContent = partialCount;
+            document.getElementById('uniqueCustomersOut').textContent = uniqueCustomers.size;
+        }
+
+        // Format date for display
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            });
+        }
+
+        // Get status badge HTML
+        function getStatusBadge(status) {
+            const statusLower = (status || '').toLowerCase();
+            if (statusLower === 'completed') {
+                return '<span class="bg-green-500 text-white px-2 py-1 rounded text-xs font-bold">COMPLETED</span>';
+            } else if (statusLower === 'partially_completed') {
+                return '<span class="bg-yellow-500 text-white px-2 py-1 rounded text-xs font-bold">PARTIAL</span>';
+            }
+            return '<span class="bg-gray-400 text-white px-2 py-1 rounded text-xs font-bold">' + status + '</span>';
+        }
+
+        // Render Items Out Table
+        function renderItemsOutTable(itemsOut) {
+            const tbody = document.getElementById('itemsOutTableBody');
+            const tfoot = document.getElementById('itemsOutTableFooter');
+
+            if (itemsOut.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="text-center p-4 text-gray-500">No items out in selected period</td></tr>';
+                tfoot.innerHTML = '';
+                return;
+            }
+
+            let totalQty = 0;
+            itemsOut.forEach(gp => {
+                totalQty += gp.total_picked_up || 0;
+            });
+
+            tbody.innerHTML = itemsOut.map(gp => {
+                const issuedBy = gp.issued_by_name || gp.issued_by_id ? usersMap[gp.issued_by_id] || '-' : '-';
+                const approvedBy = gp.approved_by_name || gp.approved_by_id ? usersMap[gp.approved_by_id] || '-' : '-';
+                const date = gp.completed_at || gp.issued_at;
+                const remarks = gp.remarks || '-';
+                const truncatedRemarks = remarks.length > 30 ? remarks.substring(0, 30) + '...' : remarks;
+                
+                return `
+                    <tr class="border-b border-gray-200 hover:bg-red-50">
+                        <td class="p-3 text-left text-xs">${formatDateTime(date)}</td>
+                        <td class="p-3 text-left font-semibold">${gp.customer_name || '-'}</td>
+                        <td class="p-3 text-left text-gray-600">${gp.customer_phone || '-'}</td>
+                        <td class="p-3 text-left font-mono bg-gray-100">${gp.thock_number || '-'}</td>
+                        <td class="p-3 text-center">
+                            <span class="bg-red-600 text-white px-2 py-1 rounded font-bold">${gp.total_picked_up || 0}</span>
+                        </td>
+                        <td class="p-3 text-center">${getStatusBadge(gp.status)}</td>
+                        <td class="p-3 text-left text-sm">${issuedBy}</td>
+                        <td class="p-3 text-left text-sm">${approvedBy}</td>
+                        <td class="p-3 text-left text-xs text-gray-500" title="${remarks}">${truncatedRemarks}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tfoot.innerHTML = `
+                <tr>
+                    <td colspan="4" class="p-3 text-left">TOTAL (${itemsOut.length} gate passes)</td>
+                    <td class="p-3 text-center text-red-700 text-lg">${totalQty.toLocaleString('en-IN')}</td>
+                    <td colspan="4" class="p-3"></td>
+                </tr>
+            `;
+        }
+
+        // Filter Items Out Table based on search
+        function filterItemsOutTable() {
+            const searchTerm = (document.getElementById('itemsOutSearch').value || '').toLowerCase().trim();
+            
+            if (!searchTerm) {
+                renderItemsOutTable(cachedItemsOut);
+                return;
+            }
+
+            const filtered = cachedItemsOut.filter(gp => {
+                return (gp.customer_name || '').toLowerCase().includes(searchTerm) ||
+                       (gp.customer_phone || '').toLowerCase().includes(searchTerm) ||
+                       (gp.thock_number || '').toLowerCase().includes(searchTerm) ||
+                       (gp.remarks || '').toLowerCase().includes(searchTerm);
+            });
+
+            renderItemsOutTable(filtered);
+        }
+
+        // Export Items Out to CSV
+        function exportItemsOutCSV() {
+            if (cachedItemsOut.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const headers = ['Date/Time', 'Customer', 'Phone', 'Thok No', 'Qty Out', 'Status', 'Issued By', 'Approved By', 'Remarks'];
+            const rows = cachedItemsOut.map(gp => [
+                formatDateTime(gp.completed_at || gp.issued_at),
+                gp.customer_name || '',
+                gp.customer_phone || '',
+                gp.thock_number || '',
+                gp.total_picked_up || 0,
+                gp.status || '',
+                gp.issued_by_name || usersMap[gp.issued_by_id] || '',
+                gp.approved_by_name || usersMap[gp.approved_by_id] || '',
+                (gp.remarks || '').replace(/,/g, ';')
+            ]);
+
+            let csvContent = headers.join(',') + '\n';
+            rows.forEach(row => {
+                csvContent += row.map(cell => `"${cell}"`).join(',') + '\n';
+            });
+
+            // Add totals row
+            const totalQty = cachedItemsOut.reduce((sum, gp) => sum + (gp.total_picked_up || 0), 0);
+            csvContent += `"TOTAL","","","",${totalQty},"","","",""\n`;
+
+            // Download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            const { start, end } = getDateRange();
+            link.download = `items_out_${start}_to_${end}.csv`;
+            link.click();
+        }
+
         // Main update function
         function updateAnalytics() {
             const stats = calculateDailyStats();
@@ -1089,6 +1349,11 @@
             renderFinancialChart(stats);
             renderEditsChart(stats);
             renderSummaryTable(stats);
+
+            // Items Out Analytics
+            const itemsOut = calculateItemsOutStats();
+            renderItemsOutSummary(itemsOut);
+            renderItemsOutTable(itemsOut);
 
             // Employee Analytics
             renderEmployeeChart(employeeStats);
