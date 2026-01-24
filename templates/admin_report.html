@@ -230,7 +230,8 @@
                             <th class="p-3 text-center">Expected Qty</th>
                             <th class="p-3 text-center">Not Stored</th>
                             <th class="p-3 text-center">Room Entries</th>
-                            <th class="p-3 text-center">Qty</th>
+                            <th class="p-3 text-center">Qty In</th>
+                            <th class="p-3 text-center bg-red-50 text-red-700">Items Out</th>
                             <th class="p-3 text-center">Gate Passes</th>
                             <th class="p-3 text-center">Payments (₹)</th>
                             <th class="p-3 text-center">Qty Changed</th>
@@ -239,7 +240,7 @@
                     </thead>
                     <tbody id="analyticsSummaryBody">
                         <tr>
-                            <td colspan="10" class="text-center p-4 text-gray-500">Loading...</td>
+                            <td colspan="11" class="text-center p-4 text-gray-500">Loading...</td>
                         </tr>
                     </tbody>
                     <tfoot id="analyticsSummaryFooter" class="border-t-2 border-black bg-gray-100 font-bold">
@@ -248,12 +249,13 @@
             </div>
         </div>
 
-        <!-- Items Out Details Section -->
+        <!-- ITEM OUT System Logs Section -->
         <div class="mt-8">
-            <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
-                <i class="bi bi-box-arrow-right text-red-600"></i> Items Out Details
+            <h2 class="text-2xl font-bold mb-2 flex items-center gap-2">
+                <i class="bi bi-box-arrow-right text-red-600"></i> ITEM OUT System Logs
                 <span class="ml-auto text-sm font-normal bg-red-100 text-red-700 px-3 py-1 rounded-full" id="itemsOutCount">0 items out</span>
             </h2>
+            <p class="text-gray-600 mb-4 text-sm"><i class="bi bi-shield-check"></i> Employee activity tracking and system audit logs</p>
 
             <!-- Items Out Summary Cards -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
@@ -275,44 +277,11 @@
                 </div>
             </div>
 
-            <!-- Items Out Table -->
-            <div class="neu-border p-6 bg-white">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-3">
-                    <h3 class="font-bold text-lg flex items-center gap-2">
-                        <i class="bi bi-table text-red-700"></i> Outgoing Items Breakdown
-                    </h3>
-                    <div class="flex gap-2">
-                        <input type="text" id="itemsOutSearch" placeholder="Search customer, thok..." 
-                               class="neu-border p-2 text-sm w-48" oninput="filterItemsOutTable()">
-                        <button onclick="exportItemsOutCSV()" class="neu-button bg-green-500 text-white text-sm py-2 px-3">
-                            <i class="bi bi-download"></i> Export CSV
-                        </button>
-                    </div>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full border-collapse text-sm">
-                        <thead>
-                            <tr class="border-b-2 border-black bg-red-100">
-                                <th class="p-3 text-left">Date/Time</th>
-                                <th class="p-3 text-left">Customer</th>
-                                <th class="p-3 text-left">Phone</th>
-                                <th class="p-3 text-left">Thok No</th>
-                                <th class="p-3 text-center">Qty Out</th>
-                                <th class="p-3 text-center">Status</th>
-                                <th class="p-3 text-left">Issued By</th>
-                                <th class="p-3 text-left">Approved By</th>
-                                <th class="p-3 text-left">Remarks</th>
-                            </tr>
-                        </thead>
-                        <tbody id="itemsOutTableBody">
-                            <tr>
-                                <td colspan="9" class="text-center p-4 text-gray-500">Loading...</td>
-                            </tr>
-                        </tbody>
-                        <tfoot id="itemsOutTableFooter" class="border-t-2 border-black bg-red-100 font-bold">
-                        </tfoot>
-                    </table>
-                </div>
+            <!-- Export Button -->
+            <div class="flex justify-end mb-4">
+                <button onclick="exportItemsOutCSV()" class="neu-button bg-green-500 text-white text-sm py-2 px-4">
+                    <i class="bi bi-download"></i> Export Items Out CSV
+                </button>
             </div>
         </div>
 
@@ -561,6 +530,7 @@
                         notStored: 0,
                         roomEntries: 0,
                         quantity: 0,
+                        itemsOut: 0,
                         gatePasses: 0,
                         payments: 0,
                         qtyChanges: 0,
@@ -613,6 +583,17 @@
                     if (isInRange(dateStr)) {
                         ensureDate(dateStr);
                         stats[dateStr].gatePasses++;
+                    }
+                }
+                // Track items out from completed/partially_completed gate passes
+                if (gp.total_picked_up > 0) {
+                    const status = (gp.status || '').toLowerCase();
+                    if (status === 'completed' || status === 'partially_completed') {
+                        const pickupDate = getLocalDateStr(gp.completed_at || gp.issued_at);
+                        if (isInRange(pickupDate)) {
+                            ensureDate(pickupDate);
+                            stats[pickupDate].itemsOut += gp.total_picked_up || 0;
+                        }
                     }
                 }
             });
@@ -930,7 +911,7 @@
             const tfoot = document.getElementById('analyticsSummaryFooter');
             const sortedDates = Object.keys(stats).sort((a, b) => new Date(b) - new Date(a));
 
-            let totals = { entries: 0, expectedQty: 0, notStored: 0, roomEntries: 0, quantity: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
+            let totals = { entries: 0, expectedQty: 0, notStored: 0, roomEntries: 0, quantity: 0, itemsOut: 0, gatePasses: 0, payments: 0, qtyChanges: 0, totalEdits: 0 };
 
             sortedDates.forEach(date => {
                 totals.entries += stats[date].entries;
@@ -938,6 +919,7 @@
                 totals.notStored += stats[date].notStored || 0;
                 totals.roomEntries += stats[date].roomEntries;
                 totals.quantity += stats[date].quantity;
+                totals.itemsOut += stats[date].itemsOut || 0;
                 totals.gatePasses += stats[date].gatePasses;
                 totals.payments += stats[date].payments;
                 totals.qtyChanges += stats[date].qtyChanges;
@@ -960,6 +942,7 @@
                         <td class="p-3 text-center"><span class="text-red-600 font-bold">${d.notStored || 0}</span></td>
                         <td class="p-3 text-center"><span class="text-blue-600 font-bold">${d.roomEntries}</span></td>
                         <td class="p-3 text-center"><span class="text-teal-600 font-bold">${d.quantity}</span></td>
+                        <td class="p-3 text-center bg-red-50"><span class="bg-red-600 text-white px-2 py-1 rounded font-bold">${d.itemsOut || 0}</span></td>
                         <td class="p-3 text-center"><span class="text-purple-600 font-bold">${d.gatePasses}</span></td>
                         <td class="p-3 text-center"><span class="text-green-700 font-bold">₹${d.payments.toLocaleString('en-IN')}</span></td>
                         <td class="p-3 text-center"><span class="text-pink-600 font-bold">${d.qtyChanges}</span></td>
@@ -976,6 +959,7 @@
                     <td class="p-3 text-center text-red-600">${totals.notStored.toLocaleString('en-IN')}</td>
                     <td class="p-3 text-center text-blue-600">${totals.roomEntries}</td>
                     <td class="p-3 text-center text-teal-600">${totals.quantity.toLocaleString('en-IN')}</td>
+                    <td class="p-3 text-center bg-red-100"><span class="bg-red-600 text-white px-2 py-1 rounded">${totals.itemsOut.toLocaleString('en-IN')}</span></td>
                     <td class="p-3 text-center text-purple-600">${totals.gatePasses}</td>
                     <td class="p-3 text-center text-green-700">₹${totals.payments.toLocaleString('en-IN')}</td>
                     <td class="p-3 text-center text-pink-600">${totals.qtyChanges}</td>
@@ -1350,10 +1334,9 @@
             renderEditsChart(stats);
             renderSummaryTable(stats);
 
-            // Items Out Analytics
+            // Items Out Analytics (summary cards only)
             const itemsOut = calculateItemsOutStats();
             renderItemsOutSummary(itemsOut);
-            renderItemsOutTable(itemsOut);
 
             // Employee Analytics
             renderEmployeeChart(employeeStats);
