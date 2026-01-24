@@ -298,7 +298,7 @@ func (s *DeploymentService) runDeployment(ctx context.Context, config *models.De
 		go func(n *models.ClusterNode, idx int) {
 			defer wg.Done()
 
-			if err := s.distributeToNode(n, tarFile, opts.Version); err != nil {
+			if err := s.distributeToNode(ctx, n, tarFile, opts.Version); err != nil {
 				mu.Lock()
 				failed++
 				mu.Unlock()
@@ -345,7 +345,7 @@ func (s *DeploymentService) runDeployment(ctx context.Context, config *models.De
 		cmd := fmt.Sprintf("k3s kubectl set image deployment/%s cold-backend=%s:%s -n default",
 			deployName, config.ImageRepo, opts.Version)
 
-		result, err := s.ssh.Execute(nil, controlPlane.IPAddress, cmd)
+		result, err := s.ssh.Execute(ctx, controlPlane.IPAddress, cmd)
 		if err != nil {
 			sendError(fmt.Sprintf("Update %s deployment failed", target), err)
 			return
@@ -360,20 +360,20 @@ func (s *DeploymentService) runDeployment(ctx context.Context, config *models.De
 	for _, target := range opts.DeployTargets {
 		deployName := fmt.Sprintf("cold-backend-%s", target)
 		cmd := fmt.Sprintf("k3s kubectl rollout status deployment/%s -n default --timeout=120s", deployName)
-		s.ssh.Execute(nil, controlPlane.IPAddress, cmd)
+		s.ssh.Execute(ctx, controlPlane.IPAddress, cmd)
 	}
 
 	// Step 7: Health check
 	sendProgress("verifying", 95, "Verifying pod health...")
 
 	healthCmd := fmt.Sprintf(`k3s kubectl get pods -l app=cold-backend -n default -o jsonpath='{range .items[*]}{.spec.containers[0].image}{" "}{.status.containerStatuses[0].ready}{"\n"}{end}' | grep -c "%s.*true"`, opts.Version)
-	result, _ := s.ssh.Execute(nil, controlPlane.IPAddress, healthCmd)
+	result, _ := s.ssh.Execute(ctx, controlPlane.IPAddress, healthCmd)
 	readyPods := strings.TrimSpace(result.Stdout)
 
 	if readyPods == "" || readyPods == "0" {
 		// Not healthy, rollback
 		sendProgress("verifying", 95, "Deployment unhealthy, initiating rollback...")
-		s.rollback(controlPlane.IPAddress, opts.DeployTargets)
+		s.rollback(ctx, controlPlane.IPAddress, opts.DeployTargets)
 		sendError("Health check failed", fmt.Errorf("no healthy pods with version %s", opts.Version))
 		s.repo.UpdateDeploymentHistory(ctx, history.ID, models.DeploymentStatusRolledback, "", deployOutput, "Health check failed")
 		return
@@ -408,13 +408,13 @@ func (s *DeploymentService) Rollback(ctx context.Context, configID int, userID i
 	}
 
 	targets := []string{"employee", "customer"}
-	return s.rollback(controlPlane.IPAddress, targets)
+	return s.rollback(ctx, controlPlane.IPAddress, targets)
 }
 
-func (s *DeploymentService) rollback(controlPlaneIP string, targets []string) error {
+func (s *DeploymentService) rollback(ctx context.Context, controlPlaneIP string, targets []string) error {
 	for _, target := range targets {
 		cmd := fmt.Sprintf("k3s kubectl rollout undo deployment/cold-backend-%s -n default", target)
-		s.ssh.Execute(nil, controlPlaneIP, cmd)
+		s.ssh.Execute(ctx, controlPlaneIP, cmd)
 	}
 	return nil
 }
@@ -531,7 +531,7 @@ func (s *DeploymentService) saveDockerImage(imageRepo, version string) error {
 	return nil
 }
 
-func (s *DeploymentService) distributeToNode(node *models.ClusterNode, tarFile, version string) error {
+func (s *DeploymentService) distributeToNode(ctx context.Context, node *models.ClusterNode, tarFile, version string) error {
 	// Validate version to ensure tarFile path is safe
 	if err := validateVersion(version); err != nil {
 		return fmt.Errorf("invalid version: %w", err)
@@ -555,14 +555,14 @@ func (s *DeploymentService) distributeToNode(node *models.ClusterNode, tarFile, 
 	}
 
 	// Copy tarball
-	if err := s.ssh.CopyFile(nil, node.IPAddress, node.SSHPort, node.SSHUser, privateKey, "", tarFile, tarFile); err != nil {
+	if err := s.ssh.CopyFile(ctx, node.IPAddress, node.SSHPort, node.SSHUser, privateKey, "", tarFile, tarFile); err != nil {
 		return fmt.Errorf("copy failed: %w", err)
 	}
 
 	// Import image - use validated tarFile path
 	// The command is safe because tarFile is constructed from validated version
 	importCmd := fmt.Sprintf("gunzip -c %s | k3s ctr -n k8s.io images import - && rm -f %s", tarFile, tarFile)
-	if _, err := s.ssh.Execute(nil, node.IPAddress, importCmd); err != nil {
+	if _, err := s.ssh.Execute(ctx, node.IPAddress, importCmd); err != nil {
 		return fmt.Errorf("import failed: %w", err)
 	}
 

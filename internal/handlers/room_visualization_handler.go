@@ -8,6 +8,7 @@ import (
 
 	"cold-backend/internal/cache"
 	"cold-backend/internal/repositories"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,10 +43,10 @@ type RoomStats struct {
 
 // VisualizationSummary contains overall summary
 type VisualizationSummary struct {
-	TotalQuantity    int `json:"total_qty"`
-	OccupiedGatars   int `json:"occupied_gatars"`
-	TotalGatars      int `json:"total_gatars"`
-	TotalEntryCount  int `json:"total_entry_count"`
+	TotalQuantity   int `json:"total_qty"`
+	OccupiedGatars  int `json:"occupied_gatars"`
+	TotalGatars     int `json:"total_gatars"`
+	TotalEntryCount int `json:"total_entry_count"`
 }
 
 // RoomVisualizationResponse is the response for GetRoomStats
@@ -72,9 +73,9 @@ type GatarInfo struct {
 
 // GatarOccupancyResponse is the response for GetGatarOccupancy
 type GatarOccupancyResponse struct {
-	RoomNo  string      `json:"room_no"`
-	Floor   string      `json:"floor"`
-	Gatars  []GatarInfo `json:"gatars"`
+	RoomNo string      `json:"room_no"`
+	Floor  string      `json:"floor"`
+	Gatars []GatarInfo `json:"gatars"`
 }
 
 // Gatar ranges for each room/floor (from room-config-1.html)
@@ -537,11 +538,11 @@ func getRoomFloorFromGatar(gatarNum int) (string, string) {
 
 // distributeQuantity distributes total bags across gatars based on breakdown
 // Logic:
-// 1. If only 1 gatar: all bags go to that gatar
-// 2. If breakdown count matches gatar count: map 1:1
-// 3. If breakdown has more items than gatars: distribute breakdown items sequentially
-//    (each gatar gets bags until ~200 capacity, then overflow to next)
-// 4. Fallback: divide total evenly across gatars
+//  1. If only 1 gatar: all bags go to that gatar
+//  2. If breakdown count matches gatar count: map 1:1
+//  3. If breakdown has more items than gatars: distribute breakdown items sequentially
+//     (each gatar gets bags until ~200 capacity, then overflow to next)
+//  4. Fallback: divide total evenly across gatars
 func distributeQuantity(totalQty int, gatars []string, breakdown []int) []int {
 	numGatars := len(gatars)
 	result := make([]int, numGatars)
@@ -558,9 +559,7 @@ func distributeQuantity(totalQty int, gatars []string, breakdown []int) []int {
 
 	// Case 2: Breakdown count matches gatar count - direct 1:1 mapping
 	if len(breakdown) == numGatars {
-		for i, val := range breakdown {
-			result[i] = val
-		}
+		copy(result, breakdown)
 		return result
 	}
 

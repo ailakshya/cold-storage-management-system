@@ -54,6 +54,8 @@ type Config struct {
 		KeySecret     string `mapstructure:"key_secret"`
 		WebhookSecret string `mapstructure:"webhook_secret"`
 	} `mapstructure:"razorpay"`
+
+	BackupDir string // Local backup directory
 }
 
 func Load() *Config {
@@ -84,6 +86,13 @@ func Load() *Config {
 	var cfg Config
 	if err := v.Unmarshal(&cfg); err != nil {
 		log.Fatalf("config unmarshal error: %v", err)
+	}
+
+	// Set BackupDir from env or default
+	if dir := os.Getenv("BACKUP_DIR"); dir != "" {
+		cfg.BackupDir = dir
+	} else {
+		cfg.BackupDir = "/mass-pool/backups"
 	}
 
 	// Override database settings from DB_* environment variables

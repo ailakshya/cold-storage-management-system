@@ -16,11 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"cold-backend/internal/config"
-	"cold-backend/internal/models"
-	"cold-backend/internal/repositories"
-	"cold-backend/internal/timeutil"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -28,6 +23,11 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
+
+	"cold-backend/internal/config"
+	"cold-backend/internal/models"
+	"cold-backend/internal/repositories"
+	"cold-backend/internal/timeutil"
 )
 
 // R2BackupScheduler handles automatic backups to R2
@@ -123,10 +123,10 @@ func runR2Backup() {
 	// Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
 	now := timeutil.Now()
 	backupKey := fmt.Sprintf("base/%s/%s/%s/%s/cold_db_%s.sql",
-		now.Format("2006"),           // Year
-		now.Format("01"),             // Month
-		now.Format("02"),             // Day
-		now.Format("15"),             // Hour (24h)
+		now.Format("2006"),            // Year
+		now.Format("01"),              // Month
+		now.Format("02"),              // Day
+		now.Format("15"),              // Hour (24h)
 		now.Format("20060102_150405")) // Full timestamp
 
 	// Upload to R2
@@ -633,16 +633,16 @@ func calculateClusterOverview(nodes []map[string]interface{}) map[string]interfa
 	}
 
 	return map[string]interface{}{
-		"total_nodes":       k3sNodes,
-		"healthy_nodes":     healthyK3s,
-		"avg_cpu_percent":   avgCPU,
-		"total_cpu_cores":   totalCores,
+		"total_nodes":        k3sNodes,
+		"healthy_nodes":      healthyK3s,
+		"avg_cpu_percent":    avgCPU,
+		"total_cpu_cores":    totalCores,
 		"avg_memory_percent": avgMem,
-		"used_memory_gb":    usedMemGB,
-		"total_memory_gb":   totalMemGB,
-		"avg_disk_percent":  diskPercent,
-		"used_disk_gb":      usedDiskGB,
-		"total_disk_gb":     totalDiskGB,
+		"used_memory_gb":     usedMemGB,
+		"total_memory_gb":    totalMemGB,
+		"avg_disk_percent":   diskPercent,
+		"used_disk_gb":       usedDiskGB,
+		"total_disk_gb":      totalDiskGB,
 	}
 }
 
@@ -1335,10 +1335,8 @@ func (h *MonitoringHandler) GetR2Status(w http.ResponseWriter, r *http.Request) 
 
 	// Get R2 status from setup handler (reuse the same S3 client logic)
 	r2Status := getR2StorageStatus(ctx)
-	if r2Status != nil {
-		for k, v := range r2Status {
-			response[k] = v
-		}
+	for k, v := range r2Status {
+		response[k] = v
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -1515,10 +1513,10 @@ func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
 	// Format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
 	now := timeutil.Now()
 	backupKey := fmt.Sprintf("base/%s/%s/%s/%s/cold_db_%s.sql",
-		now.Format("2006"),           // Year
-		now.Format("01"),             // Month
-		now.Format("02"),             // Day
-		now.Format("15"),             // Hour (24h)
+		now.Format("2006"),            // Year
+		now.Format("01"),              // Month
+		now.Format("02"),              // Day
+		now.Format("15"),              // Hour (24h)
 		now.Format("20060102_150405")) // Full timestamp
 
 	// Upload to R2

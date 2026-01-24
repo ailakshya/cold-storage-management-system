@@ -179,6 +179,147 @@ func (h *RestoreHandler) PreviewRestore(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+// ListLocalBackups returns available local backup files
+// GET /api/admin/restore/local
+func (h *RestoreHandler) ListLocalBackups(w http.ResponseWriter, r *http.Request) {
+	backups, err := h.Service.ListLocalBackups()
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"backups": backups,
+		"count":   len(backups),
+	})
+}
+
+// PreviewLocalRestore generates a preview and confirmation token for local restore
+// POST /api/admin/restore/local/preview
+func (h *RestoreHandler) PreviewLocalRestore(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get user ID from context
+	userID, ok := middleware.GetUserIDFromContext(ctx)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	var req struct {
+		Filename string `json:"filename"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	if req.Filename == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "filename is required",
+		})
+		return
+	}
+
+	preview, err := h.Service.PreviewLocalRestore(req.Filename, userID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"preview": preview,
+	})
+}
+
+// ExecuteLocalRestore performs the actual restore operation from local file
+// POST /api/admin/restore/local/execute
+func (h *RestoreHandler) ExecuteLocalRestore(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get user ID from context
+	userID, ok := middleware.GetUserIDFromContext(ctx)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	var req struct {
+		Filename          string `json:"filename"`
+		ConfirmationToken string `json:"confirmation_token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid request body",
+		})
+		return
+	}
+
+	if req.Filename == "" || req.ConfirmationToken == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "filename and confirmation_token are required",
+		})
+		return
+	}
+
+	result, err := h.Service.ExecuteLocalRestore(ctx, req.Filename, req.ConfirmationToken, userID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Local restore failed: " + err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"result":  result,
+	})
+}
+
 // ExecuteRestore performs the actual restore operation
 // POST /api/admin/restore/execute
 func (h *RestoreHandler) ExecuteRestore(w http.ResponseWriter, r *http.Request) {

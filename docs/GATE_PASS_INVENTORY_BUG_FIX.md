@@ -1,5 +1,9 @@
 # Gate Pass Inventory Bug Fix - Complete Analysis
 
+> **📊 Visual Diagrams**: 
+> - [Bug Flow Comparison](system-design/04-gate-pass-bug-before-fix.png) - Before/After fix visualization
+> - [Complete Timeline](system-design/05-gate-pass-bug-timeline.png) - 7-day timeline showing both bugs
+
 ## Problem Description
 
 When creating outgoing gate passes, the system was allowing items to be withdrawn **more than the available inventory**. This resulted in negative inventory quantities.

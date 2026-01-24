@@ -28,12 +28,13 @@ import (
 
 // RestoreService handles point-in-time database restoration from R2
 type RestoreService struct {
-	pool             *pgxpool.Pool
-	connStr          string
-	pendingTokens    map[string]*RestoreToken
-	tokenMu          sync.RWMutex
-	lastRestoreTime  time.Time
-	restoreCooldown  time.Duration
+	pool            *pgxpool.Pool
+	connStr         string
+	backupDir       string
+	pendingTokens   map[string]*RestoreToken
+	tokenMu         sync.RWMutex
+	lastRestoreTime time.Time
+	restoreCooldown time.Duration
 }
 
 // RestoreToken holds confirmation token for restore operation
@@ -43,6 +44,7 @@ type RestoreToken struct {
 	CreatedAt   time.Time
 	ExpiresAt   time.Time
 	UserID      int
+	IsLocal     bool // True if restoring from local file
 }
 
 // RestoreDate represents available restore points for a date
@@ -61,6 +63,15 @@ type Snapshot struct {
 	Timestamp    string    `json:"timestamp"` // HH:MM:SS
 }
 
+// LocalBackup represents a local backup file
+type LocalBackup struct {
+	Filename      string    `json:"filename"`
+	Size          int64     `json:"size"`
+	SizeFormatted string    `json:"size_formatted"`
+	ModTime       time.Time `json:"mod_time"`
+	ModTimeStr    string    `json:"mod_time_str"`
+}
+
 // RestorePreview contains details for restore confirmation
 type RestorePreview struct {
 	SnapshotKey       string    `json:"snapshot_key"`
@@ -69,6 +80,7 @@ type RestorePreview struct {
 	SizeFormatted     string    `json:"size_formatted"`
 	ConfirmationToken string    `json:"confirmation_token"`
 	ExpiresIn         int       `json:"expires_in_seconds"`
+	IsLocal           bool      `json:"is_local"`
 }
 
 // RestoreResult contains the result of a restore operation
@@ -81,10 +93,16 @@ type RestoreResult struct {
 }
 
 // NewRestoreService creates a new restore service
-func NewRestoreService(pool *pgxpool.Pool, connStr string) *RestoreService {
+func NewRestoreService(pool *pgxpool.Pool, connStr string, backupDir string) *RestoreService {
+	// Ensure backup directory exists
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		log.Printf("[RestoreService] Warning: failed to create backup dir %s: %v", backupDir, err)
+	}
+
 	return &RestoreService{
 		pool:            pool,
 		connStr:         connStr,
+		backupDir:       backupDir,
 		pendingTokens:   make(map[string]*RestoreToken),
 		restoreCooldown: 5 * time.Minute,
 	}
@@ -109,6 +127,48 @@ func (s *RestoreService) getS3Client(ctx context.Context) (*s3.Client, error) {
 	})
 
 	return client, nil
+}
+
+// ListLocalBackups returns all local backup files
+func (s *RestoreService) ListLocalBackups() ([]LocalBackup, error) {
+	entries, err := os.ReadDir(s.backupDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list local backups: %w", err)
+	}
+
+	var backups []LocalBackup
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		sizeFormatted := fmt.Sprintf("%d B", info.Size())
+		if info.Size() >= 1024*1024 {
+			sizeFormatted = fmt.Sprintf("%.2f MB", float64(info.Size())/(1024*1024))
+		} else if info.Size() >= 1024 {
+			sizeFormatted = fmt.Sprintf("%.2f KB", float64(info.Size())/1024)
+		}
+
+		backups = append(backups, LocalBackup{
+			Filename:      entry.Name(),
+			Size:          info.Size(),
+			SizeFormatted: sizeFormatted,
+			ModTime:       info.ModTime(),
+			ModTimeStr:    info.ModTime().Format("2006-01-02 15:04:05"),
+		})
+	}
+
+	// Sort by modification time (newest first)
+	sort.Slice(backups, func(i, j int) bool {
+		return backups[i].ModTime.After(backups[j].ModTime)
+	})
+
+	return backups, nil
 }
 
 // ListAvailableDates returns all dates that have available backups
@@ -309,6 +369,183 @@ func (s *RestoreService) FindClosestSnapshot(ctx context.Context, targetTime tim
 	return closest, nil
 }
 
+// PreviewLocalRestore generates a preview and confirmation token for local restore
+func (s *RestoreService) PreviewLocalRestore(filename string, userID int) (*RestorePreview, error) {
+	// Verify file exists
+	filePath := filepath.Join(s.backupDir, filename)
+	cleanPath := filepath.Clean(filePath)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(s.backupDir)) {
+		return nil, fmt.Errorf("invalid file path")
+	}
+
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return nil, fmt.Errorf("backup file not found: %w", err)
+	}
+
+	// Generate confirmation token
+	tokenBytes := make([]byte, 16)
+	rand.Read(tokenBytes)
+	token := hex.EncodeToString(tokenBytes)
+
+	// Store token with 5-minute expiry
+	s.tokenMu.Lock()
+	s.pendingTokens[token] = &RestoreToken{
+		Token:       token,
+		SnapshotKey: filename, // Using filename as key for local
+		CreatedAt:   time.Now(),
+		ExpiresAt:   time.Now().Add(5 * time.Minute),
+		UserID:      userID,
+		IsLocal:     true,
+	}
+	s.tokenMu.Unlock()
+
+	// Format size
+	var sizeFormatted string
+	if info.Size() < 1024 {
+		sizeFormatted = fmt.Sprintf("%d B", info.Size())
+	} else if info.Size() < 1024*1024 {
+		sizeFormatted = fmt.Sprintf("%.2f KB", float64(info.Size())/1024)
+	} else {
+		sizeFormatted = fmt.Sprintf("%.2f MB", float64(info.Size())/(1024*1024))
+	}
+
+	return &RestorePreview{
+		SnapshotKey:       filename,
+		SnapshotTime:      info.ModTime(),
+		Size:              info.Size(),
+		SizeFormatted:     sizeFormatted,
+		ConfirmationToken: token,
+		ExpiresIn:         300, // 5 minutes
+		IsLocal:           true,
+	}, nil
+}
+
+// ExecuteLocalRestore performs the actual restore operation from local file
+func (s *RestoreService) ExecuteLocalRestore(ctx context.Context, filename, confirmationToken string, userID int) (*RestoreResult, error) {
+	// Check rate limiting
+	if time.Since(s.lastRestoreTime) < s.restoreCooldown {
+		remaining := s.restoreCooldown - time.Since(s.lastRestoreTime)
+		return nil, fmt.Errorf("rate limited: please wait %v before restoring again", remaining.Round(time.Second))
+	}
+
+	// Validate token
+	s.tokenMu.Lock()
+	token, exists := s.pendingTokens[confirmationToken]
+	if exists {
+		delete(s.pendingTokens, confirmationToken)
+	}
+	s.tokenMu.Unlock()
+
+	if !exists {
+		return nil, fmt.Errorf("invalid or expired confirmation token")
+	}
+
+	if time.Now().After(token.ExpiresAt) {
+		return nil, fmt.Errorf("confirmation token has expired")
+	}
+
+	if token.SnapshotKey != filename {
+		return nil, fmt.Errorf("backup filename does not match confirmation token")
+	}
+
+	if token.UserID != userID {
+		return nil, fmt.Errorf("token was not created by this user")
+	}
+
+	if !token.IsLocal {
+		return nil, fmt.Errorf("token is for cloud restore, not local")
+	}
+
+	// Update last restore time
+	s.lastRestoreTime = time.Now()
+
+	log.Printf("[Restore] Starting local restore from %s by user %d", filename, userID)
+
+	// Step 1: Create pre-restore backup
+	preRestoreKey, err := s.createPreRestoreBackup(ctx)
+	if err != nil {
+		log.Printf("[Restore] Warning: failed to create pre-restore backup: %v", err)
+	} else {
+		log.Printf("[Restore] Created pre-restore backup: %s", preRestoreKey)
+	}
+
+	// Step 2: Verify file existence
+	filePath := filepath.Join(s.backupDir, filename)
+	cleanPath := filepath.Clean(filePath)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(s.backupDir)) {
+		return nil, fmt.Errorf("invalid file path")
+	}
+
+	if _, err := os.Stat(cleanPath); err != nil {
+		return nil, fmt.Errorf("backup file not found: %w", err)
+	}
+
+	// Step 3: Clean database (drop all tables)
+	log.Println("[Restore] Cleaning database...")
+	cleanupSQL := `
+DO $$
+DECLARE
+    r RECORD;
+BEGIN
+    SET session_replication_role = 'replica';
+    FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
+        EXECUTE 'DROP TABLE IF EXISTS public.' || quote_ident(r.tablename) || ' CASCADE';
+    END LOOP;
+    SET session_replication_role = 'origin';
+END $$;
+`
+	cleanCmd := exec.Command("psql", s.connStr, "-c", cleanupSQL)
+	cleanOutput, cleanErr := cleanCmd.CombinedOutput()
+	if cleanErr != nil {
+		log.Printf("[Restore] Warning: cleanup failed: %v - %s", cleanErr, string(cleanOutput))
+	}
+
+	// Step 4: Apply schema
+	log.Println("[Restore] Creating database schema...")
+	schemaSQL, err := migrations.FS.ReadFile("001_complete_schema.sql")
+	if err != nil {
+		log.Printf("[Restore] Warning: could not read schema file: %v", err)
+	} else {
+		schemaTmpFile := "/tmp/cold_schema.sql"
+		if err := os.WriteFile(schemaTmpFile, schemaSQL, 0644); err != nil {
+			log.Printf("[Restore] Warning: could not write schema file: %v", err)
+		} else {
+			schemaCmd := exec.Command("psql", s.connStr, "-f", schemaTmpFile)
+			schemaOutput, schemaErr := schemaCmd.CombinedOutput()
+			os.Remove(schemaTmpFile)
+			if schemaErr != nil {
+				log.Printf("[Restore] Warning: schema creation had issues: %v - %s", schemaErr, string(schemaOutput))
+			}
+		}
+	}
+
+	// Step 5: Restore data from local file
+	log.Println("[Restore] Restoring data from local backup...")
+	cmd := exec.Command("psql", s.connStr, "-f", cleanPath)
+	output, err := cmd.CombinedOutput()
+
+	if err != nil {
+		return nil, fmt.Errorf("restore failed: %w\nOutput: %s", err, string(output))
+	}
+
+	// Check for PostgreSQL errors
+	outputStr := string(output)
+	if strings.Contains(outputStr, "ERROR:") {
+		return nil, fmt.Errorf("restore completed with errors:\n%s", outputStr)
+	}
+
+	log.Printf("[Restore] Local restore completed successfully")
+
+	return &RestoreResult{
+		Success:          true,
+		RestoredAt:       time.Now(),
+		SnapshotKey:      filename,
+		PreRestoreBackup: preRestoreKey,
+		Message:          "Database restored successfully from local backup",
+	}, nil
+}
+
 // PreviewRestore generates a preview and confirmation token for restore
 func (s *RestoreService) PreviewRestore(ctx context.Context, snapshotKey string, userID int) (*RestorePreview, error) {
 	client, err := s.getS3Client(ctx)
@@ -338,6 +575,7 @@ func (s *RestoreService) PreviewRestore(ctx context.Context, snapshotKey string,
 		CreatedAt:   time.Now(),
 		ExpiresAt:   time.Now().Add(5 * time.Minute),
 		UserID:      userID,
+		IsLocal:     false,
 	}
 	s.tokenMu.Unlock()
 
@@ -358,6 +596,7 @@ func (s *RestoreService) PreviewRestore(ctx context.Context, snapshotKey string,
 		SizeFormatted:     sizeFormatted,
 		ConfirmationToken: token,
 		ExpiresIn:         300, // 5 minutes
+		IsLocal:           false,
 	}, nil
 }
 
@@ -391,6 +630,10 @@ func (s *RestoreService) ExecuteRestore(ctx context.Context, snapshotKey, confir
 
 	if token.UserID != userID {
 		return nil, fmt.Errorf("token was not created by this user")
+	}
+
+	if token.IsLocal {
+		return nil, fmt.Errorf("token is for local restore, not cloud")
 	}
 
 	// Update last restore time
@@ -506,13 +749,9 @@ END $$;
 
 // createPreRestoreBackup creates a backup of current state before restore
 func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, error) {
-	client, err := s.getS3Client(ctx)
-	if err != nil {
-		return "", err
-	}
-
 	// Create backup using pg_dump
-	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("cold_prerestore_%s.sql", time.Now().Format("20060102_150405")))
+	timestamp := time.Now().Format("20060102_150405")
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("cold_prerestore_%s.sql", timestamp))
 
 	cmd := exec.Command("pg_dump", s.connStr, "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
@@ -527,11 +766,27 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 		return "", fmt.Errorf("failed to read backup file: %w", err)
 	}
 
+	// Save to local backup directory
+	localFilename := fmt.Sprintf("cold_prerestore_%s.sql", timestamp)
+	localPath := filepath.Join(s.backupDir, localFilename)
+	if err := os.WriteFile(localPath, data, 0644); err != nil {
+		log.Printf("[Restore] Warning: failed to save local pre-restore backup: %v", err)
+	} else {
+		log.Printf("[Restore] Saved local pre-restore backup to %s", localPath)
+	}
+
 	// Upload to R2 with special prefix
+	client, err := s.getS3Client(ctx)
+	if err != nil {
+		// Log error but treat success if local saved
+		log.Printf("[Restore] Warning: failed to configure S3 for pre-restore backup: %v", err)
+		return localFilename + " (Local Only)", nil
+	}
+
 	now := time.Now()
 	key := fmt.Sprintf("pre-restore/%s/cold_prerestore_%s.sql",
 		now.Format("2006/01/02"),
-		now.Format("20060102_150405"))
+		timestamp)
 
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(config.R2BucketName),
@@ -539,7 +794,8 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 		Body:   strings.NewReader(string(data)),
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to upload pre-restore backup: %w", err)
+		log.Printf("[Restore] Warning: failed to upload pre-restore backup to R2: %v", err)
+		return localFilename + " (Local Only)", nil // Return local filename if R2 fails
 	}
 
 	return key, nil

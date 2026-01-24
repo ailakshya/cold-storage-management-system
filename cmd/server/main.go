@@ -727,7 +727,7 @@ func main() {
 		)
 
 		// Initialize point-in-time restore service and handler
-		restoreService := services.NewRestoreService(pool, connStr)
+		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir)
 		restoreHandler := handlers.NewRestoreHandler(restoreService)
 
 		// Create employee router

@@ -700,6 +700,11 @@ func NewRouter(
 		restoreAPI.HandleFunc("/closest", restoreHandler.FindClosestSnapshot).Methods("GET")
 		restoreAPI.HandleFunc("/preview", restoreHandler.PreviewRestore).Methods("POST")
 		restoreAPI.HandleFunc("/execute", restoreHandler.ExecuteRestore).Methods("POST")
+
+		// Local backup restore routes
+		restoreAPI.HandleFunc("/local", restoreHandler.ListLocalBackups).Methods("GET")
+		restoreAPI.HandleFunc("/local/preview", restoreHandler.PreviewLocalRestore).Methods("POST")
+		restoreAPI.HandleFunc("/local/execute", restoreHandler.ExecuteLocalRestore).Methods("POST")
 	}
 
 	// Protected API routes - Entry Room (optimized single-call endpoint)

@@ -163,6 +163,16 @@
             </div>
         </header>
 
+        <!-- Source Selection Tabs -->
+        <div class="flex gap-4 mb-6">
+            <button onclick="switchTab('cloud')" id="tab-cloud" class="neu-button bg-blue-500 text-white flex-1 transition-colors">
+                <i class="bi bi-cloud-arrow-down-fill mr-2"></i> Cloud Snapshots (R2)
+            </button>
+            <button onclick="switchTab('local')" id="tab-local" class="neu-button bg-gray-200 text-gray-700 flex-1 transition-colors">
+                <i class="bi bi-hdd-fill mr-2"></i> Local Backups
+            </button>
+        </div>
+
         <!-- Stats Overview -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <div class="stat-card bg-blue-100">
@@ -296,50 +306,80 @@
             window.location.href = '/login';
         }
 
+        let currentTab = 'cloud';
         let selectedDate = null;
         let selectedSnapshot = null;
         let confirmationToken = null;
+        let localBackupsCache = []; // To store local backups and grouping them client-side
 
-        async function loadDates() {
+        // Switch between Cloud and Local tabs
+        function switchTab(tab) {
+            currentTab = tab;
+            selectedDate = null;
+            selectedSnapshot = null;
+            confirmationToken = null;
+
+            // Update UI tabs
+            if (tab === 'cloud') {
+                document.getElementById('tab-cloud').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('tab-cloud').classList.add('bg-blue-500', 'text-white');
+                document.getElementById('tab-local').classList.remove('bg-blue-500', 'text-white');
+                document.getElementById('tab-local').classList.add('bg-gray-200', 'text-gray-700');
+            } else {
+                document.getElementById('tab-local').classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('tab-local').classList.add('bg-blue-500', 'text-white');
+                document.getElementById('tab-cloud').classList.remove('bg-blue-500', 'text-white');
+                document.getElementById('tab-cloud').classList.add('bg-gray-200', 'text-gray-700');
+            }
+
+            // Reset panels
+            document.getElementById('snapshotList').innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="bi bi-calendar-date text-4xl"></i>
+                    <p class="mt-2">Select a date first</p>
+                </div>
+            `;
+            document.getElementById('confirmPanel').innerHTML = `
+                <div class="text-center text-gray-500 py-8">
+                    <i class="bi bi-clock-history text-4xl"></i>
+                    <p class="mt-2">Select a snapshot to restore</p>
+                </div>
+            `;
+
+            // Load data
+            if (tab === 'cloud') {
+                loadCloudBackups();
+            } else {
+                loadLocalBackups();
+            }
+        }
+
+        // Load Cloud (R2) Backups
+        async function loadCloudBackups() {
             try {
+                const dateList = document.getElementById('dateList');
+                dateList.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="bi bi-hourglass-split text-4xl"></i>
+                        <p class="mt-2">Loading cloud backups...</p>
+                    </div>
+                `;
+
                 const response = await fetch('/api/admin/restore/snapshots', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 const data = await response.json();
 
                 if (!data.success) {
-                    throw new Error(data.error || 'Failed to load dates');
+                    throw new Error(data.error || 'Failed to load cloud backups');
                 }
 
                 document.getElementById('totalSnapshots').textContent = data.total_backups.toLocaleString();
                 document.getElementById('totalDates').textContent = data.dates.length;
 
-                const dateList = document.getElementById('dateList');
-                if (data.dates.length === 0) {
-                    dateList.innerHTML = `
-                        <div class="text-center text-gray-500 py-8">
-                            <i class="bi bi-database-x text-4xl"></i>
-                            <p class="mt-2">No backups found in R2</p>
-                        </div>
-                    `;
-                    return;
-                }
-
-                dateList.innerHTML = data.dates.map(d => `
-                    <div class="date-card" onclick="selectDate('${d.date}', this)">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <p class="font-bold">${formatDate(d.date)}</p>
-                                <p class="text-sm text-gray-500">${d.count} snapshots</p>
-                            </div>
-                            <div class="text-right text-sm text-gray-600">
-                                <p>${d.earliest_time} - ${d.latest_time}</p>
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                renderDateList(data.dates);
             } catch (error) {
-                console.error('Error loading dates:', error);
+                console.error('Error loading cloud backups:', error);
                 document.getElementById('dateList').innerHTML = `
                     <div class="text-center text-red-500 py-8">
                         <i class="bi bi-exclamation-triangle text-4xl"></i>
@@ -347,6 +387,94 @@
                     </div>
                 `;
             }
+        }
+
+        // Load Local Backups
+        async function loadLocalBackups() {
+            try {
+                const dateList = document.getElementById('dateList');
+                dateList.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="bi bi-hourglass-split text-4xl"></i>
+                        <p class="mt-2">Loading local backups...</p>
+                    </div>
+                `;
+
+                const response = await fetch('/api/admin/restore/local', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load local backups');
+                }
+
+                localBackupsCache = data.backups;
+                document.getElementById('totalSnapshots').textContent = data.count.toLocaleString();
+                
+                // Group local backups by date
+                const datesMap = {};
+                localBackupsCache.forEach(backup => {
+                    const date = backup.mod_time_str.split(' ')[0]; // Extract YYYY-MM-DD
+                    const time = backup.mod_time_str.split(' ')[1];
+                    
+                    if (!datesMap[date]) {
+                        datesMap[date] = {
+                            date: date,
+                            count: 0,
+                            times: []
+                        };
+                    }
+                    datesMap[date].count++;
+                    datesMap[date].times.push(time);
+                });
+
+                const dates = Object.values(datesMap).map(d => {
+                    d.times.sort();
+                    d.earliest_time = d.times[0];
+                    d.latest_time = d.times[d.times.length - 1];
+                    return d;
+                }).sort((a, b) => b.date.localeCompare(a.date));
+
+                document.getElementById('totalDates').textContent = dates.length;
+                renderDateList(dates);
+
+            } catch (error) {
+                console.error('Error loading local backups:', error);
+                document.getElementById('dateList').innerHTML = `
+                    <div class="text-center text-red-500 py-8">
+                        <i class="bi bi-exclamation-triangle text-4xl"></i>
+                        <p class="mt-2">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function renderDateList(dates) {
+            const dateList = document.getElementById('dateList');
+            if (dates.length === 0) {
+                dateList.innerHTML = `
+                    <div class="text-center text-gray-500 py-8">
+                        <i class="bi bi-database-x text-4xl"></i>
+                        <p class="mt-2">No backups found</p>
+                    </div>
+                `;
+                return;
+            }
+
+            dateList.innerHTML = dates.map(d => `
+                <div class="date-card" onclick="selectDate('${d.date}', this)">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="font-bold">${formatDate(d.date)}</p>
+                            <p class="text-sm text-gray-500">${d.count} snapshots</p>
+                        </div>
+                        <div class="text-right text-sm text-gray-600">
+                            <p>${d.earliest_time} - ${d.latest_time}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
         }
 
         async function selectDate(date, element) {
@@ -365,7 +493,14 @@
                 </div>
             `;
 
-            // Load snapshots for date
+            if (currentTab === 'cloud') {
+                await loadCloudSnapshotsForDate(date);
+            } else {
+                renderLocalSnapshotsForDate(date);
+            }
+        }
+
+        async function loadCloudSnapshotsForDate(date) {
             try {
                 document.getElementById('snapshotList').innerHTML = `
                     <div class="text-center text-gray-500 py-4">
@@ -383,15 +518,7 @@
                     throw new Error(data.error || 'Failed to load snapshots');
                 }
 
-                const snapshotList = document.getElementById('snapshotList');
-                snapshotList.innerHTML = data.snapshots.map(s => `
-                    <div class="snapshot-row" onclick="selectSnapshot('${s.key}', '${s.timestamp}', ${s.size}, this)">
-                        <div class="flex justify-between items-center">
-                            <span class="time-badge">${s.timestamp}</span>
-                            <span class="text-sm text-gray-600">${formatSize(s.size)}</span>
-                        </div>
-                    </div>
-                `).join('');
+                renderSnapshotsList(data.snapshots);
             } catch (error) {
                 document.getElementById('snapshotList').innerHTML = `
                     <div class="text-center text-red-500 py-4">
@@ -400,6 +527,44 @@
                     </div>
                 `;
             }
+        }
+
+        function renderLocalSnapshotsForDate(date) {
+            // Filter local backups by date
+            const snapshots = localBackupsCache
+                .filter(b => b.mod_time_str.startsWith(date))
+                .map(b => ({
+                    key: b.filename,
+                    timestamp: b.mod_time_str.split(' ')[1],
+                    size: b.size
+                }))
+                .sort((a, b) => b.timestamp.localeCompare(a.timestamp)); // Newest time first
+
+            renderSnapshotsList(snapshots);
+        }
+
+        function renderSnapshotsList(snapshots) {
+            const snapshotList = document.getElementById('snapshotList');
+            if (snapshots.length === 0) {
+                 snapshotList.innerHTML = `
+                    <div class="text-center text-gray-500 py-4">
+                        <p class="mt-2">No snapshots found for this date</p>
+                    </div>
+                `;
+                return;
+            }
+
+            snapshotList.innerHTML = snapshots.map(s => `
+                <div class="snapshot-row" onclick="selectSnapshot('${s.key}', '${s.timestamp}', ${s.size}, this)">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="time-badge">${s.timestamp}</span>
+                            ${currentTab === 'local' ? `<span class="text-xs bg-gray-200 px-2 py-1 rounded text-gray-600 truncate max-w-[150px]" title="${s.key}">${s.key}</span>` : ''}
+                        </div>
+                        <span class="text-sm text-gray-600">${formatSize(s.size)}</span>
+                    </div>
+                </div>
+            `).join('');
         }
 
         async function selectSnapshot(key, timestamp, size, element) {
@@ -413,9 +578,10 @@
             document.getElementById('confirmPanel').innerHTML = `
                 <div class="space-y-4">
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <p class="text-sm text-gray-600">Selected Restore Point</p>
+                        <p class="text-sm text-gray-600">Selected Restore Point (${currentTab === 'cloud' ? 'Cloud' : 'Local'})</p>
                         <p class="font-bold text-xl text-blue-700">${formatDate(selectedDate)} ${timestamp}</p>
                         <p class="text-sm text-gray-500 mt-1">${formatSize(size)}</p>
+                        ${currentTab === 'local' ? `<p class="text-xs text-gray-400 mt-1 truncate" title="${key}">${key}</p>` : ''}
                     </div>
                     <button onclick="previewRestore()" class="neu-button bg-orange-500 text-white w-full">
                         <i class="bi bi-eye"></i> Preview Restore
@@ -427,14 +593,22 @@
         async function previewRestore() {
             if (!selectedSnapshot) return;
 
+            const endpoint = currentTab === 'cloud' 
+                ? '/api/admin/restore/preview' 
+                : '/api/admin/restore/local/preview';
+            
+            const payload = currentTab === 'cloud'
+                ? { snapshot_key: selectedSnapshot.key }
+                : { filename: selectedSnapshot.key };
+
             try {
-                const response = await fetch('/api/admin/restore/preview', {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Authorization': 'Bearer ' + token,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({ snapshot_key: selectedSnapshot.key })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
 
@@ -466,6 +640,14 @@
         async function executeRestore() {
             if (!selectedSnapshot || !confirmationToken) return;
 
+            const endpoint = currentTab === 'cloud' 
+                ? '/api/admin/restore/execute' 
+                : '/api/admin/restore/local/execute';
+
+            const payload = currentTab === 'cloud'
+                ? { snapshot_key: selectedSnapshot.key, confirmation_token: confirmationToken }
+                : { filename: selectedSnapshot.key, confirmation_token: confirmationToken };
+
             try {
                 document.getElementById('restoreProgress').classList.remove('hidden');
                 document.getElementById('restoreBtn').disabled = true;
@@ -478,16 +660,13 @@
                     document.getElementById('progressFill').style.width = progress + '%';
                 }, 500);
 
-                const response = await fetch('/api/admin/restore/execute', {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Authorization': 'Bearer ' + token,
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        snapshot_key: selectedSnapshot.key,
-                        confirmation_token: confirmationToken
-                    })
+                    body: JSON.stringify(payload)
                 });
                 const data = await response.json();
 
@@ -501,7 +680,11 @@
                 setTimeout(() => {
                     alert('Database restored successfully!\n\nPre-restore backup: ' + data.result.pre_restore_backup);
                     closeModal();
-                    loadDates();
+                    if (currentTab === 'cloud') {
+                        loadCloudBackups();
+                    } else {
+                        loadLocalBackups();
+                    }
                 }, 500);
             } catch (error) {
                 document.getElementById('restoreProgress').classList.add('hidden');
@@ -534,8 +717,7 @@
             if (e.target === this) closeModal();
         });
 
-        // Load data on page load
-        loadDates();
-    </script>
-</body>
+        // Load data on page load (default to cloud)
+        loadCloudBackups();
+    </script></body>
 </html>
