@@ -469,6 +469,7 @@
     "customer_truck_numbers": "ग्राहक के थोक नंबर:",
     "select_valid_customer": "कृपया पहले एक वैध ग्राहक खोजें और चुनें",
     "qty_exceeds_inventory": "अनुरोधित मात्रा उपलब्ध इन्वेंट्री से अधिक है!",
+    "no_inventory": "इन्वेंट्री में कोई आइटम उपलब्ध नहीं है! गेट पास नहीं बनाया जा सकता।",
     "truck_has_only_items": "थोक {truck} में केवल {qty} आइटम हैं!",
     "insufficient_balance": "अपर्याप्त शेष!",
     "customer_needs_pay": "ग्राहक को {qty} आइटम निकालने के लिए ₹{amount} और भुगतान करना होगा",
