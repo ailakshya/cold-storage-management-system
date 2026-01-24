@@ -100,6 +100,7 @@ func (h *ItemsInStockHandler) GetSummary(w http.ResponseWriter, r *http.Request)
 }
 
 // queryItemsInStock fetches all items currently in storage
+// CRITICAL: Current quantity = room_entries.quantity - total_picked_up from gate passes
 func (h *ItemsInStockHandler) queryItemsInStock(ctx context.Context) ([]ItemInStock, error) {
 	query := `
 		SELECT 
@@ -109,7 +110,13 @@ func (h *ItemsInStockHandler) queryItemsInStock(ctx context.Context) ([]ItemInSt
 			COALESCE(e.phone, '') as phone,
 			COALESCE(e.village, '') as village,
 			COALESCE(e.family_member_name, '') as family_member_name,
-			SUM(re.quantity) as current_qty,
+			SUM(re.quantity) - COALESCE(
+				(SELECT SUM(gp.total_picked_up) 
+				 FROM gate_passes gp 
+				 WHERE gp.entry_id = e.id 
+				 AND gp.status IN ('completed', 'partially_completed', 'approved')
+				), 0
+			) as current_qty,
 			re.room_no,
 			re.floor,
 			STRING_AGG(DISTINCT re.gate_no, ', ' ORDER BY re.gate_no) as gatar_locations,
@@ -119,7 +126,13 @@ func (h *ItemsInStockHandler) queryItemsInStock(ctx context.Context) ([]ItemInSt
 		JOIN entries e ON re.entry_id = e.id
 		GROUP BY e.id, e.thock_number, e.name, e.phone, e.village, 
 		         e.family_member_name, re.room_no, re.floor, e.created_at
-		HAVING SUM(re.quantity) > 0
+		HAVING SUM(re.quantity) - COALESCE(
+			(SELECT SUM(gp.total_picked_up) 
+			 FROM gate_passes gp 
+			 WHERE gp.entry_id = e.id 
+			 AND gp.status IN ('completed', 'partially_completed', 'approved')
+			), 0
+		) > 0
 		ORDER BY re.room_no, re.floor, e.thock_number
 	`
 
