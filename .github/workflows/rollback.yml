@@ -1,59 +1,42 @@
-name: Rollback
+name: Rollback Production
 
 on:
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version to rollback to (e.g., v1.5.5) - leave empty for previous'
-        required: false
-        type: string
-      deployment:
-        description: 'Which deployment to rollback'
-        required: true
-        type: choice
-        options:
-          - both
-          - employee
-          - customer
-        default: 'both'
-
-env:
-  IMAGE_NAME: lakshyajaat/cold-backend
 
 jobs:
   rollback:
     runs-on: self-hosted
-
     steps:
-      - name: Rollback
+      - name: Rollback to Backup
         run: |
-          DEPLOYMENT="${{ inputs.deployment }}"
-          VERSION="${{ inputs.version }}"
-
-          rollback_deployment() {
-            local name=$1
-
-            if [ -z "$VERSION" ]; then
-              echo "=== Rolling back $name to previous version ==="
-              kubectl rollout undo deployment/cold-backend-$name -n default
-            else
-              echo "=== Rolling back $name to $VERSION ==="
-              kubectl set image deployment/cold-backend-$name cold-backend=${{ env.IMAGE_NAME }}:$VERSION -n default
-            fi
-          }
-
-          if [ "$DEPLOYMENT" = "both" ] || [ "$DEPLOYMENT" = "employee" ]; then
-            rollback_deployment "employee"
+          APP_DIR=~/cold-storage
+          LOG_FILE=$APP_DIR/server.log
+          
+          if [ ! -f $APP_DIR/server.bak ]; then
+            echo "❌ No backup binary found to rollback to!"
+            exit 1
           fi
-
-          if [ "$DEPLOYMENT" = "both" ] || [ "$DEPLOYMENT" = "customer" ]; then
-            rollback_deployment "customer"
-          fi
-
-          echo ""
-          echo "=== Rollback initiated (pods updating in background) ==="
-
-      - name: Verify
-        run: |
+          
+          echo "Stopping current server..."
+          pkill -f "cold-storage/server" || true
+          sleep 2
+          
+          echo "Restoring backup binary..."
+          mv $APP_DIR/server $APP_DIR/server.failed
+          mv $APP_DIR/server.bak $APP_DIR/server
+          chmod +x $APP_DIR/server
+          
+          echo "Starting restored server..."
+          cd $APP_DIR
+          nohup ./server --mode employee > $LOG_FILE 2>&1 &
+          
+          echo "Verifying rollback..."
           sleep 5
-          kubectl get pods -l app=cold-backend -n default -o custom-columns="POD:.metadata.name,IMAGE:.spec.containers[0].image,READY:.status.containerStatuses[0].ready" --no-headers
+          if pgrep -f "server --mode employee" > /dev/null; then
+            echo "✅ Rollback successful - Server running"
+            tail -n 10 $LOG_FILE
+          else
+            echo "❌ Rollback failed - Server not running"
+            tail -n 20 $LOG_FILE
+            exit 1
+          fi

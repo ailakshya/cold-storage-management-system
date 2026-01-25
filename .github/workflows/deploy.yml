@@ -1,203 +1,67 @@
-name: Deploy to K3s
+name: Deploy Production
 
 on:
   push:
     branches:
       - main
   workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version tag (e.g., v1.5.40) - leave empty for auto'
-        required: false
-        type: string
-
-env:
-  IMAGE_NAME: lakshyajaat/cold-backend
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: self-hosted
-    timeout-minutes: 15
-
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Discover K3s nodes
-        id: nodes
-        run: |
-          # Dynamically discover all K3s node IPs from Kubernetes API
-          K3S_NODES=$(kubectl get nodes -o jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{" "}{end}' | xargs)
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
 
-          if [ -z "$K3S_NODES" ]; then
-            echo "ERROR: No nodes discovered from Kubernetes!"
+      - name: Build Application
+        run: |
+          echo "Building server binary..."
+          # Build binary with optimizations
+          CGO_ENABLED=0 go build -ldflags="-w -s" -o cold-backend ./cmd/server
+
+      - name: Deploy to Server
+        run: |
+          APP_DIR=~/cold-storage
+          LOG_FILE=$APP_DIR/server.log
+          
+          echo "Preparing deployment..."
+          mkdir -p $APP_DIR
+          
+          # Backup current binary if exists
+          if [ -f $APP_DIR/server ]; then
+            echo "Backing up current binary..."
+            cp $APP_DIR/server $APP_DIR/server.bak
+          fi
+          
+          # Stop running server
+          echo "Stopping existing server..."
+          pkill -f "cold-storage/server" || true
+          sleep 2
+          
+          # Install new binary
+          echo "Installing new binary..."
+          mv cold-backend $APP_DIR/server
+          chmod +x $APP_DIR/server
+          
+          # Start server
+          echo "Starting server..."
+          cd $APP_DIR
+          nohup ./server --mode employee > $LOG_FILE 2>&1 &
+          
+          # Wait and check
+          echo "Verifying deployment..."
+          sleep 5
+          if pgrep -f "server --mode employee" > /dev/null; then
+            echo "✅ Server started successfully"
+            echo "Recent Logs:"
+            tail -n 10 $LOG_FILE
+          else
+            echo "❌ Server failed to start"
+            tail -n 20 $LOG_FILE
             exit 1
           fi
-
-          NODE_COUNT=$(echo "$K3S_NODES" | wc -w)
-          echo "nodes=$K3S_NODES" >> $GITHUB_OUTPUT
-          echo "node_count=$NODE_COUNT" >> $GITHUB_OUTPUT
-          echo "=== Discovered $NODE_COUNT nodes: $K3S_NODES ==="
-
-      - name: Generate version
-        id: version
-        run: |
-          if [ -n "${{ inputs.version }}" ]; then
-            VERSION=$(echo "${{ inputs.version }}" | xargs)
-          else
-            VERSION="v1.5.${{ github.run_number }}"
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "=== Deploying version: ${VERSION} ==="
-
-      - name: Build Go binary
-        run: |
-          export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o server ./cmd/server
-          echo "✓ Go binary built"
-
-      - name: Build Docker image
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          DOCKER_BUILDKIT=1 docker build \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            -f Dockerfile.ci \
-            -t ${{ env.IMAGE_NAME }}:${VERSION} .
-          echo "✓ Docker image built: ${VERSION}"
-
-      - name: Save and compress image
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          docker save ${{ env.IMAGE_NAME }}:${VERSION} | gzip > /tmp/cold-backend-${VERSION}.tar.gz
-          echo "✓ Image saved ($(du -h /tmp/cold-backend-${VERSION}.tar.gz | cut -f1))"
-
-      - name: Deploy to nodes with retry
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAR_FILE="/tmp/cold-backend-${VERSION}.tar.gz"
-
-          deploy_to_node() {
-            local NODE=$1
-            local MAX_RETRIES=3
-            local RETRY=0
-
-            while [ $RETRY -lt $MAX_RETRIES ]; do
-              if scp -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=10 \
-                   ${TAR_FILE} root@${NODE}:/tmp/ 2>/dev/null && \
-                 ssh -o StrictHostKeyChecking=no -o ConnectTimeout=30 -o ServerAliveInterval=10 \
-                   root@${NODE} \
-                   "gunzip -c /tmp/cold-backend-${VERSION}.tar.gz | k3s ctr -n k8s.io images import - && rm -f /tmp/cold-backend-${VERSION}.tar.gz" 2>/dev/null; then
-                echo "✓ ${NODE}: success"
-                return 0
-              fi
-              RETRY=$((RETRY + 1))
-              echo "⟳ ${NODE}: retry ${RETRY}/${MAX_RETRIES}"
-              sleep 5
-            done
-            echo "✗ ${NODE}: failed after ${MAX_RETRIES} retries"
-            return 1
-          }
-
-          echo "=== Deploying to all nodes ==="
-          K3S_NODES="${{ steps.nodes.outputs.nodes }}"
-          NODE_COUNT=${{ steps.nodes.outputs.node_count }}
-
-          FAILED=0
-          for NODE in ${K3S_NODES}; do
-            deploy_to_node ${NODE} &
-          done
-
-          # Wait for all and count failures
-          for job in $(jobs -p); do
-            wait $job || FAILED=$((FAILED + 1))
-          done
-
-          # Dynamic failure threshold: allow up to 40% of nodes to fail
-          MAX_FAILURES=$((NODE_COUNT * 40 / 100))
-          if [ $MAX_FAILURES -lt 1 ]; then
-            MAX_FAILURES=1
-          fi
-
-          if [ $FAILED -gt $MAX_FAILURES ]; then
-            echo "✗ Too many nodes failed (${FAILED}/${NODE_COUNT}). Max allowed: ${MAX_FAILURES}. Aborting."
-            exit 1
-          fi
-
-          echo "=== Nodes updated (${FAILED}/${NODE_COUNT} failed, continuing) ==="
-
-      - name: Update deployments
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
-          kubectl set image deployment/cold-backend-employee \
-            cold-backend=${{ env.IMAGE_NAME }}:${VERSION} -n default
-          kubectl set image deployment/cold-backend-customer \
-            cold-backend=${{ env.IMAGE_NAME }}:${VERSION} -n default
-
-          echo "=== Triggered rollout: ${VERSION} ==="
-
-      - name: Wait for rollout
-        run: |
-          echo "=== Waiting for deployments (up to 3 min each) ==="
-
-          # Wait for employee deployment
-          if ! kubectl rollout status deployment/cold-backend-employee -n default --timeout=180s; then
-            echo "⚠ Employee rollout timeout - checking status"
-          fi
-
-          # Wait for customer deployment
-          if ! kubectl rollout status deployment/cold-backend-customer -n default --timeout=180s; then
-            echo "⚠ Customer rollout timeout - checking status"
-          fi
-
-      - name: Health check
-        id: health
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          echo "=== Health Check ==="
-
-          # Give pods time to fully start
-          sleep 10
-
-          # Count ready pods with new version
-          READY_PODS=$(kubectl get pods -l app=cold-backend -n default \
-            -o jsonpath='{range .items[*]}{.spec.containers[0].image}{" "}{.status.containerStatuses[0].ready}{"\n"}{end}' | \
-            grep "${VERSION}" | grep -c "true" || echo "0")
-
-          TOTAL_PODS=$(kubectl get pods -l app=cold-backend -n default \
-            -o jsonpath='{.items[*].spec.containers[0].image}' | \
-            grep -o "${VERSION}" | wc -w || echo "0")
-
-          echo "Ready: ${READY_PODS}/${TOTAL_PODS} pods on ${VERSION}"
-
-          if [ "$READY_PODS" -ge 2 ]; then
-            echo "✓ Deployment healthy"
-            echo "healthy=true" >> $GITHUB_OUTPUT
-          else
-            echo "⚠ Less than 2 pods ready"
-            echo "healthy=false" >> $GITHUB_OUTPUT
-          fi
-
-          # Show final status
-          kubectl get pods -l app=cold-backend -n default \
-            -o custom-columns="POD:.metadata.name,IMAGE:.spec.containers[0].image,READY:.status.containerStatuses[0].ready" \
-            --no-headers
-
-      - name: Rollback on failure
-        if: steps.health.outputs.healthy == 'false'
-        run: |
-          echo "=== Rolling back due to unhealthy deployment ==="
-          kubectl rollout undo deployment/cold-backend-employee -n default || true
-          kubectl rollout undo deployment/cold-backend-customer -n default || true
-          echo "✓ Rollback initiated"
-          exit 1
-
-      - name: Cleanup
-        if: always()
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          rm -f /tmp/cold-backend-${VERSION}.tar.gz server 2>/dev/null || true
-          # Clean old images (keep last 5)
-          docker images ${{ env.IMAGE_NAME }} --format '{{.Tag}}' | \
-            sort -V | head -n -5 | \
-            xargs -I {} docker rmi ${{ env.IMAGE_NAME }}:{} 2>/dev/null || true
