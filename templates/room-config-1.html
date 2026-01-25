@@ -360,11 +360,11 @@
                                 <span id="pendingQtyDisplay" class="text-sm text-purple-600 font-bold hidden bg-purple-100 px-2 py-0.5 rounded">
                                     (<span id="pendingQtyValue">0</span>)
                                 </span>
-                                <div class="flex gap-1.5 ml-2">
                                     <button type="button" onclick="addWithQuality('N')" class="bg-gradient-to-br from-green-400 to-green-500 hover:from-green-500 hover:to-green-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">N</button>
                                     <button type="button" onclick="addWithQuality('U')" class="bg-gradient-to-br from-yellow-400 to-amber-500 hover:from-yellow-500 hover:to-amber-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">U</button>
                                     <button type="button" onclick="addWithQuality('D')" class="bg-gradient-to-br from-red-400 to-red-500 hover:from-red-500 hover:to-red-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">D</button>
                                     <button type="button" onclick="addWithQuality('G')" class="bg-gradient-to-br from-blue-400 to-blue-500 hover:from-blue-500 hover:to-blue-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">G</button>
+                                    <button type="button" onclick="addWithQuality('F')" class="bg-gradient-to-br from-purple-400 to-purple-500 hover:from-purple-500 hover:to-purple-600 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">F</button>
                                 </div>
                                 <!-- Next Gatar Button -->
                                 <button type="button" onclick="nextGatar()" class="ml-2 bg-gradient-to-br from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white py-1.5 px-4 text-sm font-bold rounded-lg shadow-md hover:shadow-lg transition-all">
@@ -442,6 +442,25 @@
                             >
                         </div>
 
+                        <!-- Integrated Media Upload -->
+                        <div class="mb-6 border-t pt-4">
+                            <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                                <i class="bi bi-camera shadow-sm bg-purple-100 p-1 rounded"></i> Media / Photos
+                            </label>
+                            <input type="file" id="integratedUploadFiles" multiple accept="image/*,video/*" class="w-full neu-input p-2 bg-gray-50 cursor-pointer">
+                            <p class="text-xs text-gray-500 mt-1">Files are uploaded to <span class="font-mono bg-gray-100 px-1">Room Config/Thok_{No}_{Name}</span> on submit.</p>
+                            <!-- Mini Progress -->
+                            <div id="integratedUploadProgress" class="hidden mt-2">
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span class="text-purple-700 font-bold" id="integratedUploadStatus">Uploading...</span>
+                                    <span id="integratedUploadPercent">0%</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                    <div id="integratedUploadBar" class="bg-purple-600 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="flex gap-4">
                             <button type="submit" class="neu-button bg-blue-500 text-white flex-1">
                                 <i class="bi bi-check-circle"></i> <span data-i18n="submit_room_entry">Submit Room Entry</span>
@@ -452,6 +471,8 @@
                         </div>
                     </form>
                 </div>
+
+
 
                 <!-- Recent Room Entries -->
                 <div class="neu-border bg-white p-4 md:p-6">
@@ -496,6 +517,8 @@
             document.getElementById('langSelector').value = lang;
             // Initialize gatar display in calculator
             setTimeout(() => updateGatarsInCalculator(), 100);
+
+            // Auto-fill employee name logic moved to selectEntry for Customer Name
         });
 
         // Capitalize first letter function
@@ -1327,7 +1350,8 @@
                 'N': { bg: 'bg-green-500', text: 'text-white' },
                 'U': { bg: 'bg-yellow-500', text: 'text-white' },
                 'D': { bg: 'bg-red-500', text: 'text-white' },
-                'G': { bg: 'bg-blue-500', text: 'text-white' }
+                'G': { bg: 'bg-blue-500', text: 'text-white' },
+                'F': { bg: 'bg-purple-500', text: 'text-white' }
             };
 
             container.innerHTML = qualityRemarks.map((item, index) => {
@@ -1577,6 +1601,8 @@
             // Update UI
             document.getElementById('entryId').value = entryId;
             document.getElementById('selectedThockNumber').textContent = thockNumber;
+            
+
 
             // Show entry type badge with both expected and actual if different
             const typeLabel = currentEntryType === 'seed' ? 'बीज' : 'बिक्री';
@@ -1780,6 +1806,54 @@
                 });
             });
 
+            // Integrated Media Upload
+            const fileInput = document.getElementById('integratedUploadFiles');
+            if (fileInput && fileInput.files.length > 0) {
+                 const progressDiv = document.getElementById('integratedUploadProgress');
+                 const progressBar = document.getElementById('integratedUploadBar');
+                 const statusText = document.getElementById('integratedUploadStatus');
+                 
+                 progressDiv.classList.remove('hidden');
+                 statusText.textContent = 'Uploading files...';
+                 
+                 const files = fileInput.files;
+                 const customerName = selectedEntry.name;
+                 const thokNo = selectedEntry.thockNumber;
+                 const employeeName = getUserNameFromToken();
+                 
+                 const safeCustomer = customerName.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
+                 const safeEmployee = employeeName.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
+                 const safeThok = thokNo.toString().replace(/\//g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
+                 
+                 // Upload directly to Room Config with structured filename
+                 const targetPath = `Room Config`;
+                 
+                 let uploadedCount = 0;
+                 try {
+                     for (let i = 0; i < files.length; i++) {
+                         const file = files[i];
+                         const newFileName = `Thok_${safeThok}_${safeCustomer}_By_${safeEmployee}_${file.name}`;
+                         
+                         await uploadSingleFile(file, targetPath, (pct) => {
+                              const totalPct = ((i + (pct/100)) / files.length) * 100;
+                              progressBar.style.width = `${totalPct}%`;
+                              const pctEl = document.getElementById('integratedUploadPercent');
+                              if (pctEl) pctEl.textContent = `${Math.round(totalPct)}%`;
+                         }, newFileName);
+                         uploadedCount++;
+                     }
+                     statusText.textContent = 'Upload Complete';
+                     statusText.classList.remove('text-purple-700');
+                     statusText.classList.add('text-green-600');
+                 } catch (err) {
+                     console.error(err);
+                     if (!confirm(`File upload failed after ${uploadedCount} files. Error: ${err.message}. Continue saving entry?`)) {
+                         progressDiv.classList.add('hidden');
+                         return; // Stop saving entry
+                     }
+                 }
+            }
+
             const roomEntryData = {
                 entry_id: selectedEntry.entryId,
                 thock_number: selectedEntry.thockNumber,
@@ -1938,6 +2012,70 @@
 
         function goBack() {
             window.history.back();
+        }
+
+        function getUserNameFromToken() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return 'Employee';
+                
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(window.atob(base64).split('').map(function(c) {
+                    return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+                }).join(''));
+                
+                const data = JSON.parse(jsonPayload);
+                // Adjust based on your JWT claim names
+                // Fallback to name from email if 'name' claim is missing
+                let name = data.name || data.fullname || data.sub;
+                if (!name && data.email) {
+                    name = data.email.split('@')[0];
+                }
+                return name || 'Employee';
+            } catch (e) {
+                console.error('Error decoding token:', e);
+                return 'Employee';
+            }
+        }
+
+
+
+        function uploadSingleFile(file, path, onProgress, customName = null) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                if (customName) {
+                    formData.append('file', file, customName);
+                } else {
+                    formData.append('file', file);
+                }
+                formData.append('root', 'bulk'); // Using Bulk Storage
+                formData.append('path', path);
+
+                const xhr = new XMLHttpRequest();
+                
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        onProgress(percent);
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status === 200) {
+                        resolve();
+                    } else {
+                        reject(new Error(xhr.statusText));
+                    }
+                });
+
+                xhr.addEventListener('error', () => reject(new Error('Network Error')));
+                
+                xhr.open('POST', '/api/files/upload');
+                // Assuming token is globally available (it is in line 519)
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.send(formData);
+            });
         }
     </script>
 
