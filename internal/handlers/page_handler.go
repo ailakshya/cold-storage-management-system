@@ -236,3 +236,8 @@ func (h *PageHandler) ItemsInStockPage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Expires", "0")
 	h.templates.ExecuteTemplate(w, "items_in_stock.html", nil)
 }
+
+// AdminFileManagerPage serves the storage file manager
+func (h *PageHandler) AdminFileManagerPage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "admin_file_manager.html", nil)
+}
