@@ -60,7 +60,8 @@ jobs:
           # Start server
           echo "Starting server..."
           cd $APP_DIR
-          nohup ./server --mode employee > $LOG_FILE 2>&1 &
+          # Explicitly source .env to ensure environment variables are loaded
+          nohup sh -c 'set -a; [ -f .env ] && source .env; set +a; ./server --mode employee' > $LOG_FILE 2>&1 &
           
           # Wait and check
           echo "Verifying deployment..."
