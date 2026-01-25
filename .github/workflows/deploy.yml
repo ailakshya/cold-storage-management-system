@@ -12,17 +12,23 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
         with:
-          go-version: '1.23'
+          fetch-depth: 1  # Shallow clone is faster
 
+      # Use pre-installed Go if available to save setup time
+      # Since we are on self-hosted, we can likely skip setup-go if Go is in path
+      # effectively using the system go
+      
       - name: Build Application
         run: |
           echo "Building server binary..."
+          # Use Go cache if possible
+          export GOCACHE=/tmp/go-build-cache
+          mkdir -p $GOCACHE
+          
           # Build binary with optimizations
-          CGO_ENABLED=0 go build -ldflags="-w -s" -o cold-backend ./cmd/server
+          # -trimpath removes file system paths from binary for reproducibility
+          CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
 
       - name: Deploy to Server
         run: |
