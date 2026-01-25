@@ -47,31 +47,28 @@ jobs:
             cp $APP_DIR/server $APP_DIR/server.bak
           fi
           
-          # Stop running server
-          echo "Stopping existing server..."
-          pkill -f "cold-storage/server" || true
-          sleep 2
-          
           # Install new binary
           echo "Installing new binary..."
           mv cold-backend $APP_DIR/server
           chmod +x $APP_DIR/server
           
-          # Start server
-          echo "Starting server..."
-          cd $APP_DIR
-          # Explicitly source .env to ensure environment variables are loaded
-          nohup sh -c 'set -a; [ -f .env ] && source .env; set +a; ./server --mode employee' > $LOG_FILE 2>&1 &
+          # Restart services using systemd
+          echo "Restarting services..."
+          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer
           
           # Wait and check
           echo "Verifying deployment..."
           sleep 5
-          if pgrep -f "server --mode employee" > /dev/null; then
-            echo "✅ Server started successfully"
-            echo "Recent Logs:"
-            tail -n 10 $LOG_FILE
+          
+          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer; then
+            echo "✅ Services started successfully"
+            echo "Employee Service Status:"
+            systemctl status cold-employee --no-pager
+            echo "Customer Service Status:"
+            systemctl status cold-customer --no-pager
           else
-            echo "❌ Server failed to start"
-            tail -n 20 $LOG_FILE
+            echo "❌ Services failed to start"
+            journalctl -u cold-employee -n 20 --no-pager
+            journalctl -u cold-customer -n 20 --no-pager
             exit 1
           fi

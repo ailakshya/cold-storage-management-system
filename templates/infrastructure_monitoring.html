@@ -190,7 +190,7 @@
         async function fetchStatus() {
             try {
                 // Fetch stats from our new API endpoint
-                const response = await fetch('/api/stats', {
+                const response = await fetch('/api/monitoring/dashboard', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 

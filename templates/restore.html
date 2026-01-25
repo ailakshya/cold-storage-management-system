@@ -414,6 +414,8 @@
                 
                 // Group local backups by date
                 const datesMap = {};
+                if (!localBackupsCache) localBackupsCache = [];
+                
                 localBackupsCache.forEach(backup => {
                     const date = backup.mod_time_str.split(' ')[0]; // Extract YYYY-MM-DD
                     const time = backup.mod_time_str.split(' ')[1];

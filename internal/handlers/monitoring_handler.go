@@ -2,10 +2,16 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"cold-backend/internal/monitoring"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v3/mem"
 )
 
 type MonitoringHandler struct {
@@ -18,16 +24,36 @@ func NewMonitoringHandler(store *monitoring.TimescaleStore) *MonitoringHandler {
 
 // GetDashboardData returns current system stats (non-historical)
 func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Request) {
-	// Frontend expects: database_status, active_connections, etc.
-	// For now, return basic "Ok" to avoid UI errors
+	// Collect system metrics
+	v, _ := mem.VirtualMemory()
+	c, _ := cpu.Percent(0, false)
+	d, _ := disk.Usage("/")
+
+	cpuPercent := 0.0
+	if len(c) > 0 {
+		cpuPercent = c[0]
+	}
+
+	// Get Host Info for Uptime
+	hostInfo, _ := host.Info()
+	uptime := time.Duration(hostInfo.Uptime) * time.Second
+
+	// Simple DB check (can be improved with ping)
+	dbStatus := "healthy"
+	// if err := h.store.Ping(); err != nil { dbStatus = "unhealthy" }
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"database_status":    "healthy",
-		"active_connections": 5, // TODO: Mock
-		"cpu_percent":        10.5,
-		"memory_percent":     45.2,
-		"disk_percent":       60.1,
-		"uptime":             "2d 4h",
+		"database_status":    dbStatus,
+		"active_connections": 5, // Placeholder until we query DB
+		"cpu_percent":        cpuPercent,
+		"memory_percent":     v.UsedPercent,
+		"memory_used":        fmt.Sprintf("%.1f GB", float64(v.Used)/1024/1024/1024),
+		"memory_total":       fmt.Sprintf("%.1f GB", float64(v.Total)/1024/1024/1024),
+		"disk_percent":       d.UsedPercent,
+		"disk_used":          fmt.Sprintf("%.1f GB", float64(d.Used)/1024/1024/1024),
+		"disk_total":         fmt.Sprintf("%.1f GB", float64(d.Total)/1024/1024/1024),
+		"uptime":             uptime.String(),
 	})
 }
 

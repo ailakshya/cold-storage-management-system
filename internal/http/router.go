@@ -564,7 +564,7 @@ func NewRouter(
 	if monitoringHandler != nil {
 		monitoringAPI := r.PathPrefix("/api/monitoring").Subrouter()
 		monitoringAPI.Use(authMiddleware.Authenticate)
-		monitoringAPI.Use(authMiddleware.RequireRole("admin"))
+		monitoringAPI.Use(authMiddleware.RequireRole("admin", "employee"))
 
 		// Dashboard overview
 		monitoringAPI.HandleFunc("/dashboard", monitoringHandler.GetDashboardData).Methods("GET")

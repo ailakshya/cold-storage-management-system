@@ -138,7 +138,9 @@ func (ms *MonitoringServer) Start() {
 
 	addr := fmt.Sprintf(":%d", ms.port)
 	log.Printf("Monitoring dashboard running on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	if err := http.ListenAndServe(addr, r); err != nil {
+		log.Printf("Monitoring dashboard server failed: %v", err)
+	}
 }
 
 func (ms *MonitoringServer) dashboardPage(w http.ResponseWriter, r *http.Request) {

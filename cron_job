@@ -1,0 +1,1 @@
+0 3 * * * cold echo "Lak992723/" | sudo -S systemctl restart cold-employee cold-customer
