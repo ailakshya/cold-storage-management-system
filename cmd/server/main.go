@@ -619,41 +619,37 @@ func main() {
 		seasonRequestRepo := repositories.NewSeasonRequestRepository(pool)
 
 		// Initialize TimescaleDB connection for metrics (optional - degrades gracefully)
-		var metricsRepo *repositories.MetricsRepository
+		var timescaleStore *monitoring.TimescaleStore
 		var apiLoggingMiddleware *middleware.APILoggingMiddleware
-		var metricsCollector *services.MetricsCollector
+		var monitoringService *monitoring.MonitoringService
 
 		tsdbPool := connectTimescaleDB()
 		if tsdbPool != nil {
 			defer tsdbPool.Close()
 			log.Println("[Monitoring] Initializing TimescaleDB monitoring components...")
 
-			// Initialize metrics repository
-			metricsRepo = repositories.NewMetricsRepository(tsdbPool)
+			// Initialize Timescale metrics store
+			timescaleStore = monitoring.NewTimescaleStore(tsdbPool)
+
+			// Start system metrics collection service
+			monitoringService = monitoring.NewMonitoringService(timescaleStore)
+			monitoringService.StartCollection()
 
 			// Initialize API logging middleware
-			apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(metricsRepo)
-
-			// MetricsCollector DISABLED - causes goroutine leak
-			// Use external Prometheus + Grafana for infrastructure monitoring instead
-			// metricsCollector = services.NewMetricsCollector(metricsRepo)
-			// metricsCollector.Start()
-			// defer metricsCollector.Stop()
-			_ = metricsCollector // Silence unused variable warning
+			apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(timescaleStore)
 
 			log.Println("[Monitoring] TimescaleDB monitoring components initialized")
 		} else {
 			log.Println("[Monitoring] TimescaleDB not available, time-series metrics disabled")
 		}
 
-		// Always initialize monitoring handler (R2 backup/restore works without TimescaleDB)
-		monitoringHandler := handlers.NewMonitoringHandler(metricsRepo)
+		// Always initialize monitoring handler (works partially without TimescaleDB)
+		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore)
+		// R2 backup scheduler is now handled by the RestoreService or manual triggers
+		// handlers.StartR2BackupScheduler(pool)
+		// defer handlers.StopR2BackupScheduler()
 
-		// Start R2 automatic backup scheduler (for near-zero data loss)
-		handlers.StartR2BackupScheduler(pool)
-		defer handlers.StopR2BackupScheduler()
-
-		log.Println("[Monitoring] Core monitoring features enabled (R2 backups active)")
+		log.Println("[Monitoring] Core monitoring features enabled")
 
 		// Initialize season service and handler (needs tsdbPool for archiving timeseries data)
 		seasonService := services.NewSeasonService(seasonRequestRepo, userRepo, pool, tsdbPool, jwtManager)

@@ -7,6 +7,7 @@ import (
 	"html/template"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -19,13 +20,13 @@ import (
 )
 
 type MonitoringServer struct {
-	db        *pgxpool.Pool
-	port      int
-	alerts    []Alert
-	alertsMux sync.RWMutex
-	clients   map[*websocket.Conn]bool
+	db         *pgxpool.Pool
+	port       int
+	alerts     []Alert
+	alertsMux  sync.RWMutex
+	clients    map[*websocket.Conn]bool
 	clientsMux sync.Mutex
-	broadcast chan Alert
+	broadcast  chan Alert
 }
 
 type Alert struct {
@@ -38,42 +39,42 @@ type Alert struct {
 }
 
 type DashboardStats struct {
-	DatabaseStatus    string      `json:"database_status"`
-	ActiveConnections int         `json:"active_connections"`
-	ResponseTime      int64       `json:"response_time_ms"`
-	ActiveAlerts      int         `json:"active_alerts"`
-	RequestRate       int         `json:"request_rate"`
-	CPUPercent        float64     `json:"cpu_percent"`
-	MemoryPercent     float64     `json:"memory_percent"`
-	DiskPercent       float64     `json:"disk_percent"`
-	TotalRequests     int64       `json:"total_requests"`
-	SuccessRate       float64     `json:"success_rate"`
-	AvgResponse       int64       `json:"avg_response"`
-	ErrorRate         int         `json:"error_rate"`
-	QueriesPerSec     int         `json:"queries_per_sec"`
-	DBSize            string      `json:"db_size"`
-	Uptime            string      `json:"uptime"`
-	MemoryUsed        string      `json:"memory_used"`
-	MemoryTotal       string      `json:"memory_total"`
-	DiskUsed          string      `json:"disk_used"`
-	DiskTotal         string      `json:"disk_total"`
-	Nodes             []NodeStats `json:"nodes"`
+	DatabaseStatus    string       `json:"database_status"`
+	ActiveConnections int          `json:"active_connections"`
+	ResponseTime      int64        `json:"response_time_ms"`
+	ActiveAlerts      int          `json:"active_alerts"`
+	RequestRate       int          `json:"request_rate"`
+	CPUPercent        float64      `json:"cpu_percent"`
+	MemoryPercent     float64      `json:"memory_percent"`
+	DiskPercent       float64      `json:"disk_percent"`
+	TotalRequests     int64        `json:"total_requests"`
+	SuccessRate       float64      `json:"success_rate"`
+	AvgResponse       int64        `json:"avg_response"`
+	ErrorRate         int          `json:"error_rate"`
+	QueriesPerSec     int          `json:"queries_per_sec"`
+	DBSize            string       `json:"db_size"`
+	Uptime            string       `json:"uptime"`
+	MemoryUsed        string       `json:"memory_used"`
+	MemoryTotal       string       `json:"memory_total"`
+	DiskUsed          string       `json:"disk_used"`
+	DiskTotal         string       `json:"disk_total"`
+	Nodes             []NodeStats  `json:"nodes"`
 	ClusterTotals     ClusterStats `json:"cluster_totals"`
 	DatabasePods      []DBPodStats `json:"database_pods"`
 }
 
 type NodeStats struct {
-	Name         string  `json:"name"`
-	Role         string  `json:"role"`
-	Status       string  `json:"status"`
-	CPUPercent   float64 `json:"cpu_percent"`
-	MemoryUsed   string  `json:"memory_used"`
-	MemoryTotal  string  `json:"memory_total"`
+	Name          string  `json:"name"`
+	Role          string  `json:"role"`
+	Status        string  `json:"status"`
+	CPUPercent    float64 `json:"cpu_percent"`
+	MemoryUsed    string  `json:"memory_used"`
+	MemoryTotal   string  `json:"memory_total"`
 	MemoryPercent float64 `json:"memory_percent"`
-	DiskUsed     string  `json:"disk_used"`
-	DiskTotal    string  `json:"disk_total"`
-	DiskPercent  float64 `json:"disk_percent"`
-	PodsRunning  int     `json:"pods_running"`
+	DiskUsed      string  `json:"disk_used"`
+	DiskTotal     string  `json:"disk_total"`
+	DiskPercent   float64 `json:"disk_percent"`
+	PodsRunning   int     `json:"pods_running"`
 }
 
 type ClusterStats struct {
@@ -88,13 +89,13 @@ type ClusterStats struct {
 }
 
 type DBPodStats struct {
-	Name         string `json:"name"`
-	Role         string `json:"role"`
-	Status       string `json:"status"`
-	Node         string `json:"node"`
-	DiskUsed     string `json:"disk_used"`
-	DiskTotal    string `json:"disk_total"`
-	Connections  int    `json:"connections"`
+	Name           string `json:"name"`
+	Role           string `json:"role"`
+	Status         string `json:"status"`
+	Node           string `json:"node"`
+	DiskUsed       string `json:"disk_used"`
+	DiskTotal      string `json:"disk_total"`
+	Connections    int    `json:"connections"`
 	ReplicationLag string `json:"replication_lag"`
 }
 
@@ -251,108 +252,94 @@ func formatBytes(bytes uint64) string {
 }
 
 func (ms *MonitoringServer) collectNodeMetrics() []NodeStats {
-	// Hardcoded node list for K3s cluster
-	// In production, this would query kubectl or K8s API
-	nodes := []NodeStats{
-		{Name: "k3s-node1", Role: "Control Plane", Status: "Ready", PodsRunning: 0},
-		{Name: "k3s-node2", Role: "Control Plane", Status: "Ready", PodsRunning: 0},
-		{Name: "k3s-node3", Role: "Control Plane", Status: "Ready", PodsRunning: 0},
-		{Name: "k3s-node4", Role: "Worker", Status: "Ready", PodsRunning: 0},
-		{Name: "k3s-node5", Role: "Worker", Status: "Ready", PodsRunning: 0},
+	// Single-node production setup
+	// Query system metrics for the current node
+	cpuPercents, _ := cpu.Percent(time.Second, false)
+	cpuPercent := 0.0
+	if len(cpuPercents) > 0 {
+		cpuPercent = cpuPercents[0]
 	}
 
-	// For now, use current pod metrics as estimates
-	// In production, query each node via K8s metrics API
 	memStats, _ := mem.VirtualMemory()
 	diskStats, _ := disk.Usage("/")
 
-	for i := range nodes {
-		nodes[i].CPUPercent = 2.0 + float64(i)*0.5
-		nodes[i].MemoryUsed = formatBytes(memStats.Used)
-		nodes[i].MemoryTotal = formatBytes(memStats.Total)
-		nodes[i].MemoryPercent = memStats.UsedPercent
-		nodes[i].DiskUsed = formatBytes(diskStats.Used)
-		nodes[i].DiskTotal = formatBytes(diskStats.Total)
-		nodes[i].DiskPercent = diskStats.UsedPercent
-		nodes[i].PodsRunning = 3 + i
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = "cold-production"
+	}
+
+	nodes := []NodeStats{
+		{
+			Name:          hostname,
+			Role:          "Production Server",
+			Status:        "Ready",
+			CPUPercent:    cpuPercent,
+			MemoryUsed:    formatBytes(memStats.Used),
+			MemoryTotal:   formatBytes(memStats.Total),
+			MemoryPercent: memStats.UsedPercent,
+			DiskUsed:      formatBytes(diskStats.Used),
+			DiskTotal:     formatBytes(diskStats.Total),
+			DiskPercent:   diskStats.UsedPercent,
+			PodsRunning:   4, // Approximate: Employee, Customer, Cloudflared pods
+		},
 	}
 
 	return nodes
 }
 
 func (ms *MonitoringServer) calculateClusterTotals(nodes []NodeStats) ClusterStats {
-	totalCPU := 0.0
-	for _, node := range nodes {
-		totalCPU += node.CPUPercent
+	if len(nodes) == 0 {
+		return ClusterStats{}
+	}
+
+	// For single node, use the node's actual metrics
+	node := nodes[0]
+
+	// Get CPU count
+	cpuCounts, _ := cpu.Counts(true)
+	if cpuCounts == 0 {
+		cpuCounts = 1
 	}
 
 	return ClusterStats{
-		TotalNodes:    len(nodes),
-		TotalCPUs:     60, // 5 nodes × ~12 CPUs average
-		AvgCPUPercent: totalCPU / float64(len(nodes)),
-		TotalMemory:   "40 GB",
-		UsedMemory:    "8.3 GB",
-		TotalDisk:     "420 GB",
-		UsedDisk:      "36 GB",
-		TotalPods:     20,
+		TotalNodes:    1,
+		TotalCPUs:     cpuCounts,
+		AvgCPUPercent: node.CPUPercent,
+		TotalMemory:   node.MemoryTotal,
+		UsedMemory:    node.MemoryUsed,
+		TotalDisk:     node.DiskTotal,
+		UsedDisk:      node.DiskUsed,
+		TotalPods:     node.PodsRunning,
 	}
 }
 
 func (ms *MonitoringServer) collectDatabasePods(ctx context.Context) []DBPodStats {
+	// Query actual database stats for single-node setup
+	var connections int
+	ms.db.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity").Scan(&connections)
+
+	var dbSizeBytes int64
+	ms.db.QueryRow(ctx, "SELECT pg_database_size(current_database())").Scan(&dbSizeBytes)
+
+	hostname, _ := os.Hostname()
+	if hostname == "" {
+		hostname = "cold-production"
+	}
+
+	// Single PostgreSQL instance running on host machine
 	pods := []DBPodStats{
 		{
-			Name:   "cold-postgres-1",
-			Role:   "Primary",
-			Status: "Running",
-			Node:   "k3s-node1",
-			DiskUsed: "4.2 GB",
-			DiskTotal: "20 GB",
-			Connections: 0,
-		},
-		{
-			Name:   "cold-postgres-2",
-			Role:   "Replica",
-			Status: "Running",
-			Node:   "k3s-node2",
-			DiskUsed: "4.2 GB",
-			DiskTotal: "20 GB",
-			Connections: 0,
-			ReplicationLag: "0ms",
-		},
-		{
-			Name:   "cold-postgres-3",
-			Role:   "Replica",
-			Status: "Running",
-			Node:   "k3s-node3",
-			DiskUsed: "4.2 GB",
-			DiskTotal: "20 GB",
-			Connections: 0,
-			ReplicationLag: "0ms",
-		},
-		{
-			Name:   "cold-postgres-4",
-			Role:   "Replica",
-			Status: "Running",
-			Node:   "k3s-node4",
-			DiskUsed: "4.2 GB",
-			DiskTotal: "20 GB",
-			Connections: 0,
-			ReplicationLag: "0ms",
-		},
-		{
-			Name:   "cold-postgres-5",
-			Role:   "Replica",
-			Status: "Running",
-			Node:   "k3s-node5",
-			DiskUsed: "4.2 GB",
-			DiskTotal: "20 GB",
-			Connections: 0,
-			ReplicationLag: "0ms",
+			Name:           "PostgreSQL-14 (Host)",
+			Role:           "Primary",
+			Status:         "Running",
+			Node:           hostname,
+			DiskUsed:       formatBytes(uint64(dbSizeBytes)),
+			DiskTotal:      "100 GB", // Estimate based on disk allocation
+			Connections:    connections,
+			ReplicationLag: "N/A (Single Node)",
 		},
 	}
 
-	// Query actual connections per pod would require connecting to each pod
-	// For now, return static data
 	return pods
 }
 

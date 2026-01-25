@@ -23,36 +23,36 @@ data:
       originServerName: ""
 
     ingress:
-      # Development - Employee Portal (HTTPS enforced)
-      - hostname: app.ailakshya.in
-        service: http://cold-backend-employee:8080
-        originRequest:
-          noTLSVerify: false
-          httpHostHeader: app.ailakshya.in
-          connectTimeout: 30s
-
-      # Development - Customer Portal Test (HTTPS enforced)
-      - hostname: customer.ailakshya.in
-        service: http://cold-backend-customer:8081
-        originRequest:
-          noTLSVerify: false
-          httpHostHeader: customer.ailakshya.in
-          connectTimeout: 30s
-
-      # Production - Customer Portal (HTTPS enforced)
+      # Portfolio Website (Served by Main App)
       - hostname: gurukripacoldstore.in
-        service: http://cold-backend-customer:8081
+        service: http://cold-backend-employee:8080
         originRequest:
           noTLSVerify: false
           httpHostHeader: gurukripacoldstore.in
           connectTimeout: 30s
 
-      # Production - www subdomain (HTTPS enforced)
-      - hostname: www.gurukripacoldstore.in
+      # Production - Customer Portal (HTTPS enforced)
+      - hostname: customer.gurukripacoldstore.in
         service: http://cold-backend-customer:8081
         originRequest:
           noTLSVerify: false
-          httpHostHeader: www.gurukripacoldstore.in
+          httpHostHeader: customer.gurukripacoldstore.in
+          connectTimeout: 30s
+
+      # Production - Employee Portal (with www)
+      - hostname: www.app.gurukripacoldstore.in
+        service: http://cold-backend-employee:8080
+        originRequest:
+          noTLSVerify: false
+          httpHostHeader: www.app.gurukripacoldstore.in
+          connectTimeout: 30s
+
+      # Production - Employee Portal (without www)
+      - hostname: app.gurukripacoldstore.in
+        service: http://cold-backend-employee:8080
+        originRequest:
+          noTLSVerify: false
+          httpHostHeader: app.gurukripacoldstore.in
           connectTimeout: 30s
 
       # Catch-all (required)

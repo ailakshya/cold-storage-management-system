@@ -161,6 +161,11 @@ func (h *PageHandler) InfrastructureMonitoringPage(w http.ResponseWriter, r *htt
 	h.templates.ExecuteTemplate(w, "infrastructure_monitoring.html", nil)
 }
 
+// MonitoringRewritePage serves the new deep analytics page
+func (h *PageHandler) MonitoringRewritePage(w http.ResponseWriter, r *http.Request) {
+	h.templates.ExecuteTemplate(w, "monitoring_rewrite.html", nil)
+}
+
 // NodeProvisioningPage serves the node provisioning and cluster management page
 func (h *PageHandler) NodeProvisioningPage(w http.ResponseWriter, r *http.Request) {
 	h.templates.ExecuteTemplate(w, "node_provisioning.html", nil)

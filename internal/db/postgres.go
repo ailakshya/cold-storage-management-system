@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"cold-backend/internal/config"
@@ -28,12 +29,12 @@ func Connect(cfg *config.Config) *pgxpool.Pool {
 	}
 
 	// Configure pool settings for production workload
-	poolConfig.MaxConns = 25                          // Maximum connections in pool
-	poolConfig.MinConns = 5                           // Keep warm connections ready
-	poolConfig.MaxConnLifetime = time.Hour            // Recycle connections hourly
-	poolConfig.MaxConnIdleTime = 30 * time.Minute     // Close idle connections after 30min
-	poolConfig.HealthCheckPeriod = time.Minute        // Check connection health every minute
-	poolConfig.ConnConfig.ConnectTimeout = 5 * time.Second  // Fast timeout for new connections
+	poolConfig.MaxConns = 25                               // Maximum connections in pool
+	poolConfig.MinConns = 5                                // Keep warm connections ready
+	poolConfig.MaxConnLifetime = time.Hour                 // Recycle connections hourly
+	poolConfig.MaxConnIdleTime = 30 * time.Minute          // Close idle connections after 30min
+	poolConfig.HealthCheckPeriod = time.Minute             // Check connection health every minute
+	poolConfig.ConnConfig.ConnectTimeout = 5 * time.Second // Fast timeout for new connections
 
 	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
 	if err != nil {
@@ -256,8 +257,35 @@ func TryConnectWithFallback() (*pgxpool.Pool, string, string, bool) {
 	// Track which databases failed - used to determine if this is a disaster recovery scenario
 	var vipFailed, backupServerFailed bool
 
+	// Build list of candidates, prioritizing Config/Env
+	candidates := make([]config.DatabaseConfig, len(config.DatabaseFallbacks))
+	copy(candidates, config.DatabaseFallbacks)
+
+	// Prepend Config Host if set (e.g. from K8s env)
+	if envHost := os.Getenv("DB_HOST"); envHost != "" {
+		port := 5432
+		if p := os.Getenv("DB_PORT"); p != "" {
+			fmt.Sscanf(p, "%d", &port)
+		}
+		candidates = append([]config.DatabaseConfig{{
+			Name:     "Env Config (Primary)",
+			Host:     envHost,
+			Port:     port,
+			User:     os.Getenv("DB_USER"),
+			Password: os.Getenv("DB_PASSWORD"),
+			Database: os.Getenv("DB_NAME"),
+		}}, candidates...)
+	}
+
 	// Try each fallback database
-	for i, dbConfig := range config.DatabaseFallbacks {
+	for i, dbConfig := range candidates {
+		if dbConfig.User == "" {
+			dbConfig.User = "postgres"
+		} // Default
+		if dbConfig.Database == "" {
+			dbConfig.Database = "cold_db"
+		}
+
 		if dbConfig.UsePeer {
 			log.Printf("[DB] Trying to connect to %s (Unix socket)...", dbConfig.Name)
 		} else {
@@ -268,6 +296,9 @@ func TryConnectWithFallback() (*pgxpool.Pool, string, string, bool) {
 		passwords := config.CommonPasswords
 		if dbConfig.UsePeer {
 			passwords = []string{""}
+		} else if dbConfig.Password != "" {
+			// If password is explicitly set in config, only try that
+			passwords = []string{dbConfig.Password}
 		}
 
 		// Try each password for this host

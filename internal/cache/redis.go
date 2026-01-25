@@ -31,6 +31,14 @@ func Init() error {
 	hosts := []string{}
 
 	// 1. Check environment variable first
+	if envHost := os.Getenv("REDIS_HOST"); envHost != "" {
+		port := os.Getenv("REDIS_PORT")
+		if port == "" {
+			port = "6379"
+		}
+		hosts = append(hosts, envHost+":"+port)
+	}
+
 	if envHost := os.Getenv("REDIS_SERVICE_HOST"); envHost != "" {
 		port := os.Getenv("REDIS_SERVICE_PORT")
 		if port == "" {
@@ -41,12 +49,11 @@ func Init() error {
 
 	// 2. Add known Redis locations
 	hosts = append(hosts,
-		"redis:6379",           // K8s service name
-		"192.168.15.210:6379",  // VIP-DB (production)
-		"192.168.15.120:6379",  // DB node 1
-		"192.168.15.121:6379",  // DB node 2
-		"192.168.15.122:6379",  // DB node 3
-		"localhost:6379",       // Local Redis
+		"redis:6379",          // K8s service name
+		"192.168.15.131:6379", // Single Node Production IP
+		"192.168.15.210:6379", // VIP-DB (Previous Production)
+		"127.0.0.1:6379",      // Localhost IPv4
+		"localhost:6379",      // Local Redis
 	)
 
 	password := os.Getenv("REDIS_PASSWORD")

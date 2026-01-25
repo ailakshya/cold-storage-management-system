@@ -1,0 +1,133 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cold-backend-employee
+  labels:
+    app: cold-backend-employee
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cold-backend-employee
+  template:
+    metadata:
+      labels:
+        app: cold-backend-employee
+    spec:
+      containers:
+      - name: cold-backend
+        image: cold-backend:latest
+        imagePullPolicy: Never
+        args: ["--mode", "employee", "--port", "8080"]
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DB_HOST
+          value: "192.168.15.131"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "Lak992723/"
+        - name: DB_NAME
+          value: "cold_db"
+        - name: REDIS_HOST
+          value: "192.168.15.131"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_DISABLED
+          value: "false"
+        - name: SERVER_CORS_ALLOWED_ORIGINS
+          value: "https://app.gurukripacoldstore.in https://www.app.gurukripacoldstore.in"
+        volumeMounts:
+        - name: mass-pool
+          mountPath: /mass-pool
+        - name: fast-pool
+          mountPath: /fast-pool
+      volumes:
+      - name: mass-pool
+        hostPath:
+          path: /mass-pool
+      - name: fast-pool
+        hostPath:
+          path: /fast-pool
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cold-backend-employee
+spec:
+  type: ClusterIP
+  selector:
+    app: cold-backend-employee
+  ports:
+  - port: 8080
+    targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cold-backend-customer
+  labels:
+    app: cold-backend-customer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cold-backend-customer
+  template:
+    metadata:
+      labels:
+        app: cold-backend-customer
+    spec:
+      containers:
+      - name: cold-backend
+        image: cold-backend:latest
+        imagePullPolicy: Never
+        args: ["--mode", "customer", "--port", "8081"]
+        ports:
+        - containerPort: 8081
+        env:
+        - name: DB_HOST
+          value: "192.168.15.131"
+        - name: DB_PORT
+          value: "5432"
+        - name: DB_USER
+          value: "postgres"
+        - name: DB_PASSWORD
+          value: "Lak992723/"
+        - name: DB_NAME
+          value: "cold_db"
+        - name: REDIS_HOST
+          value: "192.168.15.131"
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_DISABLED
+          value: "false"
+        - name: SERVER_CORS_ALLOWED_ORIGINS
+          value: "https://customer.gurukripacoldstore.in"
+        volumeMounts:
+        - name: mass-pool
+          mountPath: /mass-pool
+        - name: fast-pool
+          mountPath: /fast-pool
+      volumes:
+      - name: mass-pool
+        hostPath:
+          path: /mass-pool
+      - name: fast-pool
+        hostPath:
+          path: /fast-pool
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cold-backend-customer
+spec:
+  type: ClusterIP
+  selector:
+    app: cold-backend-customer
+  ports:
+  - port: 8081
+    targetPort: 8081

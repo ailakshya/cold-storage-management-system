@@ -33,19 +33,23 @@ func NewAuthMiddleware(jwtManager *auth.JWTManager, userRepo *repositories.UserR
 func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
+		var token string
+
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
+		}
+
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+
+		if token == "" {
 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
 			return
 		}
-
-		// Extract token from "Bearer <token>"
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
-			return
-		}
-
-		token := parts[1]
 		claims, err := m.jwtManager.ValidateToken(token)
 		if err != nil {
 			http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
@@ -99,8 +103,21 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// First authenticate
+			var token string
 			authHeader := r.Header.Get("Authorization")
-			if authHeader == "" {
+
+			if authHeader != "" {
+				parts := strings.Split(authHeader, " ")
+				if len(parts) == 2 && parts[0] == "Bearer" {
+					token = parts[1]
+				}
+			}
+
+			if token == "" {
+				token = r.URL.Query().Get("token")
+			}
+
+			if token == "" {
 				// For HTML pages, redirect to login
 				if strings.Contains(r.Header.Get("Accept"), "text/html") {
 					http.Redirect(w, r, "/login", http.StatusFound)
@@ -109,19 +126,6 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) 
 				http.Error(w, "Authorization header required", http.StatusUnauthorized)
 				return
 			}
-
-			// Extract token from "Bearer <token>"
-			parts := strings.Split(authHeader, " ")
-			if len(parts) != 2 || parts[0] != "Bearer" {
-				if strings.Contains(r.Header.Get("Accept"), "text/html") {
-					http.Redirect(w, r, "/login", http.StatusFound)
-					return
-				}
-				http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
-				return
-			}
-
-			token := parts[1]
 			claims, err := m.jwtManager.ValidateToken(token)
 			if err != nil {
 				if strings.Contains(r.Header.Get("Accept"), "text/html") {

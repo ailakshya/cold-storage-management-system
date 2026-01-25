@@ -1,23 +1,17 @@
 package middleware
 
 import (
-	"bytes"
-	"context"
-	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
-	"cold-backend/internal/models"
-	"cold-backend/internal/repositories"
+	"cold-backend/internal/monitoring"
 	"cold-backend/internal/timeutil"
 )
 
 // APILoggingMiddleware logs API requests to TimescaleDB
 type APILoggingMiddleware struct {
-	repo    *repositories.MetricsRepository
-	logChan chan *models.APIRequestLog
+	store *monitoring.TimescaleStore
 }
 
 // responseWriter wraps http.ResponseWriter to capture status code and size
@@ -39,28 +33,9 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 }
 
 // NewAPILoggingMiddleware creates a new API logging middleware
-func NewAPILoggingMiddleware(repo *repositories.MetricsRepository) *APILoggingMiddleware {
-	m := &APILoggingMiddleware{
-		repo:    repo,
-		logChan: make(chan *models.APIRequestLog, 1000), // Buffer for async logging
-	}
-
-	// Start async log writer
-	go m.asyncLogWriter()
-
-	return m
-}
-
-// asyncLogWriter writes logs asynchronously to avoid blocking requests
-func (m *APILoggingMiddleware) asyncLogWriter() {
-	for log := range m.logChan {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := m.repo.InsertAPILog(ctx, log); err != nil {
-			// Log error but don't block
-			// Use standard log since we can't import a logger here
-			_ = err // Silently ignore - metrics logging shouldn't affect requests
-		}
-		cancel()
+func NewAPILoggingMiddleware(store *monitoring.TimescaleStore) *APILoggingMiddleware {
+	return &APILoggingMiddleware{
+		store: store,
 	}
 }
 
@@ -75,14 +50,6 @@ func (m *APILoggingMiddleware) Handler(next http.Handler) http.Handler {
 
 		start := timeutil.Now()
 
-		// Capture request size
-		var requestSize int
-		if r.Body != nil {
-			body, _ := io.ReadAll(r.Body)
-			requestSize = len(body)
-			r.Body = io.NopCloser(bytes.NewBuffer(body))
-		}
-
 		// Wrap response writer to capture status and size
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
@@ -92,50 +59,14 @@ func (m *APILoggingMiddleware) Handler(next http.Handler) http.Handler {
 		// Calculate duration
 		duration := time.Since(start)
 
-		// Extract user info from context
-		var userID *int
-		var userEmail, userRole *string
-		if claims, ok := r.Context().Value("claims").(map[string]interface{}); ok {
-			if id, ok := claims["user_id"].(float64); ok {
-				intID := int(id)
-				userID = &intID
-			}
-			if email, ok := claims["email"].(string); ok {
-				userEmail = &email
-			}
-			if role, ok := claims["role"].(string); ok {
-				userRole = &role
-			}
-		}
-
-		// Create log entry
-		logEntry := &models.APIRequestLog{
-			Time:         timeutil.Now(),
-			Method:       r.Method,
-			Path:         sanitizePath(r.URL.Path),
-			StatusCode:   wrapped.statusCode,
-			DurationMs:   float64(duration.Microseconds()) / 1000.0,
-			RequestSize:  requestSize,
-			ResponseSize: wrapped.bytesWritten,
-			UserID:       userID,
-			UserEmail:    userEmail,
-			UserRole:     userRole,
-			IPAddress:    getClientIP(r),
-			UserAgent:    r.UserAgent(),
-		}
-
-		// Capture error message for error responses
-		if wrapped.statusCode >= 400 {
-			errMsg := http.StatusText(wrapped.statusCode)
-			logEntry.ErrorMessage = &errMsg
-		}
-
-		// Send to async writer (non-blocking)
-		select {
-		case m.logChan <- logEntry:
-		default:
-			// Channel full, log dropped (shouldn't happen often with 1000 buffer)
-			log.Printf("[APILogging] Log buffer full, dropping log entry for %s", r.URL.Path)
+		if m.store != nil {
+			m.store.RecordAPIMetric(
+				r.Method,
+				sanitizePath(r.URL.Path),
+				wrapped.statusCode,
+				duration,
+				getClientIP(r),
+			)
 		}
 	})
 }
@@ -209,5 +140,5 @@ func getClientIP(r *http.Request) string {
 
 // Close closes the middleware and flushes pending logs
 func (m *APILoggingMiddleware) Close() {
-	close(m.logChan)
+	// Nothing to close now
 }

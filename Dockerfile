@@ -23,7 +23,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflag
 FROM alpine:latest
 
 # Install runtime dependencies including kubectl
-RUN apk --no-cache add ca-certificates tzdata curl && \
+RUN apk --no-cache add ca-certificates tzdata curl ffmpeg && \
     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && \
     chmod +x kubectl && \
     mv kubectl /usr/local/bin/

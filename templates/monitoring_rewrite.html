@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Analytics - Cold Storage</title>
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/luxon"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon"></script>
+    <style>
+        .neu-card {
+            background: #ffffff;
+            box-shadow: 6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="flex h-screen overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white shadow-lg z-10 hidden md:block">
+            <div class="p-6">
+                <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <i class="bi bi-graph-up text-blue-600"></i> Analytics
+                </h1>
+            </div>
+            <nav class="mt-6">
+                <a href="/dashboard" class="flex items-center px-6 py-3 text-gray-600 hover:bg-gray-50 border-l-4 border-transparent hover:border-blue-500 transition-all">
+                    <i class="bi bi-house mr-3"></i> Dashboard
+                </a>
+                <a href="/infrastructure" class="flex items-center px-6 py-3 text-gray-600 hover:bg-gray-50 border-l-4 border-transparent hover:border-blue-500 transition-all">
+                    <i class="bi bi-hdd-network mr-3"></i> Infrastructure
+                </a>
+                <a href="/monitoringrewrite" class="flex items-center px-6 py-3 text-gray-800 bg-blue-50 border-l-4 border-blue-500 transition-all">
+                    <i class="bi bi-activity mr-3"></i> Deep Analytics
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto p-8">
+            <header class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-800">API & System Analytics</h2>
+                    <p class="text-gray-500">Historical performance data powered by TimescaleDB</p>
+                </div>
+                <div class="flex gap-4">
+                    <select id="timeRange" class="neu-card px-4 py-2 outline-none cursor-pointer" onchange="fetchData()">
+                        <option value="1h">Last 1 Hour</option>
+                        <option value="6h">Last 6 Hours</option>
+                        <option value="24h" selected>Last 24 Hours</option>
+                        <option value="7d">Last 7 Days</option>
+                    </select>
+                    <button onclick="fetchData()" class="neu-card px-4 py-2 hover:bg-gray-50 text-blue-600">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+            </header>
+
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <div class="neu-card p-6 border-l-4 border-blue-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 text-sm">Total Requests</p>
+                            <h3 class="text-2xl font-bold" id="totalRequests">-</h3>
+                        </div>
+                        <i class="bi bi-arrow-down-up text-3xl text-blue-100"></i>
+                    </div>
+                </div>
+                <div class="neu-card p-6 border-l-4 border-green-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 text-sm">Avg Latency</p>
+                            <h3 class="text-2xl font-bold" id="avgLatency">- ms</h3>
+                        </div>
+                        <i class="bi bi-speedometer2 text-3xl text-green-100"></i>
+                    </div>
+                </div>
+                <div class="neu-card p-6 border-l-4 border-red-500">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-gray-500 text-sm">Error Rate</p>
+                            <h3 class="text-2xl font-bold" id="errorRate">-%</h3>
+                        </div>
+                        <i class="bi bi-exclamation-triangle text-3xl text-red-100"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div class="neu-card p-6">
+                    <h3 class="text-lg font-bold mb-4 text-gray-700">CPU Usage Trend</h3>
+                    <div class="h-64">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="neu-card p-6">
+                    <h3 class="text-lg font-bold mb-4 text-gray-700">Database & System Health</h3>
+                    <div class="h-64 flex flex-col justify-center items-center text-center text-gray-400">
+                        <p>Detailed query performance metrics coming soon...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let cpuChartInstance = null;
+
+        async function fetchData() {
+            const range = document.getElementById('timeRange').value;
+            try {
+                const response = await fetch(`/api/monitoring/analytics?range=${range}`);
+                const data = await response.json();
+
+                // Update Summary
+                document.getElementById('totalRequests').textContent = data.summary.total_requests.toLocaleString();
+                document.getElementById('avgLatency').textContent = data.summary.avg_duration.toFixed(2) + ' ms';
+                document.getElementById('errorRate').textContent = (data.summary.error_rate * 100).toFixed(2) + '%';
+
+                // Update CPU Chart
+                updateCPUChart(data.cpu_trend);
+
+            } catch (error) {
+                console.error('Failed to fetch analytics:', error);
+            }
+        }
+
+        function updateCPUChart(data) {
+            const ctx = document.getElementById('cpuChart').getContext('2d');
+            
+            if (cpuChartInstance) {
+                cpuChartInstance.destroy();
+            }
+
+            cpuChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'CPU Usage (%)',
+                        data: data.map(p => ({x: p.time, y: p.value})),
+                        borderColor: '#2563eb',
+                        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'minute'
+                            },
+                            grid: {
+                                display: false
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial Load
+        fetchData();
+        // Auto refresh every minute
+        setInterval(fetchData, 60000);
+    </script>
+</body>
+</html>

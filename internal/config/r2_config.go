@@ -24,21 +24,7 @@ var CommonPasswords = []string{
 // Order: VIP-DB (bare metal) -> Backup server -> Localhost (for disaster recovery)
 var DatabaseFallbacks = []DatabaseConfig{
 	{
-		Name:     "VIP-DB (Primary)",
-		Host:     "192.168.15.210",
-		Port:     5432,
-		User:     "cold_user",
-		Database: "cold_db",
-	},
-	{
-		Name:     "Backup Server (192.168.15.195)",
-		Host:     "192.168.15.195",
-		Port:     5432,
-		User:     "postgres",
-		Database: "cold_db",
-	},
-	{
-		Name:     "Localhost (Disaster Recovery)",
+		Name:     "Localhost (Primary)",
 		Host:     "localhost",
 		Port:     5432,
 		User:     "postgres",
@@ -61,7 +47,7 @@ type DatabaseConfig struct {
 	User     string
 	Password string // Will be set dynamically
 	Database string
-	UsePeer  bool   // Use Unix socket with peer auth (no password)
+	UsePeer  bool // Use Unix socket with peer auth (no password)
 }
 
 func (d DatabaseConfig) ConnectionString() string {

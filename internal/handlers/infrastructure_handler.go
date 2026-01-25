@@ -1156,12 +1156,12 @@ func (h *InfrastructureHandler) GetBackupHistory(w http.ResponseWriter, r *http.
 			timestamp := strings.TrimPrefix(entry.Name(), "backup_")
 
 			history = append(history, map[string]interface{}{
-				"id":          entry.Name(),
-				"timestamp":   timestamp,
-				"created_at":  info.ModTime().Format(time.RFC3339),
-				"size":        size,
-				"verified":    verified,
-				"path":        backupPath,
+				"id":         entry.Name(),
+				"timestamp":  timestamp,
+				"created_at": info.ModTime().Format(time.RFC3339),
+				"size":       size,
+				"verified":   verified,
+				"path":       backupPath,
 			})
 		}
 		response["history"] = history
@@ -1199,4 +1199,39 @@ func (h *InfrastructureHandler) DownloadDatabase(w http.ResponseWriter, r *http.
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(backupData)))
 
 	w.Write(backupData)
+}
+
+// Helper function to create database backup using pg_dump
+func createR2DatabaseBackup(ctx context.Context) ([]byte, error) {
+	// Try to connect to localhost first
+	// Use environment variables if set, otherwise defaults
+	dbUser := os.Getenv("DB_USER")
+	if dbUser == "" {
+		dbUser = "cold_user"
+	}
+	dbPass := os.Getenv("DB_PASSWORD")
+	if dbPass == "" {
+		dbPass = "SecurePostgresPassword123"
+	}
+	dbName := os.Getenv("DB_NAME")
+	if dbName == "" {
+		dbName = "cold_db"
+	}
+	dbHost := os.Getenv("DB_HOST")
+	if dbHost == "" {
+		dbHost = "localhost"
+	}
+
+	cmd := exec.CommandContext(ctx, "pg_dump", "-h", dbHost, "-U", dbUser, dbName)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("PGPASSWORD=%s", dbPass))
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, fmt.Errorf("pg_dump failed: %v, stderr: %s", err, string(exitErr.Stderr))
+		}
+		return nil, fmt.Errorf("pg_dump failed: %v", err)
+	}
+
+	return output, nil
 }
