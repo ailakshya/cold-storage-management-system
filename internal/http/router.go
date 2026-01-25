@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	"cold-backend/internal/handlers"
-	"cold-backend/internal/middleware"
-	"cold-backend/static"
-
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"cold-backend/internal/handlers"
+	"cold-backend/internal/middleware"
+	"cold-backend/internal/services"
+	"cold-backend/static"
 )
 
 func NewRouter(
@@ -60,6 +61,18 @@ func NewRouter(
 	printerHandler *handlers.PrinterHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
+
+	var userService *services.UserService
+	if authHandler != nil {
+		userService = authHandler.Service
+	}
+
+	var totpService *services.TOTPService
+	if totpHandler != nil {
+		totpService = totpHandler.TOTPService
+	}
+
+	fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService)
 
 	// Apply security middlewares first
 	r.Use(middleware.HTTPSRedirect)
@@ -149,6 +162,7 @@ func NewRouter(
 	r.HandleFunc("/customer-export", pageHandler.CustomerPDFExportPage).Methods("GET")
 	r.HandleFunc("/customer-edit", pageHandler.CustomerEditPage).Methods("GET")
 	r.HandleFunc("/merge-history", pageHandler.MergeHistoryPage).Methods("GET")
+	r.HandleFunc("/admin/files", pageHandler.AdminFileManagerPage).Methods("GET")
 	r.HandleFunc("/sms/bulk", pageHandler.SMSBulkPage).Methods("GET")
 	r.HandleFunc("/sms/logs", pageHandler.SMSLogsPage).Methods("GET")
 
@@ -487,6 +501,31 @@ func NewRouter(
 	infraAPI.HandleFunc("/failover", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.ExecuteFailover)).ServeHTTP).Methods("POST")
 	infraAPI.HandleFunc("/recover-stuck-pods", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.RecoverStuckPods)).ServeHTTP).Methods("POST")
 	infraAPI.HandleFunc("/download-database", authMiddleware.RequireAdmin(http.HandlerFunc(infraHandler.DownloadDatabase)).ServeHTTP).Methods("GET")
+
+	// Protected API routes - File Manager (admin only)
+	// Protected API routes - File Manager
+	fileManagerAPI := r.PathPrefix("/api/files").Subrouter()
+	fileManagerAPI.Use(authMiddleware.Authenticate)
+
+	// Admin-only file operations
+	adminFileAPI := fileManagerAPI.PathPrefix("").Subrouter()
+	adminFileAPI.Use(authMiddleware.RequireRole("admin"))
+	adminFileAPI.HandleFunc("", fileManagerHandler.ListFiles).Methods("GET")
+	adminFileAPI.HandleFunc("", fileManagerHandler.DeleteItem).Methods("DELETE")
+	adminFileAPI.HandleFunc("/folder", fileManagerHandler.CreateFolder).Methods("POST")
+	adminFileAPI.HandleFunc("/move", fileManagerHandler.MoveItem).Methods("POST")
+	adminFileAPI.HandleFunc("/trash/empty", fileManagerHandler.EmptyTrash).Methods("POST")
+	adminFileAPI.HandleFunc("/stats", fileManagerHandler.GetStorageStats).Methods("GET")
+	adminFileAPI.HandleFunc("/rename", fileManagerHandler.RenameFile).Methods("PUT")
+
+	// Shared file operations (Admin + Employee)
+	sharedFileAPI := fileManagerAPI.PathPrefix("").Subrouter()
+	sharedFileAPI.Use(authMiddleware.RequireRole("admin", "employee"))
+	sharedFileAPI.HandleFunc("/upload", fileManagerHandler.UploadFile).Methods("POST")
+	sharedFileAPI.HandleFunc("/upload-chunk", fileManagerHandler.UploadChunk).Methods("POST")
+	sharedFileAPI.HandleFunc("/download", fileManagerHandler.DownloadFile).Methods("GET")
+	sharedFileAPI.HandleFunc("/thumbnail", fileManagerHandler.GenerateThumbnail).Methods("GET")
+	sharedFileAPI.HandleFunc("/rename", fileManagerHandler.RenameFile).Methods("PUT")
 
 	// Protected API routes - Node Provisioning (admin only)
 	if nodeProvisioningHandler != nil {

@@ -1,0 +1,1442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Storage File Manager</title>
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <style>
+        body { font-family: 'Space Grotesk', sans-serif; }
+        .file-item:hover { background-color: #f3f4f6; }
+        .file-icon { font-size: 1.5rem; }
+        .drop-zone {
+            border: 2px dashed #cbd5e1;
+            transition: all 0.3s ease;
+        }
+        .drop-zone.dragover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .upload-progress-item {
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 h-screen flex flex-col">
+    <!-- Header -->
+    <header class="bg-white border-b px-6 py-4 flex justify-between items-center">
+        <div class="flex items-center gap-4">
+            <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-900"><i class="bi bi-arrow-left"></i> Back</a>
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <i class="bi bi-hdd-network text-blue-600"></i> Storage Manager
+            </h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <select id="rootSelect" onchange="changeRoot()" class="border rounded-lg px-3 py-2 bg-gray-50">
+                <option value="bulk">Bulk Storage (4TB HDD)</option>
+                <option value="highspeed">High Speed (SSD)</option>
+                <option value="archives">Archives (HDD)</option>
+                <option value="backups">Backups (HDD)</option>
+                <option value="trash">Trash Can</option>
+            </select>
+            <button onclick="refreshFiles()" class="text-gray-600 hover:text-blue-600" title="Refresh">
+                <i class="bi bi-arrow-clockwise text-xl"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r flex flex-col">
+            <div class="p-4 space-y-2">
+                <button onclick="document.getElementById('fileInput').click()" class="w-full bg-blue-600 text-white rounded-lg px-4 py-3 font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2">
+                    <i class="bi bi-cloud-upload"></i> Upload Files
+                </button>
+                <button onclick="document.getElementById('folderInput').click()" class="w-full bg-indigo-600 text-white rounded-lg px-4 py-3 font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2">
+                    <i class="bi bi-folder-plus"></i> Upload Folder
+                </button>
+                <input type="file" id="fileInput" class="hidden" multiple onchange="handleFileUpload(this.files)">
+                <input type="file" id="folderInput" class="hidden" webkitdirectory directory multiple onchange="handleFolderUpload(this.files)">
+            </div>
+
+            <!-- Storage Pool Links with Live Stats -->
+            <nav class="p-2 space-y-1 flex-1 overflow-y-auto" id="poolNav">
+                <!-- Dynamically populated -->
+            </nav>
+
+            <!-- Total Storage Summary -->
+            <div class="mt-auto p-4 border-t text-xs" id="totalStats">
+                <div class="text-gray-600 mb-2 font-medium">Total Storage</div>
+                <div class="w-full bg-gray-200 rounded-full h-2 mb-1">
+                    <div id="totalBar" class="bg-blue-500 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+                <div class="flex justify-between text-gray-500">
+                    <span id="totalUsed">--</span>
+                    <span id="totalSize">--</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- content -->
+        <main class="flex-1 flex flex-col drop-zone" id="dropZone">
+            <!-- Toolbar -->
+            <div class="bg-white border-b px-6 py-3 flex items-center gap-4">
+                <div class="flex-1 flex items-center gap-2 text-sm text-gray-600 overflow-x-auto" id="breadcrumbs">
+                    <!-- Breadcrumbs -->
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <!-- Search -->
+                    <div class="relative">
+                        <i class="bi bi-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500"></i>
+                        <input type="text" id="fileSearch" onkeyup="filterFiles()" class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm w-40 sm:w-64 focus:ring-2 focus:ring-blue-500 outline-none transition-all" placeholder="Search files...">
+                    </div>
+                    
+                    <!-- Empty Trash Button -->
+                    <button id="emptyTrashBtn" onclick="openEmptyTrashModal()" class="hidden px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-2 font-medium whitespace-nowrap">
+                        <i class="bi bi-trash-fill"></i> Empty Trash
+                    </button>
+                    
+                    <button id="pasteBtn" onclick="pasteFile()" class="hidden px-3 py-2 bg-yellow-100 text-yellow-800 rounded-lg hover:bg-yellow-200 flex items-center gap-2 font-medium whitespace-nowrap">
+                        <i class="bi bi-clipboard"></i> <span>Paste</span>
+                    </button>
+                    <button onclick="document.getElementById('fileInput').click()" class="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 flex items-center gap-2 font-medium whitespace-nowrap">
+                        <i class="bi bi-cloud-upload"></i> <span class="hidden sm:inline">Upload Files</span>
+                    </button>
+                    <button onclick="document.getElementById('folderInput').click()" class="px-3 py-2 bg-indigo-50 text-indigo-700 rounded-lg hover:bg-indigo-100 flex items-center gap-2 font-medium whitespace-nowrap">
+                        <i class="bi bi-folder-plus"></i> <span class="hidden sm:inline">Upload Folder</span>
+                    </button>
+                    <button onclick="openNewFolderModal()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2 font-medium whitespace-nowrap">
+                        <i class="bi bi-folder-plus"></i> <span class="hidden sm:inline">New Folder</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- File List -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <div id="fileList" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                    <!-- Files injected here -->
+                </div>
+                <div id="emptyState" class="hidden flex flex-col items-center justify-center h-full text-gray-400">
+                    <i class="bi bi-folder2-open text-6xl mb-4"></i>
+                    <p class="mb-4">This folder is empty</p>
+                    <button onclick="document.getElementById('fileInput').click()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2 shadow-lg">
+                        <i class="bi bi-cloud-upload"></i> Upload Here
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Upload Progress Panel -->
+    <div id="uploadPanel" class="hidden fixed bottom-4 right-4 w-96 bg-white shadow-2xl rounded-lg border overflow-hidden">
+        <div class="bg-gray-50 border-b px-4 py-3 flex justify-between items-center">
+            <span class="font-semibold"><i class="bi bi-upload"></i> Uploads</span>
+            <button onclick="toggleUploadPanel()" class="text-gray-500 hover:text-gray-700">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div id="uploadList" class="max-h-96 overflow-y-auto p-2">
+            <!-- Upload items dynamically added -->
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div id="previewModal" class="hidden fixed inset-0 bg-black bg-opacity-90 z-50 flex items-center justify-center p-4">
+        <div class="relative bg-white rounded-lg shadow-2xl w-full h-full flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center p-4 border-b bg-gray-50">
+                <h3 id="previewTitle" class="font-bold text-lg truncate flex-1">File Preview</h3>
+                <div class="flex gap-2">
+                    <a id="previewDownloadBtn" href="#" download class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm flex items-center gap-2 font-medium">
+                        <i class="bi bi-download"></i> Download
+                    </a>
+                    <button onclick="closePreview()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition" title="Close">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="flex-1 bg-black flex items-center justify-center p-0 overflow-hidden" id="previewContent">
+                <!-- Content injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- New Folder Modal -->
+    <div id="folderModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-6">
+            <h3 class="text-lg font-bold mb-4">New Folder</h3>
+            <input type="text" id="newFolderName" class="w-full border rounded px-3 py-2 mb-4" placeholder="Folder Name">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeNewFolderModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button onclick="createNewFolder()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty Trash Auth Modal -->
+    <div id="emptyTrashModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-6">
+            <h3 class="text-xl font-bold mb-4 text-red-600"><i class="bi bi-trash"></i> Empty Trash</h3>
+            <p class="text-sm text-gray-600 mb-4">This action cannot be undone. Enter credentials to confirm.</p>
+            
+            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input type="password" id="trashPassword" class="w-full border rounded px-3 py-2 mb-3" placeholder="Admin Password">
+            
+            <label class="block text-sm font-medium text-gray-700 mb-1">2FA Code</label>
+            <input type="text" id="trash2FA" class="w-full border rounded px-3 py-2 mb-4" placeholder="000000">
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeEmptyTrashModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button onclick="confirmEmptyTrash()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Empty Trash</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div id="renameModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-6">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <i class="bi bi-pencil-square text-blue-600"></i> Rename Item
+            </h3>
+            <p class="text-xs text-gray-500 mb-2 truncate" id="renameOldName"></p>
+            <input type="hidden" id="renameOldPath">
+            <input type="text" id="renameInput" class="w-full text-sm border p-2 rounded mb-4" placeholder="New Name" onkeydown="if(event.key==='Enter') submitRename()">
+            <div class="flex justify-end gap-2">
+                <button onclick="document.getElementById('renameModal').classList.add('hidden')" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button onclick="submitRename()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Rename</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl w-96 p-6">
+            <h3 class="text-xl font-bold mb-4 flex items-center gap-2">
+                <i class="bi bi-trash text-red-600"></i>
+                <span id="deleteModalTitle">Confirm Delete</span>
+            </h3>
+            <p class="text-sm text-gray-600 mb-4" id="deleteModalMessage">
+                Are you sure you want to delete this item?
+            </p>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeDeleteModal()" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded">Cancel</button>
+                <button onclick="confirmDelete()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700" id="deleteConfirmBtn">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Actions Toolbar -->
+    <div id="bulkActionsToolbar" class="hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-4 z-50 transition-all duration-300">
+        <span class="font-bold"><span id="selectedCount">0</span> selected</span>
+        <div class="h-6 w-px bg-gray-600"></div>
+        <button onclick="bulkCut()" class="hover:text-yellow-400 flex items-center gap-1 transition">
+            <i class="bi bi-scissors"></i> Cut
+        </button>
+        <button onclick="bulkDeleteConfirm()" class="hover:text-red-400 flex items-center gap-1 transition">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+        <button onclick="clearSelection()" class="hover:text-gray-400 ml-2">
+            <i class="bi bi-x-circle"></i>
+        </button>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="hidden fixed bg-white shadow-lg rounded-lg border w-48 py-1 z-50">
+        <button onclick="previewFile(contextFile)" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-eye"></i> Preview
+        </button>
+        <button onclick="cutSelected()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-scissors"></i> Cut
+        </button>
+        <button onclick="openRenameModal(contextFile)" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-pencil"></i> Rename
+        </button>
+        <button onclick="downloadSelected()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-download"></i> Download
+        </button>
+        <div class="border-t my-1"></div>
+        <button onclick="deleteSelected()" class="w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600 flex items-center gap-2">
+            <i class="bi bi-trash"></i> Delete
+        </button>
+    </div>
+
+    <script>
+        let currentRoot = 'bulk';
+        let currentPath = '';
+        let contextFile = null;
+        let token = localStorage.getItem('token');
+        let clipboard = null;
+        let uploads = {}; // Track active uploads by ID
+        let uploadCounter = 0;
+        let storageStats = [];
+        let selectedFiles = new Set();
+        let currentFileList = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            loadStorageStats();
+            loadFiles();
+            setupDragAndDrop();
+        });
+
+        function refreshFiles() {
+            loadFiles();
+            loadStorageStats();
+        }
+
+        async function loadStorageStats() {
+            try {
+                const res = await fetch('/api/files/stats', { headers: getHeaders() });
+                if (!res.ok) throw new Error('Failed to load stats');
+                storageStats = await res.json();
+                renderStorageNav();
+                renderTotalStats();
+            } catch (err) {
+                console.error('Failed to load storage stats:', err);
+            }
+        }
+
+        function renderStorageNav() {
+            const nav = document.getElementById('poolNav');
+            const icons = {
+                'bulk': 'bi-hdd-stack text-purple-500',
+                'highspeed': 'bi-lightning-charge text-yellow-500',
+                'archives': 'bi-archive text-gray-500',
+                'backups': 'bi-database-check text-green-500',
+                'trash': 'bi-trash text-red-500'
+            };
+
+            nav.innerHTML = storageStats.map(stat => `
+                <a href="#" onclick="setRoot('${stat.root}')" class="block px-4 py-3 rounded-lg hover:bg-gray-100 ${currentRoot === stat.root ? 'bg-blue-50' : ''}">
+                    <div class="flex items-center gap-3 mb-2">
+                        <i class="bi ${icons[stat.root] || 'bi-hdd'}"></i>
+                        <span class="font-medium text-gray-700">${stat.label}</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${stat.used_percent.toFixed(1)}%"></div>
+                    </div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        ${formatBytes(stat.used_bytes)} / ${formatBytes(stat.total_bytes)}
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        function renderTotalStats() {
+            const total = storageStats.reduce((acc, s) => acc + s.total_bytes, 0);
+            const used = storageStats.reduce((acc, s) => acc + s.used_bytes, 0);
+            const percent = total > 0 ? (used / total * 100) : 0;
+
+            document.getElementById('totalUsed').textContent = formatBytes(used);
+            document.getElementById('totalSize').textContent = formatBytes(total);
+            document.getElementById('totalBar').style.width = percent.toFixed(1) + '%';
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        function setRoot(root) {
+            currentRoot = root;
+            currentPath = '';
+            document.getElementById('rootSelect').value = root;
+            updateUIForRoot();
+            loadFiles();
+            renderStorageNav(); // Update active state
+        }
+
+        function changeRoot() {
+            setRoot(document.getElementById('rootSelect').value);
+        }
+
+        function updateUIForRoot() {
+            const btn = document.getElementById('emptyTrashBtn');
+            if (currentRoot === 'trash') {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function navigate(path) {
+            currentPath = path;
+            loadFiles();
+        }
+
+        function getHeaders() {
+            return {
+                'Authorization': `Bearer ${token}`
+            };
+        }
+
+        async function loadFiles() {
+            try {
+                const res = await fetch(`/api/files?root=${currentRoot}&path=${encodeURIComponent(currentPath)}`, {
+                    headers: getHeaders()
+                });
+                if (res.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                if (!res.ok) throw new Error('Failed to load files');
+                const data = await res.json();
+                currentFileList = data.files;
+                renderFiles(data.files);
+                renderBreadcrumbs(currentPath);
+                updatePasteButton();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Upload Progress Management
+        function showUploadPanel() {
+            document.getElementById('uploadPanel').classList.remove('hidden');
+        }
+
+        function toggleUploadPanel() {
+            document.getElementById('uploadPanel').classList.toggle('hidden');
+        }
+
+        function addUploadItem(id, filename) {
+            const list = document.getElementById('uploadList');
+            const item = document.createElement('div');
+            item.id = `upload-${id}`;
+            item.className = 'upload-progress-item bg-white border rounded-lg p-3 mb-2';
+            item.innerHTML = `
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-sm font-medium truncate flex-1">${filename}</span>
+                    <button onclick="cancelUpload(${id})" class="text-red-500 hover:text-red-700 ml-2">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progress-${id}" class="bg-blue-500 h-2 rounded-full transition-all" style="width: 0%"></div>
+                </div>
+                <div class="text-xs text-gray-500 mt-1" id="status-${id}">Uploading...</div>
+            `;
+            list.appendChild(item);
+            showUploadPanel();
+        }
+
+        function updateUploadProgress(id, percent, status) {
+            const bar = document.getElementById(`progress-${id}`);
+            const statusEl = document.getElementById(`status-${id}`);
+            if (bar) bar.style.width = percent + '%';
+            if (statusEl) statusEl.textContent = status || `${percent}%`;
+        }
+
+        function removeUploadItem(id) {
+            const item = document.getElementById(`upload-${id}`);
+            if (item) {
+                setTimeout(() => item.remove(), 2000);
+            }
+        }
+
+        function cancelUpload(id) {
+            if (uploads[id] && uploads[id].controller) {
+                uploads[id].controller.abort();
+                updateUploadProgress(id, 0, 'Cancelled');
+                removeUploadItem(id);
+                delete uploads[id];
+            }
+        }
+
+        // UUID Generator Fallback
+        function generateUUID() {
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        async function uploadFile(file, relativePath = '') {
+            const id = ++uploadCounter;
+            const controller = new AbortController();
+            
+            uploads[id] = { controller, file };
+            
+            const displayName = relativePath ? relativePath + '/' + file.name : file.name;
+            // Correction: relativePath passed from handleFolderUpload *excludes* filename. 
+            // If relativePath is passed, display "path/to/file.name"
+            // Actually relativePath argument in uploadFile is "dirPath".
+            // See handleFolderUpload: uploadFile(file, dirPath);
+            const displayStr = relativePath ? `${relativePath}/${file.name}` : file.name;
+            
+            addUploadItem(id, displayStr);
+
+            const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+
+            // Case 1: Small file (<= 5MB), use standard upload
+            if (file.size <= CHUNK_SIZE) {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('root', currentRoot);
+                const targetPath = relativePath ? (currentPath ? `${currentPath}/${relativePath}` : relativePath) : currentPath;
+                formData.append('path', targetPath);
+
+                try {
+                    const xhr = new XMLHttpRequest();
+                    xhr.open('POST', '/api/files/upload');
+                    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+                    xhr.upload.addEventListener('progress', (e) => {
+                        if (e.lengthComputable) {
+                            const percent = Math.round((e.loaded / e.total) * 100);
+                            updateUploadProgress(id, percent, `${percent}%`);
+                        }
+                    });
+
+                    xhr.addEventListener('load', () => {
+                        if (xhr.status === 200) {
+                            updateUploadProgress(id, 100, '✓ Complete');
+                            removeUploadItem(id);
+                            delete uploads[id];
+                            loadFiles();
+                            loadStorageStats();
+                        } else {
+                            updateUploadProgress(id, 0, '✗ Failed');
+                            removeUploadItem(id);
+                            delete uploads[id];
+                        }
+                    });
+
+                    xhr.addEventListener('error', () => {
+                        updateUploadProgress(id, 0, '✗ Error');
+                        removeUploadItem(id);
+                        delete uploads[id];
+                    });
+
+                    controller.signal.addEventListener('abort', () => {
+                        xhr.abort();
+                    });
+
+                    xhr.send(formData);
+
+                } catch (err) {
+                    updateUploadProgress(id, 0, '✗ Failed');
+                    removeUploadItem(id);
+                    delete uploads[id];
+                }
+                return;
+            }
+
+            // Case 2: Large file, use Chunked Upload
+            const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+            const uploadId = generateUUID();
+            const targetPath = relativePath ? (currentPath ? `${currentPath}/${relativePath}` : relativePath) : currentPath;
+
+            try {
+                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
+                    if (controller.signal.aborted) throw new Error('Cancelled');
+
+                    const start = chunkIndex * CHUNK_SIZE;
+                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const chunk = file.slice(start, end);
+
+                    const formData = new FormData();
+                    formData.append('chunk', chunk);
+                    formData.append('uploadId', uploadId);
+                    formData.append('chunkIndex', chunkIndex);
+                    formData.append('totalChunks', totalChunks);
+                    formData.append('filename', file.name);
+                    formData.append('root', currentRoot);
+                    formData.append('path', targetPath);
+
+                    await new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.open('POST', '/api/files/upload-chunk');
+                        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+                        xhr.upload.addEventListener('progress', (e) => {
+                            if (e.lengthComputable) {
+                                // Calculate total progress for the file
+                                const totalLoaded = (chunkIndex * CHUNK_SIZE) + e.loaded;
+                                const percent = Math.round((totalLoaded / file.size) * 100);
+                                updateUploadProgress(id, percent, `${percent}%`);
+                            }
+                        });
+
+                        xhr.onload = () => {
+                            if (xhr.status === 200) resolve();
+                            else reject(new Error('Chunk upgrade failed'));
+                        };
+
+                        xhr.onerror = () => reject(new Error('Network error'));
+                        xhr.onabort = () => reject(new Error('Cancelled'));
+
+                        controller.signal.addEventListener('abort', () => xhr.abort());
+
+                        xhr.send(formData);
+                    });
+                }
+
+                // All chunks sent successfully
+                updateUploadProgress(id, 100, '✓ Complete');
+                removeUploadItem(id);
+                delete uploads[id];
+                loadFiles();
+                loadStorageStats();
+
+            } catch (err) {
+                 if (err.message === 'Cancelled') {
+                     updateUploadProgress(id, 0, 'Cancelled');
+                 } else {
+                     console.error(err);
+                     updateUploadProgress(id, 0, '✗ Failed');
+                 }
+                removeUploadItem(id);
+                delete uploads[id];
+            }
+        }
+
+        function handleFileUpload(files) {
+            for (let file of files) {
+                uploadFile(file);
+            }
+        }
+
+        function handleFolderUpload(files) {
+            const fileArray = Array.from(files);
+            if (fileArray.length === 0) return;
+
+            fileArray.forEach(file => {
+                const relativePath = file.webkitRelativePath;
+                const pathParts = relativePath.split('/');
+                pathParts.pop();
+                const dirPath = pathParts.join('/');
+                uploadFile(file, dirPath);
+            });
+        }
+
+        // Folder Modal
+        function openNewFolderModal() {
+            document.getElementById('newFolderName').value = '';
+            document.getElementById('folderModal').classList.remove('hidden');
+            document.getElementById('newFolderName').focus();
+        }
+        function closeNewFolderModal() {
+            document.getElementById('folderModal').classList.add('hidden');
+        }
+        async function createNewFolder() {
+            const name = document.getElementById('newFolderName').value;
+            if (!name) return;
+            try {
+                const res = await fetch('/api/files/folder', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getHeaders() },
+                    body: JSON.stringify({ root: currentRoot, path: currentPath, name })
+                });
+                if (!res.ok) throw new Error('Failed');
+                closeNewFolderModal();
+                loadFiles();
+            } catch (err) {
+                alert('Error creating folder');
+            }
+        }
+
+        // Empty Trash Logic
+        function openEmptyTrashModal() {
+            document.getElementById('trashPassword').value = '';
+            document.getElementById('trash2FA').value = '';
+            document.getElementById('emptyTrashModal').classList.remove('hidden');
+        }
+        function closeEmptyTrashModal() {
+            document.getElementById('emptyTrashModal').classList.add('hidden');
+        }
+        async function confirmEmptyTrash() {
+            const password = document.getElementById('trashPassword').value;
+            const code = document.getElementById('trash2FA').value;
+            if (!password || !code) {
+                alert("Password and 2FA Code required");
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/files/trash/empty', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getHeaders() },
+                    body: JSON.stringify({ password, code })
+                });
+                if (!res.ok) {
+                    const txt = await res.text();
+                    throw new Error(txt);
+                }
+                alert('Trash Emptied!');
+                closeEmptyTrashModal();
+                loadFiles();
+                loadStorageStats();
+            } catch (err) {
+                alert('Failed: ' + err.message);
+            }
+        }
+
+        let pendingDeleteFile = null;
+
+        function deleteSelected() {
+            if (!contextFile) return;
+            hideContextMenu();
+            
+            pendingDeleteFile = contextFile;
+            const modal = document.getElementById('deleteModal');
+            const title = document.getElementById('deleteModalTitle');
+            const message = document.getElementById('deleteModalMessage');
+            const confirmBtn = document.getElementById('deleteConfirmBtn');
+            
+            if (currentRoot === 'trash') {
+                title.textContent = 'Permanently Delete';
+                message.textContent = `Permanently delete "${contextFile.name}"? This action cannot be undone.`;
+                confirmBtn.textContent = 'Delete Forever';
+                confirmBtn.className = 'px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800';
+            } else {
+                title.textContent = 'Move to Trash';
+                message.textContent = `Move "${contextFile.name}" to Trash?`;
+                confirmBtn.textContent = 'Move to Trash';
+                confirmBtn.className = 'px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700';
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').classList.add('hidden');
+            pendingDeleteFile = null;
+        }
+
+        async function confirmDelete() {
+            if (!pendingDeleteFile) return;
+            
+            const fullPath = pendingDeleteFile.path;
+            closeDeleteModal();
+            
+            try {
+                const res = await fetch(`/api/files?root=${currentRoot}&path=${encodeURIComponent(fullPath)}`, {
+                    method: 'DELETE',
+                    headers: getHeaders()
+                });
+                if (!res.ok) throw new Error('Failed');
+                loadFiles();
+                loadStorageStats();
+            } catch (err) {
+                alert('Error deleting file');
+            }
+        }
+
+        function cutSelected() {
+            if (!contextFile) return;
+            clipboard = {
+                root: currentRoot,
+                path: contextFile.path,
+                name: contextFile.name
+            };
+            hideContextMenu();
+            updatePasteButton();
+            alert(`Cut ${contextFile.name}. Navigate to destination and click Paste.`);
+        }
+
+        async function pasteFile() {
+            if (!clipboard) return;
+            
+            try {
+                if (clipboard.isBulk) {
+                    let failures = 0;
+                    for (const srcPath of clipboard.paths) {
+                        try {
+                            const res = await fetch('/api/files/move', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json', ...getHeaders() },
+                                body: JSON.stringify({
+                                    sourceRoot: clipboard.root,
+                                    sourcePath: srcPath,
+                                    destRoot: currentRoot,
+                                    destPath: currentPath
+                                })
+                            });
+                             if (!res.ok) throw new Error('Failed');
+                        } catch(err) {
+                            failures++;
+                            console.error(err);
+                        }
+                    }
+                    if (failures > 0) alert(`Failed to move ${failures} items.`);
+                } else {
+                     const res = await fetch('/api/files/move', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...getHeaders() },
+                        body: JSON.stringify({
+                            sourceRoot: clipboard.root,
+                            sourcePath: clipboard.path,
+                            destRoot: currentRoot,
+                            destPath: currentPath
+                        })
+                    });
+                    if (!res.ok) throw new Error(await res.text());
+                }
+
+                clipboard = null;
+                updatePasteButton();
+                loadFiles();
+                loadStorageStats();
+            } catch (err) {
+                alert('Move failed: ' + err.message);
+            }
+        }
+
+        function updatePasteButton() {
+            const btn = document.getElementById('pasteBtn');
+            if (clipboard) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function downloadSelected() {
+            if (!contextFile || contextFile.is_dir) return;
+            doDownload(contextFile);
+            hideContextMenu();
+        }
+
+        function doDownload(file) {
+             window.location.href = `/api/files/download?root=${currentRoot}&path=${encodeURIComponent(file.path)}&token=${token}`;
+        }
+
+        // Preview Logic
+        function closePreview() {
+            document.getElementById('previewModal').classList.add('hidden');
+            document.getElementById('previewContent').innerHTML = ''; 
+            document.removeEventListener('keydown', handleVideoKeys);
+        }
+
+        function previewFile(file) {
+            hideContextMenu();
+            const ext = file.name.split('.').pop().toLowerCase();
+            const url = `/api/files/download?root=${currentRoot}&path=${encodeURIComponent(file.path)}&mode=inline&token=${token}`;
+            const container = document.getElementById('previewContent');
+            document.getElementById('previewTitle').textContent = file.name;
+            document.getElementById('previewDownloadBtn').href = `/api/files/download?root=${currentRoot}&path=${encodeURIComponent(file.path)}&token=${token}`;
+
+            container.innerHTML = '';
+
+            const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+            const isVideo = ['mp4', 'mov', 'avi', 'webm'].includes(ext);
+            const isPdf = ['pdf'].includes(ext);
+
+            if (isImage) {
+                container.innerHTML = `<img src="${url}" class="max-w-full max-h-full object-contain">`;
+                openPreviewModal();
+            } else if (isVideo) {
+                 container.innerHTML = `
+                    <div class="relative w-full h-full flex flex-col items-center bg-black rounded-lg overflow-hidden" id="videoPlayerContainer">
+                        <video id="previewVideo" muted playsinline webkit-playsinline class="w-full flex-1 max-h-[70vh] bg-black cursor-pointer" id="videoElement">
+                            <source src="${url}" type="video/${ext === 'mov' ? 'mp4' : ext}">
+                            Your browser does not support the video tag.
+                        </video>
+                        
+                        <!-- Custom Controls Bar -->
+                        <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-4 transition-opacity duration-300" id="videoControls">
+                            <!-- Progress Bar Container -->
+                            <div class="relative w-full h-1 bg-gray-600 rounded-full mb-3 cursor-pointer group" id="progressContainer">
+                                <!-- Buffered Progress (lighter gray) -->
+                                <div class="absolute h-full bg-gray-400 rounded-full" id="bufferedBar" style="width: 0%"></div>
+                                <!-- Played Progress (accent color) -->
+                                <div class="absolute h-full bg-purple-500 rounded-full" id="progressBar" style="width: 0%"></div>
+                                <!-- Progress Handle -->
+                                <div class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-purple-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" id="progressHandle" style="left: 0%"></div>
+                            </div>
+                            
+                            <!-- Controls Row -->
+                            <div class="flex items-center gap-4 text-white">
+                                <!-- Play/Pause -->
+                                <button id="playPauseBtn" class="hover:text-purple-400 transition">
+                                    <i class="bi bi-play-fill text-2xl" id="playIcon"></i>
+                                </button>
+                                
+                                <!-- Time Display -->
+                                <span class="text-sm font-mono" id="timeDisplay">0:00 / 0:00</span>
+                                
+                                <div class="flex-1"></div>
+                                
+                                <!-- Skip Backward -->
+                                <button onclick="skipVideo(-10)" class="hover:text-purple-400 transition px-2" title="Skip backward 10s">
+                                    <i class="bi bi-skip-backward-fill text-xl"></i>
+                                </button>
+                                
+                                <!-- Skip Forward -->
+                                <button onclick="skipVideo(30)" class="hover:text-purple-400 transition px-2" title="Skip forward 30s">
+                                    <i class="bi bi-skip-forward-fill text-xl"></i>
+                                </button>
+                                
+                                <div class="w-px h-6 bg-gray-500 mx-2"></div>
+                                
+                                <!-- Volume -->
+                                <div class="flex items-center gap-2 group/volume">
+                                    <button id="volumeBtn" class="hover:text-purple-400 transition">
+                                        <i class="bi bi-volume-up-fill text-xl" id="volumeIcon"></i>
+                                    </button>
+                                    <input type="range" id="volumeSlider" min="0" max="100" value="100" 
+                                           class="w-0 group-hover/volume:w-20 transition-all duration-300 accent-purple-500 cursor-pointer">
+                                </div>
+                                
+                                <div class="w-px h-6 bg-gray-500 mx-2"></div>
+                                
+                                <!-- Maximize (not true fullscreen) -->
+                                <button id="maximizeBtn" class="hover:text-purple-400 transition" title="Maximize video">
+                                    <i class="bi bi-arrows-angle-expand text-xl" id="maximizeIcon"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+                 
+                 // Initialize video controls
+                 setTimeout(() => initializeVideoControls(), 100);
+                 
+                 document.addEventListener('keydown', handleVideoKeys);
+                 openPreviewModal();
+            } else if (isPdf) {
+                container.innerHTML = `<iframe src="${url}" class="w-full h-full border-0 bg-white"></iframe>`;
+                openPreviewModal();
+            } else {
+                if (confirm(`Preview not supported for .${ext}. Download instead?`)) {
+                    doDownload(file);
+                }
+            }
+        }
+
+        function openPreviewModal() {
+            document.getElementById('previewModal').classList.remove('hidden');
+        }
+
+
+
+        // Rendering
+        function renderFiles(files) {
+            const container = document.getElementById('fileList');
+            const emptyState = document.getElementById('emptyState');
+            container.innerHTML = '';
+
+            if (!files || files.length === 0) {
+                container.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            container.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            files.forEach(file => {
+                const isSelected = selectedFiles.has(file.path);
+                const div = document.createElement('div');
+                div.className = `file-item p-4 rounded-lg border hover:shadow-md transition cursor-pointer flex flex-col items-center text-center gap-2 relative group ${isSelected ? 'bg-purple-50 border-purple-500 ring-2 ring-purple-200' : 'bg-white'}`;
+                
+                div.onclick = (e) => {
+                    // Holding Shift or Ctrl could toggle selection too
+                    if (e.ctrlKey || e.metaKey) {
+                        toggleSelection(file.path, !isSelected);
+                        return;
+                    }
+                    if (file.is_dir) {
+                        navigate(file.path);
+                    } else {
+                        previewFile(file);
+                    }
+                };
+
+                div.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    if (!isSelected) {
+                         // clear previous selections if right clicking a new one
+                         // clearSelection(); // Optional: keep selection? 
+                    }
+                    showContextMenu(e, file);
+                };
+
+                // Checkbox
+                const checkboxDiv = document.createElement('div');
+                checkboxDiv.className = `absolute top-2 left-2 z-20 ${isSelected ? '' : 'opacity-0 group-hover:opacity-100'} transition-opacity`;
+                checkboxDiv.onclick = (e) => e.stopPropagation();
+                checkboxDiv.innerHTML = `<input type="checkbox" class="w-5 h-5 cursor-pointer accent-purple-600 rounded drop-shadow-md" ${isSelected ? 'checked' : ''}>`;
+                checkboxDiv.querySelector('input').onchange = (e) => toggleSelection(file.path, e.target.checked);
+                div.appendChild(checkboxDiv);
+
+                let content = '';
+
+                if (file.is_dir) {
+                     content = `<i class="bi bi-folder-fill text-yellow-400 text-4xl mb-2"></i>`;
+                } else if (file.type === 'image') {
+                    const url = `/api/files/download?root=${currentRoot}&path=${encodeURIComponent(file.path)}&mode=inline&token=${token}`;
+                    content = `<div class="w-full h-32 mb-2 flex items-center justify-center bg-gray-100 rounded overflow-hidden">
+                        <img src="${url}" loading="lazy" class="w-full h-full object-cover">
+                    </div>`;
+                } else if (['mp4', 'mkv', 'webm', 'mov', 'avi'].includes(file.name.split('.').pop().toLowerCase())) {
+                     const thumbUrl = `/api/files/thumbnail?root=${currentRoot}&path=${encodeURIComponent(file.path)}&token=${token}`;
+                     content = `<div class="w-full h-32 mb-2 flex items-center justify-center bg-gray-900 rounded overflow-hidden relative group">
+                        <img src="${thumbUrl}" loading="lazy" class="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" onerror="this.style.display='none';this.nextElementSibling.classList.add('hidden');this.parentElement.innerHTML='<i class=\\'bi bi-film text-purple-400 text-4xl mb-2\\'></i>'">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <i class="bi bi-play-circle-fill text-white text-3xl opacity-80 drop-shadow-lg group-hover:scale-110 transition"></i>
+                        </div>
+                    </div>`;
+                } else {
+                    let icon = 'bi-file-earmark';
+                    let color = 'text-gray-400';
+                    switch(file.type) {
+                        case 'pdf': icon = 'bi-file-pdf'; color = 'text-red-500'; break;
+                        case 'video': icon = 'bi-file-play'; color = 'text-pink-500'; break;
+                        case 'archive': icon = 'bi-file-zip'; color = 'text-orange-500'; break;
+                        case 'text': icon = 'bi-file-text'; color = 'text-blue-400'; break;
+                    }
+                    content = `<i class="bi ${icon} ${color} text-4xl mb-2"></i>`;
+                }
+
+                div.innerHTML = `
+                    ${content}
+                    <div class="text-sm font-medium truncate w-full" title="${file.name}">${file.name}</div>
+                    <div class="text-xs text-gray-400">${formatSize(file.size)}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderBreadcrumbs(path) {
+            const container = document.getElementById('breadcrumbs');
+            const parts = path.split('/').filter(p => p);
+            
+            let html = `<button onclick="navigate('')" class="hover:underline font-bold text-gray-800">${getRootLabel(currentRoot)}</button>`;
+            
+            let accum = '';
+            parts.forEach((part, index) => {
+                accum += '/' + part;
+                const safePath = accum;
+                html += ` <span class="text-gray-400">/</span> <button onclick="navigate('${safePath}')" class="hover:underline">${part}</button>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function getRootLabel(key) {
+            const map = {
+                'bulk': 'Bulk Storage',
+                'highspeed': 'High Speed',
+                'archives': 'Archives',
+                'backups': 'Backups',
+                'trash': 'Trash Can'
+            };
+            return map[key] || key;
+        }
+
+        function formatSize(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+        }
+
+        // Drag & Drop
+        function setupDragAndDrop() {
+            const zone = document.getElementById('dropZone');
+            
+            zone.ondragover = (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            };
+            
+            zone.ondragleave = () => {
+                zone.classList.remove('dragover');
+            };
+            
+            zone.ondrop = (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                handleFileUpload(e.dataTransfer.files);
+            };
+
+            document.addEventListener('keydown', (e) => {
+                 if (e.key === 'Escape') {
+                     closeNewFolderModal();
+                     closePreview();
+                     hideContextMenu();
+                     closeEmptyTrashModal();
+                     closeDeleteModal();
+                 }
+            });
+
+            document.onclick = (e) => {
+                if (!e.target.closest('#contextMenu')) hideContextMenu();
+                if (e.target.id === 'previewModal') closePreview();
+                if (e.target.id === 'folderModal') closeNewFolderModal();
+                if (e.target.id === 'emptyTrashModal') closeEmptyTrashModal();
+                if (e.target.id === 'deleteModal') closeDeleteModal();
+            };
+        }
+
+        function showContextMenu(e, file) {
+            contextFile = file;
+            const menu = document.getElementById('contextMenu');
+            menu.style.left = e.pageX + 'px';
+            menu.style.top = e.pageY + 'px';
+            menu.classList.remove('hidden');
+        }
+
+        function hideContextMenu() {
+            document.getElementById('contextMenu').classList.add('hidden');
+        }
+        // Bulk Actions Logic
+        function toggleSelection(path, checked) {
+            if (checked) {
+                selectedFiles.add(path);
+            } else {
+                selectedFiles.delete(path);
+            }
+            updateBulkToolbar();
+            // Re-render to update UI (checkboxes and style)
+            renderFiles(currentFileList);
+        }
+
+        function clearSelection() {
+            selectedFiles.clear();
+            updateBulkToolbar();
+            renderFiles(currentFileList);
+        }
+
+        function updateBulkToolbar() {
+            const toolbar = document.getElementById('bulkActionsToolbar');
+            const count = document.getElementById('selectedCount');
+            if (toolbar && count) {
+                count.textContent = selectedFiles.size;
+                if (selectedFiles.size > 0) {
+                    toolbar.classList.remove('hidden');
+                    toolbar.classList.add('flex');
+                } else {
+                    toolbar.classList.add('hidden');
+                    toolbar.classList.remove('flex');
+                }
+            }
+        }
+
+        function bulkCut() {
+            if (selectedFiles.size === 0) return;
+            clipboard = {
+                root: currentRoot,
+                paths: Array.from(selectedFiles),
+                isBulk: true
+            };
+            clearSelection();
+            updatePasteButton();
+            alert(`Cut ${clipboard.paths.length} items. Navigate to destination and click Paste.`);
+        }
+
+        function bulkDeleteConfirm() {
+            if (selectedFiles.size === 0) return;
+            const modal = document.getElementById('deleteModal');
+            document.getElementById('deleteModalTitle').textContent = `Delete ${selectedFiles.size} Items`;
+            document.getElementById('deleteModalMessage').textContent = `Are you sure you want to delete ${selectedFiles.size} items?`;
+            
+            // Override confirm button
+            const btn = document.getElementById('deleteConfirmBtn');
+            btn.onclick = bulkDeleteExecute;
+            
+            modal.classList.remove('hidden');
+        }
+
+        async function bulkDeleteExecute() {
+            closeDeleteModal();
+            const failures = [];
+            for (const path of selectedFiles) {
+                try {
+                    const res = await fetch(`/api/files?root=${currentRoot}&path=${encodeURIComponent(path)}`, {
+                        method: 'DELETE',
+                        headers: getHeaders()
+                    });
+                    if (!res.ok) failures.push(path);
+                } catch (e) {
+                    failures.push(path);
+                }
+            }
+            clearSelection();
+            loadFiles();
+            loadStorageStats();
+            if (failures.length > 0) {
+                alert(`Failed to delete ${failures.length} items.`);
+            }
+        }
+
+
+        // Search Filter (Debounced)
+        let searchTimeout;
+        async function filterFiles() {
+            const query = document.getElementById('fileSearch').value.trim();
+            if (searchTimeout) clearTimeout(searchTimeout);
+
+            if (query === '') {
+                loadFiles(); // reload normal view
+                return;
+            }
+
+            searchTimeout = setTimeout(async () => {
+                try {
+                     const res = await fetch(`/api/files?root=${currentRoot}&path=${encodeURIComponent(currentPath)}&search=${encodeURIComponent(query)}`, {
+                         headers: getHeaders()
+                     });
+                     if (res.ok) {
+                         const data = await res.json();
+                         renderFiles(data.files);
+                     }
+                } catch(e) {
+                    console.error("Search error", e);
+                }
+            }, 500);
+        }
+
+        // Rename Functions
+        function openRenameModal(file) {
+            hideContextMenu();
+            if (!file) return;
+            document.getElementById('renameOldName').textContent = file.name;
+            document.getElementById('renameOldPath').value = file.path; 
+            document.getElementById('renameInput').value = file.name;
+            document.getElementById('renameModal').classList.remove('hidden');
+            document.getElementById('renameInput').focus();
+            setTimeout(() => document.getElementById('renameInput').select(), 100);
+        }
+
+        async function submitRename() {
+            const oldPath = document.getElementById('renameOldPath').value;
+            const newName = document.getElementById('renameInput').value.trim();
+            if (!newName) return;
+            
+            if (newName.includes('/') || newName.includes('\\')) {
+                alert('Invalid name. Cannot contain slashes.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/files/rename', {
+                    method: 'PUT',
+                    headers: getHeaders(),
+                    body: JSON.stringify({
+                        root: currentRoot,
+                        oldPath: oldPath,
+                        newName: newName
+                    })
+                });
+
+                if (!res.ok) {
+                    const txt = await res.text();
+                    throw new Error(txt);
+                }
+
+                document.getElementById('renameModal').classList.add('hidden');
+                loadFiles(); // refresh logic
+            } catch (e) {
+                alert('Rename failed: ' + e.message);
+            }
+        }
+
+        // Video Controls
+        function skipVideo(seconds) {
+            const video = document.getElementById('previewVideo');
+            if (video) {
+                video.currentTime += seconds;
+            }
+        }
+
+        // Video Player Controls Initialization
+        function initializeVideoControls() {
+            const video = document.getElementById('previewVideo');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const playIcon = document.getElementById('playIcon');
+            const progressBar = document.getElementById('progressBar');
+            const bufferedBar = document.getElementById('bufferedBar');
+            const progressHandle = document.getElementById('progressHandle');
+            const progressContainer = document.getElementById('progressContainer');
+            const timeDisplay = document.getElementById('timeDisplay');
+            const volumeBtn = document.getElementById('volumeBtn');
+            const volumeIcon = document.getElementById('volumeIcon');
+            const volumeSlider = document.getElementById('volumeSlider');
+            const maximizeBtn = document.getElementById('maximizeBtn');
+            const maximizeIcon = document.getElementById('maximizeIcon');
+            const videoContainer = document.getElementById('videoPlayerContainer');
+            const controls = document.getElementById('videoControls');
+            const previewModal = document.getElementById('previewModal');
+
+            if (!video) return;
+
+            // Auto-play muted for Safari compatibility
+            video.preload = 'auto';
+            video.load(); // Force Safari to load the video
+            
+            // Try to autoplay (must stay muted for Safari)
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // Autoplay was prevented
+                    console.log('Autoplay prevented - user must click play');
+                });
+            }
+
+            // Format time helper
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60);
+                const secs = Math.floor(seconds % 60);
+                return `${mins}:${secs.toString().padStart(2, '0')}`;
+            }
+
+            // Play/Pause
+            playPauseBtn.onclick = () => {
+                if (video.paused) {
+                    video.muted = false; // Unmute on user interaction
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            };
+
+            video.onclick = () => {
+                if (video.paused) {
+                    video.muted = false; // Unmute on user interaction
+                    video.play();
+                } else {
+                    video.pause();
+                }
+            };
+
+            video.onplay = () => {
+                playIcon.className = 'bi bi-pause-fill text-2xl';
+            };
+
+            video.onpause = () => {
+                playIcon.className = 'bi bi-play-fill text-2xl';
+            };
+
+            // Progress Bar Update
+            video.ontimeupdate = () => {
+                const progress = (video.currentTime / video.duration) * 100;
+                progressBar.style.width = progress + '%';
+                progressHandle.style.left = progress + '%';
+                timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration || 0)}`;
+            };
+
+            // Buffered Progress Update
+            video.onprogress = () => {
+                if (video.buffered.length > 0) {
+                    const buffered = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+                    bufferedBar.style.width = buffered + '%';
+                }
+            };
+
+            // Seek on Progress Bar Click
+            progressContainer.onclick = (e) => {
+                const rect = progressContainer.getBoundingClientRect();
+                const pos = (e.clientX - rect.left) / rect.width;
+                video.currentTime = pos * video.duration;
+            };
+
+            // Volume Control
+            volumeSlider.oninput = () => {
+                video.volume = volumeSlider.value / 100;
+                video.muted = false; // Unmute when adjusting volume
+                updateVolumeIcon();
+            };
+
+            volumeBtn.onclick = () => {
+                video.muted = !video.muted;
+                updateVolumeIcon();
+            };
+
+            function updateVolumeIcon() {
+                if (video.muted || video.volume === 0) {
+                    volumeIcon.className = 'bi bi-volume-mute-fill text-xl';
+                } else if (video.volume < 0.5) {
+                    volumeIcon.className = 'bi bi-volume-down-fill text-xl';
+                } else {
+                    volumeIcon.className = 'bi bi-volume-up-fill text-xl';
+                }
+            }
+
+            // Maximize within modal (not browser fullscreen)
+            let isMaximized = false;
+            maximizeBtn.onclick = () => {
+                if (!isMaximized) {
+                    // Maximize: Make modal fill viewport
+                    previewModal.classList.add('!p-0');
+                    previewModal.querySelector('.max-w-7xl').classList.add('max-w-full', 'w-full', 'h-full', 'm-0');
+                    video.classList.remove('max-h-[70vh]');
+                    video.classList.add('h-full');
+                    videoContainer.classList.add('h-full');
+                    maximizeIcon.className = 'bi bi-arrows-angle-contract text-xl';
+                    isMaximized = true;
+                } else {
+                    // Restore: Return to normal size
+                    previewModal.classList.remove('!p-0');
+                    previewModal.querySelector('.max-w-7xl').classList.remove('max-w-full', 'w-full', 'h-full', 'm-0');
+                    video.classList.add('max-h-[70vh]');
+                    video.classList.remove('h-full');
+                    videoContainer.classList.remove('h-full');
+                    maximizeIcon.className = 'bi bi-arrows-angle-expand text-xl';
+                    isMaximized = false;
+                }
+            };
+
+            // Hide controls on inactivity
+            let hideTimeout;
+            const showControls = () => {
+                controls.style.opacity = '1';
+                videoContainer.style.cursor = 'default';
+                clearTimeout(hideTimeout);
+                hideTimeout = setTimeout(() => {
+                    if (!video.paused) {
+                        controls.style.opacity = '0';
+                        videoContainer.style.cursor = 'none';
+                    }
+                }, 3000);
+            };
+
+            videoContainer.onmousemove = showControls;
+            videoContainer.onmouseenter = showControls;
+            video.onplay = () => {
+                playIcon.className = 'bi bi-pause-fill text-2xl';
+                hideTimeout = setTimeout(() => {
+                    controls.style.opacity = '0';
+                    videoContainer.style.cursor = 'none';
+                }, 3000);
+            };
+            video.onpause = () => {
+                playIcon.className = 'bi bi-play-fill text-2xl';
+                controls.style.opacity = '1';
+                videoContainer.style.cursor = 'default';
+            };
+        }
+
+        function handleVideoKeys(e) {
+            const video = document.getElementById('previewVideo');
+            const modal = document.getElementById('previewModal');
+            if (!video || !modal || modal.classList.contains('hidden')) return;
+
+            if (e.key === 'ArrowLeft') {
+                skipVideo(-10);
+                e.preventDefault();
+            } else if (e.key === 'ArrowRight') {
+                skipVideo(30);
+                e.preventDefault();
+            }
+        }
+    </script>
+</body>
+</html>

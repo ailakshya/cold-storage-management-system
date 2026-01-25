@@ -1,0 +1,73 @@
+name: Deploy to Standalone Server
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "k8s/**"
+      - "README.md"
+  workflow_dispatch:
+
+jobs:
+  deploy-standalone:
+    runs-on: self-hosted
+    # Only run if the runner is actually the standalone server (we can check hostname or labels if needed)
+    # For now, assuming the user will add the runner with default labels
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: "1.23"
+
+      - name: Build Binary
+        run: |
+          echo "Building binary..."
+          CGO_ENABLED=0 go build -ldflags="-w -s" -o cold-backend ./cmd/server
+
+      - name: Deploy Application
+        run: |
+          echo "Stopping existing service..."
+          # Kill old process matching our server binary
+          pkill -f "cold-storage/server" || true
+
+          echo "Installing new binary..."
+          mkdir -p ~/cold-storage/
+          # Backup old binary
+          if [ -f ~/cold-storage/server ]; then
+            mv ~/cold-storage/server ~/cold-storage/server.bak
+          fi
+
+          mv cold-backend ~/cold-storage/server
+          chmod +x ~/cold-storage/server
+
+          echo "Starting service..."
+          cd ~/cold-storage
+          # Start in background
+          nohup ./server --mode employee > server.log 2>&1 &
+
+          echo "Waiting for startup..."
+          sleep 5
+
+      - name: Health Check
+        run: |
+          if ps aux | grep "[s]erver --mode" > /dev/null; then
+            echo "✅ Process is running"
+            # Optional: Check HTTP endpoint
+            if curl -s http://localhost:8080/health > /dev/null; then
+               echo "✅ Health check passed"
+            else
+               echo "⚠️ Process running but health check failed (might be starting up)"
+            fi
+          else
+            echo "❌ Deployment failed: Process not running"
+            if [ -f ~/cold-storage/server.log ]; then
+              echo "Logs:"
+              tail -n 20 ~/cold-storage/server.log
+            fi
+            exit 1
+          fi
