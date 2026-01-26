@@ -8,17 +8,14 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: [self-hosted, cold-server-runner]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1  # Shallow clone is faster
+          fetch-depth: 1
+          submodules: false
 
-      # Use pre-installed Go if available to save setup time
-      # Since we are on self-hosted, we can likely skip setup-go if Go is in path
-      # effectively using the system go
-      
       - name: Prepare Assets
         run: |
           echo "Preparing static assets..."
@@ -33,12 +30,13 @@ jobs:
           APP_DIR=/home/cold/cold-storage
           
           echo "Building server binary..."
-          # Setup Go Cache
+          # Setup Go Path
+          export PATH=$PATH:/usr/local/go/bin
           export GOCACHE=/tmp/go-build-cache
           mkdir -p $GOCACHE
           
-          # Build binary locally (Runner IS the server) using ABSOLUTE path
-          CGO_ENABLED=0 /usr/local/go/bin/go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
+          # Build binary locally (Runner IS the server)
+          CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
           
           echo "Preparing deployment..."
           mkdir -p $APP_DIR
