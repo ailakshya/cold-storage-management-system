@@ -842,9 +842,9 @@
                 container.innerHTML = `<img src="${url}" class="max-w-full max-h-full object-contain">`;
                 openPreviewModal();
             } else if (isVideo) {
-                 container.innerHTML = `
-                    <div class="relative w-full h-full flex flex-col items-center bg-black rounded-lg overflow-hidden" id="videoPlayerContainer">
-                        <video id="previewVideo" muted playsinline webkit-playsinline class="w-full flex-1 max-h-[70vh] bg-black cursor-pointer" id="videoElement">
+                container.innerHTML = `
+                    <div class="relative w-full h-full flex flex-col items-center justify-center bg-black rounded-lg overflow-hidden" id="videoPlayerContainer">
+                        <video id="previewVideo" muted playsinline webkit-playsinline class="w-full h-full object-contain bg-black cursor-pointer" id="videoElement">
                             <source src="${url}" type="video/${ext === 'mov' ? 'mp4' : ext}">
                             Your browser does not support the video tag.
                         </video>
@@ -1376,19 +1376,16 @@
                 if (!isMaximized) {
                     // Maximize: Make modal fill viewport
                     previewModal.classList.add('!p-0');
-                    previewModal.querySelector('.max-w-7xl').classList.add('max-w-full', 'w-full', 'h-full', 'm-0');
-                    video.classList.remove('max-h-[70vh]');
-                    video.classList.add('h-full');
-                    videoContainer.classList.add('h-full');
+                    previewModal.querySelector('.max-w-7xl')?.classList.add('max-w-full', 'w-full', 'h-full', 'm-0');
+                    // video and container are already h-full w-full object-contain
+                    
                     maximizeIcon.className = 'bi bi-arrows-angle-contract text-xl';
                     isMaximized = true;
                 } else {
                     // Restore: Return to normal size
                     previewModal.classList.remove('!p-0');
-                    previewModal.querySelector('.max-w-7xl').classList.remove('max-w-full', 'w-full', 'h-full', 'm-0');
-                    video.classList.add('max-h-[70vh]');
-                    video.classList.remove('h-full');
-                    videoContainer.classList.remove('h-full');
+                    previewModal.querySelector('.max-w-7xl')?.classList.remove('max-w-full', 'w-full', 'h-full', 'm-0');
+                    
                     maximizeIcon.className = 'bi bi-arrows-angle-expand text-xl';
                     isMaximized = false;
                 }
