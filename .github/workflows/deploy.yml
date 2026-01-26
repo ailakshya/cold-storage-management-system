@@ -22,10 +22,10 @@ jobs:
       - name: Build Application
         run: |
           echo "Building server binary..."
-          # Ensure Go is in path
-          export PATH=$PATH:/usr/local/go/bin:$HOME/go/bin
+          # Explicitly add Go to PATH
+          export PATH=$PATH:/usr/local/go/bin
           
-          # Use Go cache if possible
+          # Use Go cache in temp to avoid permission issues
           export GOCACHE=/tmp/go-build-cache
           mkdir -p $GOCACHE
           
