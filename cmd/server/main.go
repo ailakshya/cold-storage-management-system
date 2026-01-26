@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"cold-backend/installer"
 	"cold-backend/internal/auth"
 	"cold-backend/internal/cache"
@@ -29,8 +31,6 @@ import (
 	"cold-backend/internal/sms"
 	"cold-backend/migrations"
 	"cold-backend/static"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // startSetupMode starts the server in setup mode when no database is available
@@ -494,9 +494,30 @@ func main() {
 		// Wrap with panic recovery and metrics middleware
 		handler = middleware.PanicRecovery(middleware.MetricsMiddleware(corsMiddleware(router)))
 
+	} else if *mode == "website" {
+		log.Println("Starting in WEBSITE mode")
+
+		// Serve static files correctly at /static/
+		// Files are in ./static directory
+		fs := http.FileServer(http.Dir("./static"))
+		http.Handle("/static/", http.StripPrefix("/static/", fs))
+
+		// Serve index.html for root path only
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/" {
+				http.ServeFile(w, r, "./static/index.html")
+				return
+			}
+			http.NotFound(w, r)
+		})
+
+		handler = corsMiddleware(http.DefaultServeMux)
+		cfg.Server.Port = 8082 // Override port for website mode
+
 	} else {
 		log.Println("Starting in EMPLOYEE mode")
 
+		// ... existing employee mode code ...
 		// Initialize services (employee mode)
 		userService := services.NewUserService(userRepo, jwtManager)
 		customerService := services.NewCustomerService(customerRepo)
@@ -771,7 +792,7 @@ func main() {
 	}
 
 	// Start server
-	addr := fmt.Sprintf(":%d", cfg.Server.Port)
+	addr := fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)
 	log.Printf("Server running on %s (mode: %s)", addr, *mode)
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("Server failed to start: %v", err)

@@ -20,9 +20,14 @@ func NewPageHandler() *PageHandler {
 	}
 }
 
+// ServePage renders a template by name with data
+func (h *PageHandler) ServePage(w http.ResponseWriter, r *http.Request, tmplName string, data interface{}) {
+	h.templates.ExecuteTemplate(w, tmplName, data)
+}
+
 // LoginPage serves the login page
 func (h *PageHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
-	h.templates.ExecuteTemplate(w, "user_login.html", nil)
+	h.ServePage(w, r, "user_login.html", nil)
 }
 
 // DashboardPage serves the dashboard (check session/auth first)

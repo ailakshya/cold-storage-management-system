@@ -16,14 +16,14 @@ import (
 	"sync"
 	"time"
 
-	"cold-backend/internal/config"
-	"cold-backend/migrations"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"cold-backend/internal/config"
+	"cold-backend/migrations"
 )
 
 // RestoreService handles point-in-time database restoration from R2
@@ -795,10 +795,37 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 	})
 	if err != nil {
 		log.Printf("[Restore] Warning: failed to upload pre-restore backup to R2: %v", err)
-		return localFilename + " (Local Only)", nil // Return local filename if R2 fails
+		return localFilename + " (Local Only)", nil
 	}
 
 	return key, nil
+}
+
+// DeleteLocalBackup deletes a local backup file
+func (s *RestoreService) DeleteLocalBackup(filename string) error {
+	// Security check: ensure strict filename to prevent path traversal
+	if strings.Contains(filename, "/") || strings.Contains(filename, "..") {
+		return fmt.Errorf("invalid filename")
+	}
+
+	filePath := filepath.Join(s.backupDir, filename)
+
+	// Verify it exists in the designated backup directory
+	cleanPath := filepath.Clean(filePath)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(s.backupDir)) {
+		return fmt.Errorf("invalid file path")
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
+		return fmt.Errorf("file not found")
+	}
+
+	if err := os.Remove(cleanPath); err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+
+	return nil
 }
 
 // CleanupExpiredTokens removes expired confirmation tokens

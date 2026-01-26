@@ -588,13 +588,50 @@
                     <button onclick="previewRestore()" class="neu-button bg-orange-500 text-white w-full">
                         <i class="bi bi-eye"></i> Preview Restore
                     </button>
+                    ${currentTab === 'local' ? `
+                    <button onclick="deleteLocalBackup('${key}')" class="neu-button bg-red-100 text-red-600 w-full hover:bg-red-200">
+                        <i class="bi bi-trash"></i> Delete Backup
+                    </button>
+                    ` : ''}
                 </div>
             `;
+        }
+        
+        async function deleteLocalBackup(filename) {
+            if (!confirm(`Are you sure you want to PERMANENTLY delete this local backup?\n\nFile: ${filename}`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/restore/local?filename=${encodeURIComponent(filename)}`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Backup deleted successfully');
+                    // Refresh the list
+                    selectedSnapshot = null;
+                    document.getElementById('confirmPanel').innerHTML = `
+                        <div class="text-center text-gray-500 py-8">
+                            <i class="bi bi-clock-history text-4xl"></i>
+                            <p class="mt-2">Select a snapshot to restore</p>
+                        </div>
+                    `;
+                    loadLocalBackups(); // Reload list
+                } else {
+                    alert('Failed to delete: ' + (data.error || 'Unknown error'));
+                }
+            } catch (e) {
+                alert('Error deleting backup: ' + e.message);
+            }
         }
 
         async function previewRestore() {
             if (!selectedSnapshot) return;
-
+            
             const endpoint = currentTab === 'cloud' 
                 ? '/api/admin/restore/preview' 
                 : '/api/admin/restore/local/preview';

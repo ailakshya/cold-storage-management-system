@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Guru Kripa Cold Store - Premium Cold Storage Facility in Bulandshahr</title>
+    <meta name="description" content="Guru Kripa Cold Store - Leading cold storage facility in Bulandshahr, UP. Safe storage for potatoes, onions & agricultural produce. Contact: 99175 85586">
+    <meta name="keywords" content="cold storage, Bulandshahr, potato storage, onion storage, agricultural storage, Guru Kripa, UP cold store">
+    <link rel="canonical" href="https://gurukripacoldstore.in">
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="Guru Kripa Cold Store">
+    <meta property="og:description" content="Premium Cold Storage Facility in Bulandshahr, Uttar Pradesh">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://gurukripacoldstore.in">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4a90a4;
+            --primary-light: #e8f4f8;
+            --secondary: #5cb85c;
+            --secondary-light: #e8f5e9;
+            --accent: #f5a623;
+            --accent-light: #fff8e7;
+            --light: #f8fafb;
+            --dark: #2c3e50;
+            --white: #ffffff;
+            --text-muted: #6c7a89;
+            --border-color: #e0e6ed;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            background: var(--light);
+        }
+
+        /* Header - Mobile First */
+        header {
+            background: var(--white);
+            color: var(--dark);
+            padding: 0.75rem 0;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .logo h1 {
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .logo span {
+            color: var(--primary);
+        }
+
+        nav ul {
+            display: none;
+        }
+
+        .header-buttons {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-portal-btn {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+            background: var(--secondary);
+            color: var(--white);
+            padding: 0.5rem 0.75rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+
+        .header-contact {
+            display: none;
+        }
+
+        /* Hero Section - Light & Mobile */
+        .hero {
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-light) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 100px 1rem 2rem;
+            text-align: center;
+        }
+
+        .hero-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .hero-content h2 {
+            font-size: 2rem;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+            line-height: 1.2;
+        }
+
+        .hero-content h2 span {
+            color: var(--primary);
+        }
+
+        .hero-content .tagline {
+            font-size: 1rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .hero-content p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+            padding: 0 1rem;
+        }
+
+        .hero-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            padding: 0 1rem;
+        }
+
+        .btn {
+            padding: 1rem 1.5rem;
+            border-radius: 30px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: var(--white);
+            box-shadow: 0 4px 15px rgba(74, 144, 164, 0.3);
+        }
+
+        .btn-secondary {
+            background: var(--white);
+            color: var(--dark);
+            border: 2px solid var(--border-color);
+        }
+
+        .btn-green {
+            background: var(--secondary);
+            color: var(--white);
+            box-shadow: 0 4px 15px rgba(92, 184, 92, 0.3);
+        }
+
+        .hero-visual {
+            display: none;
+        }
+
+        /* Stats Cards - Mobile */
+        .hero-stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin-top: 2rem;
+            padding: 0 0.5rem;
+        }
+
+        .stat-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+
+        /* Sections */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 1rem;
+        }
+
+        .section-title {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .section-title h2 {
+            font-size: 1.5rem;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .section-title p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        /* About Section */
+        .about {
+            padding: 3rem 0;
+            background: var(--white);
+        }
+
+        .about-content {
+            text-align: center;
+        }
+
+        .about-content h3 {
+            font-size: 1.25rem;
+            color: var(--dark);
+            margin-bottom: 1rem;
+        }
+
+        .about-content p {
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+            font-size: 0.95rem;
+        }
+
+        .features-list {
+            list-style: none;
+            text-align: left;
+            margin-top: 1.5rem;
+        }
+
+        .features-list li {
+            padding: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: var(--light);
+            border-radius: 12px;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .feature-icon {
+            width: 36px;
+            height: 36px;
+            background: var(--primary-light);
+            color: var(--primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        /* Services Section */
+        .services {
+            padding: 3rem 0;
+            background: var(--light);
+        }
+
+        .services-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .service-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        .service-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-light) 100%);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .service-card h3 {
+            color: var(--dark);
+            margin-bottom: 0.25rem;
+            font-size: 1rem;
+        }
+
+        .service-card p {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+
+        /* Crops Section */
+        .crops {
+            padding: 3rem 0;
+            background: var(--white);
+        }
+
+        .crops-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+
+        .crop-card {
+            background: var(--light);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.25rem 1rem;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .crop-card:hover {
+            border-color: var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .crop-emoji {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .crop-card h4 {
+            color: var(--dark);
+            font-size: 0.9rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .crop-card p {
+            color: var(--text-muted);
+            font-size: 0.75rem;
+        }
+
+        /* Portal Section */
+        .portal-section {
+            padding: 3rem 0;
+            background: linear-gradient(135deg, var(--secondary-light) 0%, var(--primary-light) 100%);
+        }
+
+        .portal-info {
+            text-align: center;
+        }
+
+        .portal-info h2 {
+            font-size: 1.5rem;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .portal-tagline {
+            font-size: 1rem;
+            color: var(--secondary);
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .portal-info > p {
+            color: var(--text-muted);
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        .portal-features {
+            list-style: none;
+            text-align: left;
+            margin-bottom: 1.5rem;
+        }
+
+        .portal-features li {
+            padding: 0.75rem 0;
+            font-size: 0.95rem;
+            color: var(--dark);
+            border-bottom: 1px solid rgba(0,0,0,0.08);
+        }
+
+        .portal-visual {
+            display: none;
+        }
+
+        /* Contact Section */
+        .contact {
+            padding: 3rem 0;
+            background: var(--white);
+        }
+
+        .contact-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .contact-card {
+            background: var(--light);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .contact-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1rem;
+            font-size: 1.25rem;
+        }
+
+        .contact-card h3 {
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+            color: var(--dark);
+        }
+
+        .contact-card p {
+            color: var(--text-muted);
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        .contact-card a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: var(--white);
+            padding: 2rem 0 1rem;
+            text-align: center;
+        }
+
+        .footer-about h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.75rem;
+            color: var(--accent);
+        }
+
+        .footer-about p {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-links, .footer-hours {
+            margin-top: 1.5rem;
+        }
+
+        .footer-links h4, .footer-hours h4 {
+            color: var(--accent);
+            margin-bottom: 0.75rem;
+            font-size: 1rem;
+        }
+
+        .footer-links ul {
+            list-style: none;
+        }
+
+        .footer-links a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            display: block;
+            padding: 0.3rem 0;
+            font-size: 0.9rem;
+        }
+
+        .footer-hours p {
+            color: rgba(255,255,255,0.7);
+            font-size: 0.9rem;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid rgba(255,255,255,0.1);
+            padding-top: 1rem;
+            margin-top: 1.5rem;
+            color: rgba(255,255,255,0.5);
+            font-size: 0.8rem;
+        }
+
+        /* WhatsApp Float Button */
+        .whatsapp-float {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            background: #25d366;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.4);
+            z-index: 1000;
+            transition: transform 0.3s;
+            text-decoration: none;
+        }
+
+        .whatsapp-float:hover {
+            transform: scale(1.1);
+        }
+
+        .whatsapp-float svg {
+            width: 30px;
+            height: 30px;
+            fill: white;
+        }
+
+        /* Desktop Styles */
+        @media (min-width: 768px) {
+            .header-container {
+                padding: 0 2rem;
+            }
+
+            .logo h1 {
+                font-size: 1.25rem;
+            }
+
+            .logo-icon {
+                width: 48px;
+                height: 48px;
+            }
+
+            nav ul {
+                display: flex;
+                list-style: none;
+                gap: 1.5rem;
+            }
+
+            nav a {
+                color: var(--dark);
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 0.95rem;
+            }
+
+            nav a:hover {
+                color: var(--primary);
+            }
+
+            .header-contact {
+                display: flex;
+                align-items: center;
+                gap: 0.5rem;
+                background: var(--primary);
+                color: var(--white);
+                padding: 0.5rem 1rem;
+                border-radius: 25px;
+                font-weight: 600;
+            }
+
+            .header-contact a {
+                color: var(--white);
+                text-decoration: none;
+            }
+
+            .hero {
+                padding: 120px 2rem 3rem;
+                text-align: left;
+            }
+
+            .hero-container {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 3rem;
+                align-items: center;
+            }
+
+            .hero-content h2 {
+                font-size: 2.75rem;
+            }
+
+            .hero-content .tagline {
+                font-size: 1.25rem;
+            }
+
+            .hero-content p {
+                padding: 0;
+            }
+
+            .hero-buttons {
+                flex-direction: row;
+                padding: 0;
+            }
+
+            .hero-visual {
+                display: block;
+            }
+
+            .hero-card {
+                background: var(--white);
+                border-radius: 20px;
+                padding: 2rem;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            }
+
+            .hero-card h3 {
+                color: var(--primary);
+                font-size: 1.25rem;
+                margin-bottom: 1rem;
+            }
+
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+
+            .stat-item {
+                text-align: center;
+                padding: 1rem;
+                background: var(--light);
+                border-radius: 12px;
+            }
+
+            .hero-stats {
+                display: none;
+            }
+
+            .container {
+                padding: 0 2rem;
+            }
+
+            .section-title h2 {
+                font-size: 2rem;
+            }
+
+            .about {
+                padding: 4rem 0;
+            }
+
+            .about-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 3rem;
+                align-items: center;
+            }
+
+            .about-content {
+                text-align: left;
+            }
+
+            .about-image-card {
+                background: linear-gradient(135deg, var(--secondary) 0%, #3d8b3d 100%);
+                border-radius: 20px;
+                padding: 2rem;
+                color: var(--white);
+            }
+
+            .services {
+                padding: 4rem 0;
+            }
+
+            .services-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .service-card {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .crops {
+                padding: 4rem 0;
+            }
+
+            .crops-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+
+            .portal-section {
+                padding: 4rem 0;
+            }
+
+            .portal-content {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 3rem;
+                align-items: center;
+            }
+
+            .portal-info {
+                text-align: left;
+            }
+
+            .portal-visual {
+                display: block;
+            }
+
+            .portal-card {
+                background: var(--white);
+                border-radius: 20px;
+                overflow: hidden;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            }
+
+            .portal-card-header {
+                background: var(--secondary);
+                color: var(--white);
+                padding: 1.25rem;
+                font-size: 1.1rem;
+                font-weight: 600;
+            }
+
+            .portal-card-body {
+                padding: 1.5rem;
+            }
+
+            .portal-stats {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 0.75rem;
+                margin-top: 1rem;
+            }
+
+            .portal-stat {
+                background: var(--light);
+                padding: 0.5rem 0.75rem;
+                border-radius: 8px;
+                font-size: 0.85rem;
+            }
+
+            .contact {
+                padding: 4rem 0;
+            }
+
+            .contact-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+
+            .footer-content {
+                display: grid;
+                grid-template-columns: 2fr 1fr 1fr;
+                gap: 2rem;
+                text-align: left;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .hero-content h2 {
+                font-size: 3rem;
+            }
+
+            .header-portal-btn {
+                padding: 0.5rem 1.25rem;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <div class="logo">
+                <div class="logo-icon">❄️</div>
+                <h1>GURU KRIPA <span>COLD STORE</span></h1>
+            </div>
+            <nav>
+                <ul>
+                    <li><a href="#home">Home</a></li>
+                    <li><a href="#about">About</a></li>
+                    <li><a href="#services">Services</a></li>
+                    <li><a href="#crops">Storage</a></li>
+                    <li><a href="#contact">Contact</a></li>
+                </ul>
+            </nav>
+            <div class="header-buttons">
+                <a href="https://customer.gurukripacoldstore.in" class="header-portal-btn">
+                    <span>👤</span> Login
+                </a>
+                <div class="header-contact">
+                    <span>📞</span>
+                    <a href="tel:+919917585586">99175 85586</a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero" id="home">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h2>गुरु कृपा <span>कोल्ड स्टोर</span></h2>
+                <p class="tagline">Premium Cold Storage Facility</p>
+                <p>State-of-the-art cold storage solutions for your agricultural produce in Bulandshahr, UP.</p>
+                <div class="hero-buttons">
+                    <a href="tel:+919917585586" class="btn btn-primary">
+                        <span>📞</span> Call Now
+                    </a>
+                    <a href="https://customer.gurukripacoldstore.in" class="btn btn-green">
+                        <span>👤</span> Customer Login
+                    </a>
+                    <a href="#contact" class="btn btn-secondary">
+                        <span>📍</span> Get Directions
+                    </a>
+                </div>
+
+                <!-- Mobile Stats -->
+                <div class="hero-stats">
+                    <div class="stat-card">
+                        <div class="stat-number">24/7</div>
+                        <div class="stat-label">Temperature Control</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">100%</div>
+                        <div class="stat-label">Safe Storage</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">Best</div>
+                        <div class="stat-label">Rates in Area</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number">Years</div>
+                        <div class="stat-label">of Experience</div>
+                    </div>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-card">
+                    <h3>❄️ Why Choose Us?</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-number">24/7</div>
+                            <div class="stat-label">Temperature Control</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">100%</div>
+                            <div class="stat-label">Safe Storage</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">Best</div>
+                            <div class="stat-label">Rates in Area</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-number">Years</div>
+                            <div class="stat-label">of Experience</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="about" id="about">
+        <div class="container">
+            <div class="section-title">
+                <h2>About Guru Kripa Cold Store</h2>
+                <p>Your trusted partner for agricultural cold storage</p>
+            </div>
+            <div class="about-grid">
+                <div class="about-content">
+                    <h3>Preserving Your Harvest, Securing Your Future</h3>
+                    <p>Guru Kripa Cold Store is a leading cold storage facility in Bulandshahr, UP. We provide modern, reliable, and cost-effective cold storage solutions.</p>
+                    <ul class="features-list">
+                        <li>
+                            <span class="feature-icon">🌡️</span>
+                            <span>Precise Temperature Control (2°C - 10°C)</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">🔒</span>
+                            <span>24/7 Security & CCTV Surveillance</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">⚡</span>
+                            <span>Power Backup for Uninterrupted Service</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">📱</span>
+                            <span>SMS Notifications for Updates</span>
+                        </li>
+                        <li>
+                            <span class="feature-icon">💰</span>
+                            <span>Competitive & Transparent Pricing</span>
+                        </li>
+                    </ul>
+                </div>
+                <div class="about-image">
+                    <div class="about-image-card">
+                        <h3>🏆 Our Commitment</h3>
+                        <p>We are committed to providing the best cold storage services. Your trust is our greatest asset.</p>
+                        <br>
+                        <p><strong>📍 Serving:</strong> Bulandshahr, Shyana, Jahangirabad & surrounding areas</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Services Section -->
+    <section class="services" id="services">
+        <div class="container">
+            <div class="section-title">
+                <h2>Our Services</h2>
+                <p>Comprehensive cold storage solutions</p>
+            </div>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">🥔</div>
+                    <div>
+                        <h3>Potato Storage</h3>
+                        <p>Optimal temperature and humidity control to prevent sprouting.</p>
+                    </div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🧅</div>
+                    <div>
+                        <h3>Onion Storage</h3>
+                        <p>Climate-controlled environment for extended shelf life.</p>
+                    </div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🌾</div>
+                    <div>
+                        <h3>Multi-Crop Storage</h3>
+                        <p>Flexible storage for vegetables, fruits, and seeds.</p>
+                    </div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">🚚</div>
+                    <div>
+                        <h3>Loading/Unloading</h3>
+                        <p>Efficient services with trained staff.</p>
+                    </div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">📊</div>
+                    <div>
+                        <h3>Inventory Tracking</h3>
+                        <p>Complete tracking with SMS updates.</p>
+                    </div>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">💳</div>
+                    <div>
+                        <h3>Flexible Payment</h3>
+                        <p>Easy payment options with transparent billing.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Crops Section -->
+    <section class="crops" id="crops">
+        <div class="container">
+            <div class="section-title">
+                <h2>What We Store</h2>
+                <p>Safe storage for agricultural produce</p>
+            </div>
+            <div class="crops-grid">
+                <div class="crop-card">
+                    <div class="crop-emoji">🥔</div>
+                    <h4>Potato (आलू)</h4>
+                    <p>2°C - 4°C</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">🧅</div>
+                    <h4>Onion (प्याज)</h4>
+                    <p>0°C - 2°C</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">🧄</div>
+                    <h4>Garlic (लहसुन)</h4>
+                    <p>0°C - 2°C</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">🥕</div>
+                    <h4>Carrot (गाजर)</h4>
+                    <p>0°C - 4°C</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">🌶️</div>
+                    <h4>Chilli (मिर्च)</h4>
+                    <p>7°C - 10°C</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">🍎</div>
+                    <h4>Apple (सेब)</h4>
+                    <p>-1°C - 4°C</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">🌱</div>
+                    <h4>Seeds (बीज)</h4>
+                    <p>Dry Cold</p>
+                </div>
+                <div class="crop-card">
+                    <div class="crop-emoji">📦</div>
+                    <h4>Other</h4>
+                    <p>Custom Temp</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Customer Portal Section -->
+    <section class="portal-section" id="portal">
+        <div class="container">
+            <div class="portal-content">
+                <div class="portal-info">
+                    <h2>👤 Customer Portal</h2>
+                    <p class="portal-tagline">Access Your Account Anytime</p>
+                    <p>Manage your cold storage account with ease. Track inventory, check balances, and stay updated.</p>
+                    <ul class="portal-features">
+                        <li>📦 View stored items and inventory</li>
+                        <li>💰 Check account balance and payments</li>
+                        <li>📱 SMS/WhatsApp notifications</li>
+                        <li>🧾 Download receipts and invoices</li>
+                        <li>📊 Track item in/out history</li>
+                    </ul>
+                    <a href="https://customer.gurukripacoldstore.in" class="btn btn-primary">
+                        <span>👤</span> Login to Portal
+                    </a>
+                </div>
+                <div class="portal-visual">
+                    <div class="portal-card">
+                        <div class="portal-card-header">
+                            <span>📱</span> Mobile Friendly
+                        </div>
+                        <div class="portal-card-body">
+                            <p>Access from any device - mobile, tablet, or computer.</p>
+                            <div class="portal-stats">
+                                <div class="portal-stat">🔒 Secure Login</div>
+                                <div class="portal-stat">⚡ Real-time Updates</div>
+                                <div class="portal-stat">📞 OTP Verification</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section class="contact" id="contact">
+        <div class="container">
+            <div class="section-title">
+                <h2>Contact Us</h2>
+                <p>Get in touch for inquiries</p>
+            </div>
+            <div class="contact-grid">
+                <div class="contact-card">
+                    <div class="contact-icon">📞</div>
+                    <h3>Phone</h3>
+                    <p>Call us anytime</p>
+                    <a href="tel:+919917585586">99175 85586</a>
+                </div>
+                <div class="contact-card">
+                    <div class="contact-icon">📧</div>
+                    <h3>Email</h3>
+                    <p>Send your queries</p>
+                    <a href="mailto:gurukripacolddup@gmail.com">gurukripacolddup@gmail.com</a>
+                </div>
+                <div class="contact-card">
+                    <div class="contact-icon">📍</div>
+                    <h3>Address</h3>
+                    <p>
+                        Khet/Khasra No. 908,<br>
+                        Titota / Karaitha Road,<br>
+                        Tahsil – Shyana,<br>
+                        <strong>Bulandshahr, UP – 203394</strong>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-about">
+                    <h3>❄️ Guru Kripa Cold Store</h3>
+                    <p>Premium cold storage facility serving Bulandshahr and surrounding areas.</p>
+                    <p><strong>Established with trust, serving with dedication.</strong></p>
+                </div>
+                <div class="footer-links">
+                    <h4>Quick Links</h4>
+                    <ul>
+                        <li><a href="#home">Home</a></li>
+                        <li><a href="#about">About Us</a></li>
+                        <li><a href="#services">Services</a></li>
+                        <li><a href="https://customer.gurukripacoldstore.in">👤 Customer Portal</a></li>
+                    </ul>
+                </div>
+                <div class="footer-hours">
+                    <h4>Business Hours</h4>
+                    <p>🕐 Mon - Sat: 8 AM - 8 PM</p>
+                    <p>🕐 Sunday: 9 AM - 5 PM</p>
+                    <br>
+                    <p>📞 <a href="tel:+919917585586" style="color: #f5a623;">99175 85586</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Guru Kripa Cold Store. All Rights Reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- WhatsApp Float Button -->
+    <a href="https://wa.me/919917585586?text=Hello%2C%20I%20want%20to%20inquire%20about%20cold%20storage%20services"
+       class="whatsapp-float"
+       target="_blank"
+       title="Chat on WhatsApp">
+        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+            <path d="M16.004 0C7.165 0 0 7.163 0 16c0 2.825.737 5.574 2.137 8.004L.071 32l8.177-2.027A15.91 15.91 0 0016.004 32C24.839 32 32 24.837 32 16S24.839 0 16.004 0zm8.031 22.584c-.342.961-1.686 1.76-2.773 1.993-.748.159-1.724.285-5.012-1.077-4.208-1.741-6.918-6.018-7.127-6.295-.2-.268-1.686-2.245-1.686-4.281 0-2.036 1.067-3.037 1.446-3.452.342-.374.896-.536 1.424-.536.171 0 .325.009.463.016.379.016.569.038.82.634.313.748 1.076 2.623 1.168 2.815.094.192.189.446.067.714-.114.276-.218.398-.41.614-.192.217-.374.383-.566.617-.175.209-.374.433-.158.841.217.4.966 1.593 2.074 2.58 1.424 1.269 2.623 1.661 2.995 1.846.371.184.589.159.806-.096.226-.268.966-1.127 1.223-1.517.252-.383.513-.318.858-.192.35.125 2.22 1.047 2.599 1.238.379.192.631.284.724.446.092.159.092.918-.25 1.879z"/>
+        </svg>
+    </a>
+
+    <!-- Smooth Scroll Script -->
+    <script>
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
+</body>
+</html>

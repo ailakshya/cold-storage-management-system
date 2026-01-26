@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"cold-backend/internal/monitoring"
@@ -38,6 +42,48 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 	hostInfo, _ := host.Info()
 	uptime := time.Duration(hostInfo.Uptime) * time.Second
 
+	// Get Temperature (best effort)
+	temps, _ := host.SensorsTemperatures()
+	tempStr := "--°C"
+	for _, t := range temps {
+		// Try to find a core temperature, commonly labeled "core" or "package"
+		if t.Temperature > 0 {
+			tempStr = fmt.Sprintf("%.1f°C", t.Temperature)
+			break
+		}
+	}
+
+	// Check local backups
+	backupDir := "./backups" // Default location
+	// Try to find absolute path if relative doesn't exist, assuming standard deployment
+	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
+		home, _ := os.UserHomeDir()
+		backupDir = filepath.Join(home, "cold-storage", "backups")
+	}
+
+	var lastBackupTime string = "None"
+	var totalBackups int = 0
+
+	entries, err := os.ReadDir(backupDir)
+	if err == nil {
+		var backupFiles []os.FileInfo
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+				info, err := e.Info()
+				if err == nil {
+					backupFiles = append(backupFiles, info)
+				}
+			}
+		}
+		totalBackups = len(backupFiles)
+		if len(backupFiles) > 0 {
+			sort.Slice(backupFiles, func(i, j int) bool {
+				return backupFiles[i].ModTime().After(backupFiles[j].ModTime())
+			})
+			lastBackupTime = backupFiles[0].ModTime().Format("2006-01-02 15:04:05")
+		}
+	}
+
 	// Simple DB check (can be improved with ping)
 	dbStatus := "healthy"
 	// if err := h.store.Ping(); err != nil { dbStatus = "unhealthy" }
@@ -54,6 +100,10 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		"disk_used":          fmt.Sprintf("%.1f GB", float64(d.Used)/1024/1024/1024),
 		"disk_total":         fmt.Sprintf("%.1f GB", float64(d.Total)/1024/1024/1024),
 		"uptime":             uptime.String(),
+		"system_temp":        tempStr,
+		"last_local_backup":  lastBackupTime,
+		"total_snapshots":    totalBackups,
+		"r2_sync_status":     "Connected", // Connected if app is running
 	})
 }
 

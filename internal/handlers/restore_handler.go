@@ -379,3 +379,54 @@ func (h *RestoreHandler) ExecuteRestore(w http.ResponseWriter, r *http.Request) 
 		"result":  result,
 	})
 }
+
+// DeleteLocalBackup deletes a local backup file
+// DELETE /api/admin/restore/local
+func (h *RestoreHandler) DeleteLocalBackup(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Extract filename from query params or body
+	// For DELETE requests, key is often passed in query or path
+	filename := r.URL.Query().Get("filename")
+
+	if filename == "" {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "filename parameter is required",
+		})
+		return
+	}
+
+	// Get user ID from context for logging (optional)
+	userID, ok := middleware.GetUserIDFromContext(ctx)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	// Check permissions? Assuming admin route middleware handles this.
+
+	if err := h.Service.DeleteLocalBackup(filename); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":    true,
+		"message":    "Backup file deleted successfully",
+		"deleted_by": userID,
+	})
+}

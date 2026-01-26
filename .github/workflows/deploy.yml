@@ -33,6 +33,14 @@ jobs:
           # -trimpath removes file system paths from binary for reproducibility
           CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
 
+      - name: Prepare Assets
+        run: |
+          echo "Preparing static assets..."
+          # Ensure static directory exists
+          mkdir -p static
+          # Copy portfolio template to index.html for the website mode
+          cp templates/portfolio.html static/index.html
+
       - name: Deploy to Server
         run: |
           APP_DIR=~/cold-storage
@@ -51,24 +59,36 @@ jobs:
           echo "Installing new binary..."
           mv cold-backend $APP_DIR/server
           chmod +x $APP_DIR/server
+
+          # Update assets (static files and templates)
+          echo "Updating assets..."
+          # Remove old assets to ensure clean state
+          rm -rf $APP_DIR/static $APP_DIR/templates
+          # Copy new assets
+          cp -r static $APP_DIR/
+          cp -r templates $APP_DIR/
           
           # Restart services using systemd
           echo "Restarting services..."
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer
+          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer cold-website
           
           # Wait and check
           echo "Verifying deployment..."
           sleep 5
           
-          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer; then
-            echo "✅ Services started successfully"
-            echo "Employee Service Status:"
+          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer && systemctl is-active --quiet cold-website; then
+            echo "✅ All services started successfully"
+            echo "--- Employee Service ---"
             systemctl status cold-employee --no-pager
-            echo "Customer Service Status:"
+            echo "--- Customer Service ---"
             systemctl status cold-customer --no-pager
+            echo "--- Website Service ---"
+            systemctl status cold-website --no-pager
           else
-            echo "❌ Services failed to start"
+            echo "❌ Some services failed to start"
+            echo "Checking logs..."
             journalctl -u cold-employee -n 20 --no-pager
             journalctl -u cold-customer -n 20 --no-pager
+            journalctl -u cold-website -n 20 --no-pager
             exit 1
           fi
