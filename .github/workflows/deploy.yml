@@ -74,7 +74,7 @@ jobs:
           
           # Wait and check
           echo "Verifying deployment..."
-          sleep 5
+          sleep 10
           
           if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer && systemctl is-active --quiet cold-website; then
             echo "✅ All services started successfully"
