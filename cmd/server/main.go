@@ -647,24 +647,27 @@ func main() {
 		tsdbPool := connectTimescaleDB()
 		if tsdbPool != nil {
 			defer tsdbPool.Close()
-			log.Println("[Monitoring] Initializing TimescaleDB monitoring components...")
+		}
 
-			// Initialize Timescale metrics store
-			timescaleStore = monitoring.NewTimescaleStore(tsdbPool)
+		// Always initialize TimescaleStore (handles nil pool with in-memory fallback)
+		timescaleStore = monitoring.NewTimescaleStore(tsdbPool)
+
+		// Always enable API logging (will use memory or DB)
+		apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(timescaleStore)
+
+		if tsdbPool != nil {
+			log.Println("[Monitoring] Initializing TimescaleDB monitoring components...")
 
 			// Start system metrics collection service
 			monitoringService = monitoring.NewMonitoringService(timescaleStore)
 			monitoringService.StartCollection()
 
-			// Initialize API logging middleware
-			apiLoggingMiddleware = middleware.NewAPILoggingMiddleware(timescaleStore)
-
-			log.Println("[Monitoring] TimescaleDB monitoring components initialized")
+			log.Println("[Monitoring] TimescaleDB metrics access enabled")
 		} else {
-			log.Println("[Monitoring] TimescaleDB not available, time-series metrics disabled")
+			log.Println("[Monitoring] TimescaleDB not available, using in-memory log buffer")
 		}
 
-		// Always initialize monitoring handler (works partially without TimescaleDB)
+		// Always initialize monitoring handler
 		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore)
 		// R2 backup scheduler is now handled by the RestoreService or manual triggers
 		// handlers.StartR2BackupScheduler(pool)

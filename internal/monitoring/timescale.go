@@ -4,18 +4,31 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type TimescaleStore struct {
-	pool    *pgxpool.Pool
-	enabled bool
+	pool      *pgxpool.Pool
+	enabled   bool
+	logBuffer []APILog
+	mu        sync.RWMutex
 }
 
 func NewTimescaleStore(pool *pgxpool.Pool) *TimescaleStore {
-	store := &TimescaleStore{pool: pool}
+	store := &TimescaleStore{
+		pool:      pool,
+		logBuffer: make([]APILog, 0, 1000),
+	}
+
+	if pool == nil {
+		store.enabled = false
+		log.Println("[Monitoring] TimescaleDB pool is nil. Running in in-memory mode for logs.")
+		return store
+	}
+
 	if err := store.Init(); err != nil {
 		log.Printf("[Monitoring] Warning: TimescaleDB initialization failed: %v. Running in standard Postgres mode.", err)
 		store.enabled = false
@@ -27,6 +40,9 @@ func NewTimescaleStore(pool *pgxpool.Pool) *TimescaleStore {
 }
 
 func (ts *TimescaleStore) Init() error {
+	if ts.pool == nil {
+		return fmt.Errorf("pool is nil")
+	}
 	ctx := context.Background()
 
 	// Check if TimescaleDB extension exists
@@ -39,8 +55,7 @@ func (ts *TimescaleStore) Init() error {
 	// Create extension if not exists
 	_, err = ts.pool.Exec(ctx, "CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
 	if err != nil {
-		// Might fail if not superuser, but check if key tables exist regardless
-		log.Printf("[Monitoring] Could not create extension (might already exist or permission denied): %v", err)
+		log.Printf("[Monitoring] Could not create extension: %v", err)
 	}
 
 	// Create System Metrics Table
@@ -59,7 +74,6 @@ func (ts *TimescaleStore) Init() error {
 		return fmt.Errorf("failed to create metrics_system table: %w", err)
 	}
 
-	// Convert to hypertable (ignore error if already hypertable)
 	ts.pool.Exec(ctx, "SELECT create_hypertable('metrics_system', 'time', if_not_exists => TRUE)")
 
 	// Create API Metrics Table
@@ -77,13 +91,15 @@ func (ts *TimescaleStore) Init() error {
 		return fmt.Errorf("failed to create metrics_api table: %w", err)
 	}
 
-	// Convert to hypertable
 	ts.pool.Exec(ctx, "SELECT create_hypertable('metrics_api', 'time', if_not_exists => TRUE)")
 
 	return nil
 }
 
 func (ts *TimescaleStore) RecordSystemMetrics(cpu float64, memUsed, memTotal, diskUsed, diskTotal uint64) error {
+	if !ts.enabled || ts.pool == nil {
+		return nil // Skip system metrics explicitly in fallback mode (or store in memory if needed)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
@@ -96,20 +112,38 @@ func (ts *TimescaleStore) RecordSystemMetrics(cpu float64, memUsed, memTotal, di
 }
 
 func (ts *TimescaleStore) RecordAPIMetric(method, path string, status int, duration time.Duration, ip string) {
-	// Run in background to not block request
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer cancel()
+	// Always record to memory buffer
+	ts.mu.Lock()
+	ts.logBuffer = append(ts.logBuffer, APILog{
+		Time:       time.Now(),
+		Method:     method,
+		Path:       path,
+		StatusCode: status,
+		Duration:   float64(duration.Milliseconds()),
+		IPAddress:  ip,
+	})
+	// Keep only last 1000 logs
+	if len(ts.logBuffer) > 1000 {
+		ts.logBuffer = ts.logBuffer[len(ts.logBuffer)-1000:]
+	}
+	ts.mu.Unlock()
 
-		_, err := ts.pool.Exec(ctx, `
-			INSERT INTO metrics_api (time, method, path, status_code, duration_ms, ip_address)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, time.Now(), method, path, status, float64(duration.Milliseconds()), ip)
+	// If DB enabled, record there too
+	if ts.enabled && ts.pool != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
 
-		if err != nil {
-			log.Printf("[Monitoring] Failed to record API metric: %v", err)
-		}
-	}()
+			_, err := ts.pool.Exec(ctx, `
+				INSERT INTO metrics_api (time, method, path, status_code, duration_ms, ip_address)
+				VALUES ($1, $2, $3, $4, $5, $6)
+			`, time.Now(), method, path, status, float64(duration.Milliseconds()), ip)
+
+			if err != nil {
+				log.Printf("[Monitoring] Failed to record API metric: %v", err)
+			}
+		}()
+	}
 }
 
 // Analytics Queries
@@ -126,6 +160,34 @@ type TimePoint struct {
 }
 
 func (ts *TimescaleStore) GetAPISummary(duration time.Duration) (APISummary, error) {
+	if !ts.enabled || ts.pool == nil {
+		// Use in-memory buffer
+		ts.mu.RLock()
+		defer ts.mu.RUnlock()
+
+		var total int64
+		var totalDur float64
+		var errors int64
+		threshold := time.Now().Add(-duration)
+
+		for _, l := range ts.logBuffer {
+			if l.Time.After(threshold) {
+				total++
+				totalDur += l.Duration
+				if l.StatusCode >= 500 {
+					errors++
+				}
+			}
+		}
+
+		summary := APISummary{TotalRequests: total}
+		if total > 0 {
+			summary.AvgDuration = totalDur / float64(total)
+			summary.ErrorRate = float64(errors) / float64(total)
+		}
+		return summary, nil
+	}
+
 	ctx := context.Background()
 	var summary APISummary
 
@@ -142,13 +204,16 @@ func (ts *TimescaleStore) GetAPISummary(duration time.Duration) (APISummary, err
 }
 
 func (ts *TimescaleStore) GetCPUTrend(duration time.Duration) ([]TimePoint, error) {
+	if !ts.enabled || ts.pool == nil {
+		return []TimePoint{}, nil // No memory fallback for trends yet
+	}
 	return ts.getResourceTrend("cpu_percent", duration)
 }
 
 func (ts *TimescaleStore) GetMemoryTrend(duration time.Duration) ([]TimePoint, error) {
-	// Calculate percent on fly or store it?
-	// The table has mem_used and mem_total.
-	// Query: AVG(mem_used::float / mem_total * 100)
+	if !ts.enabled || ts.pool == nil {
+		return []TimePoint{}, nil
+	}
 	ctx := context.Background()
 	rows, err := ts.pool.Query(ctx, `
 		SELECT time_bucket('1 minute', time) as bucket, AVG(mem_used::float / NULLIF(mem_total, 0) * 100)
@@ -174,6 +239,9 @@ func (ts *TimescaleStore) GetMemoryTrend(duration time.Duration) ([]TimePoint, e
 }
 
 func (ts *TimescaleStore) GetDiskTrend(duration time.Duration) ([]TimePoint, error) {
+	if !ts.enabled || ts.pool == nil {
+		return []TimePoint{}, nil
+	}
 	ctx := context.Background()
 	rows, err := ts.pool.Query(ctx, `
 		SELECT time_bucket('1 minute', time) as bucket, AVG(disk_used::float / NULLIF(disk_total, 0) * 100)
@@ -198,7 +266,6 @@ func (ts *TimescaleStore) GetDiskTrend(duration time.Duration) ([]TimePoint, err
 	return points, nil
 }
 
-// Helper to avoid duplication if I refactor later, but for now specific methods are fine.
 func (ts *TimescaleStore) getResourceTrend(column string, duration time.Duration) ([]TimePoint, error) {
 	ctx := context.Background()
 	rows, err := ts.pool.Query(ctx, fmt.Sprintf(`
@@ -224,7 +291,6 @@ func (ts *TimescaleStore) getResourceTrend(column string, duration time.Duration
 	return points, nil
 }
 
-// APILog represents a single API request log
 type APILog struct {
 	Time       time.Time `json:"time"`
 	Method     string    `json:"method"`
@@ -235,6 +301,38 @@ type APILog struct {
 }
 
 func (ts *TimescaleStore) GetAPILogs(duration time.Duration, errorsOnly bool, limit, offset int) ([]APILog, error) {
+	if !ts.enabled || ts.pool == nil {
+		// Serve from memory with filtering and pagination
+		ts.mu.RLock()
+		defer ts.mu.RUnlock()
+
+		var filtered []APILog
+		threshold := time.Now().Add(-duration)
+
+		// Buffer is oldest to newest, we want newest first for logs
+		for i := len(ts.logBuffer) - 1; i >= 0; i-- {
+			l := ts.logBuffer[i]
+			if l.Time.Before(threshold) {
+				continue
+			}
+			if errorsOnly && l.StatusCode < 400 {
+				continue
+			}
+			filtered = append(filtered, l)
+		}
+
+		// Pagination
+		if offset >= len(filtered) {
+			return []APILog{}, nil
+		}
+		end := offset + limit
+		if end > len(filtered) {
+			end = len(filtered)
+		}
+
+		return filtered[offset:end], nil
+	}
+
 	ctx := context.Background()
 
 	query := `

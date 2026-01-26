@@ -282,7 +282,7 @@
 
             // DB & System
             document.getElementById('dbConnections').textContent = data.active_connections || '--';
-            document.getElementById('dbSize').textContent = '--'; // Not in dashboard API yet
+            document.getElementById('dbSize').textContent = data.database_size || '--';
             document.getElementById('sysUptime').textContent = data.uptime || '--';
             document.getElementById('sysTemp').textContent = data.system_temp || '--';
 
