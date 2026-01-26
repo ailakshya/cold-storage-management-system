@@ -60,7 +60,7 @@ jobs:
           
           # Restart services using systemd (Needs SUDO)
           echo "Restarting services..."
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer cold-website
+          echo "Lak992723/" | sudo -S systemctl restart cold-employee cold-customer cold-website
           
           # Wait and check
           echo "Verifying deployment..."
