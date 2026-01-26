@@ -365,7 +365,13 @@
             </div>
 
             <div class="neu-border bg-white p-4">
-                <h3 class="font-bold mb-4"><i class="bi bi-list"></i> Recent API Logs</h3>
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold"><i class="bi bi-list"></i> Recent API Logs</h3>
+                    <label class="flex items-center gap-2 text-sm cursor-pointer">
+                        <input type="checkbox" id="chkErrorsOnly" onchange="loadAPILogs(0)" class="rounded border-gray-300">
+                        <span class="text-red-600 font-medium">Show Errors Only</span>
+                    </label>
+                </div>
                 <table class="w-full text-xs">
                     <thead class="bg-gray-100">
                         <tr>
@@ -871,7 +877,8 @@
 
         async function loadAPILogs(offset) {
             apiLogsOffset = offset;
-            const data = await fetchAPI(`/api/logs?limit=50&offset=${offset}`);
+            const errorsOnly = document.getElementById('chkErrorsOnly')?.checked || false;
+            const data = await fetchAPI(`/api/logs?limit=50&offset=${offset}&range=${currentTimeRange}&errors_only=${errorsOnly}`);
             if (!data || !data.logs) return;
 
             document.getElementById('api-logs-table').innerHTML = data.logs.map(l => `

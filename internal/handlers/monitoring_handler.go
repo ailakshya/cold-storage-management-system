@@ -136,9 +136,45 @@ func (h *MonitoringHandler) GetAPIAnalytics(w http.ResponseWriter, r *http.Reque
 }
 
 // Stubs for other router methods
-func (h *MonitoringHandler) GetTopEndpoints(w http.ResponseWriter, r *http.Request)      {}
-func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.Request)  {}
-func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request)     {}
+func (h *MonitoringHandler) GetTopEndpoints(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"endpoints": []}`))
+}
+
+func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"endpoints": []}`))
+}
+
+func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request) {
+	limit := 50
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		fmt.Sscanf(o, "%d", &offset)
+	}
+
+	duration := 24 * time.Hour
+	if d := r.URL.Query().Get("range"); d != "" {
+		if pd, err := time.ParseDuration(d); err == nil {
+			duration = pd
+		}
+	}
+
+	errorsOnly := r.URL.Query().Get("errors_only") == "true"
+
+	logs, err := h.store.GetAPILogs(duration, errorsOnly, limit, offset)
+	if err != nil {
+		logs = []monitoring.APILog{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"logs": logs,
+	})
+}
 func (h *MonitoringHandler) GetLatestNodeMetrics(w http.ResponseWriter, r *http.Request) {}
 
 // GetNodeMetricsHistory returns historical system metrics for charts

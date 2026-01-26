@@ -224,10 +224,47 @@ func (ts *TimescaleStore) getResourceTrend(column string, duration time.Duration
 	return points, nil
 }
 
-// InsertAPILog inserts a detailed API log entry (compatible with models.APIRequestLog structure)
-// We accept any interface that matches the structure to avoid circular imports if possible,
-// or just specific fields. But for integration with existing middleware, let's keep it flexible.
-// Since we can't easily import "cold-backend/internal/models" here without risk of cycles if models imports monitoring,
-// we'll define a simpler method signature or use the one we have.
-// However, to satisfy the middleware, we should probably stick to the simple RecordAPIMetric we already have
-// and update the middleware to use it.
+// APILog represents a single API request log
+type APILog struct {
+	Time       time.Time `json:"time"`
+	Method     string    `json:"method"`
+	Path       string    `json:"path"`
+	StatusCode int       `json:"status_code"`
+	Duration   float64   `json:"duration_ms"`
+	IPAddress  string    `json:"ip_address"`
+}
+
+func (ts *TimescaleStore) GetAPILogs(duration time.Duration, errorsOnly bool, limit, offset int) ([]APILog, error) {
+	ctx := context.Background()
+
+	query := `
+		SELECT time, method, path, status_code, duration_ms, ip_address
+		FROM metrics_api
+		WHERE time > NOW() - $1::interval
+	`
+	args := []interface{}{duration.String()}
+	argCounter := 2
+
+	if errorsOnly {
+		query += " AND status_code >= 400"
+	}
+
+	query += fmt.Sprintf(" ORDER BY time DESC LIMIT $%d OFFSET $%d", argCounter, argCounter+1)
+	args = append(args, limit, offset)
+
+	rows, err := ts.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []APILog
+	for rows.Next() {
+		var l APILog
+		if err := rows.Scan(&l.Time, &l.Method, &l.Path, &l.StatusCode, &l.Duration, &l.IPAddress); err != nil {
+			continue
+		}
+		logs = append(logs, l)
+	}
+	return logs, nil
+}
