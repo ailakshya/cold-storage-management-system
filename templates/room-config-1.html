@@ -445,9 +445,9 @@
                         <!-- Integrated Media Upload -->
                         <div class="mb-6 border-t pt-4">
                             <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
-                                <i class="bi bi-camera shadow-sm bg-purple-100 p-1 rounded"></i> Media / Photos
+                                <i class="bi bi-camera shadow-sm bg-purple-100 p-1 rounded"></i> Media / Photos (Camera)
                             </label>
-                            <input type="file" id="integratedUploadFiles" multiple accept="image/*,video/*" class="w-full neu-input p-2 bg-gray-50 cursor-pointer">
+                            <input type="file" id="integratedUploadFiles" multiple accept="image/*,video/*" capture="environment" class="w-full neu-input p-2 bg-gray-50 cursor-pointer">
                             <p class="text-xs text-gray-500 mt-1">Files are uploaded to <span class="font-mono bg-gray-100 px-1">Room Config/Thok_{No}_{Name}</span> on submit.</p>
                             <!-- Mini Progress -->
                             <div id="integratedUploadProgress" class="hidden mt-2">
