@@ -26,10 +26,6 @@ jobs:
 
       - name: Deploy to Server
         run: |
-          set -x  # Enable debug printing
-          go version
-          ls -la
-          
           # Explicitly target the cold user's directory
           APP_DIR=/home/cold/cold-storage
           
