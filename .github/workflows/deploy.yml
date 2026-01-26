@@ -41,70 +41,59 @@ jobs:
           # Copy portfolio template to index.html for the website mode
           cp templates/portfolio.html static/index.html
 
-      - name: Deploy via Remote Build
-        env:
-          HOST: 192.168.15.131
-          USER: cold
-          PASS: ${{ secrets.SUDO_PASSWORD }}
+      - name: Deploy to Server
         run: |
-          echo "Installing sshpass..."
-          if ! command -v sshpass &> /dev/null; then
-             sudo apt-get update && sudo apt-get install -y sshpass
+          # Explicitly target the cold user's directory
+          APP_DIR=/home/cold/cold-storage
+          
+          echo "Building server binary..."
+          # Setup Go Path
+          export PATH=$PATH:/usr/local/go/bin
+          export GOCACHE=/tmp/go-build-cache
+          mkdir -p $GOCACHE
+          
+          # Build binary locally (Runner IS the server)
+          CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
+          
+          echo "Preparing deployment..."
+          mkdir -p $APP_DIR
+          
+          # Backup current binary
+          if [ -f $APP_DIR/server ]; then
+            cp $APP_DIR/server $APP_DIR/server.bak
           fi
+          
+          # Install new binary
+          mv cold-backend $APP_DIR/server
+          chmod +x $APP_DIR/server
 
-          echo "Preparing remote build environment..."
-          # Clean previous build temp if exists and recreate
-          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "rm -rf ~/source_temp && mkdir -p ~/source_temp"
-
-          echo "Transferring source code..."
-          # Transfer current directory contents to remote temp excluding .git and other non-essentials
-          # Using rsync if available would be better, but scp is safer default
-          # We transfer everything in current dir (.)
-          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -r . $USER@$HOST:~/source_temp/
-
-          echo "Building and Deploying on Remote Server..."
-          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST << EOF
-            set -e # Fail on error
-
-            # Setup Go Environment
-            export PATH=\$PATH:/usr/local/go/bin
-            export GOCACHE=/tmp/go-build-cache
-            mkdir -p \$GOCACHE
-
-            cd ~/source_temp
-
-            echo "Building binary locally on server..."
-            CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
-
-            echo "Deploying to production..."
-            APP_DIR=~/cold-storage
-            mkdir -p \$APP_DIR
-
-            # Backup logic
-            if [ -f \$APP_DIR/server ]; then
-                cp \$APP_DIR/server \$APP_DIR/server.bak
-            fi
-
-            # Install new binary
-            mv cold-backend \$APP_DIR/server
-            chmod +x \$APP_DIR/server
-
-            # Update Assets
-            rm -rf \$APP_DIR/static \$APP_DIR/templates
-            cp -r static \$APP_DIR/
-            cp -r templates \$APP_DIR/
-
-            # Prepare website index
-            cp templates/portfolio.html \$APP_DIR/static/index.html
-
-            echo "Cleaning up..."
-            cd ~
-            rm -rf ~/source_temp
-
-            echo "Restarting services..."
-            echo "$PASS" | sudo -S systemctl restart cold-employee cold-customer cold-website
-          EOF
-
+          # Update assets
+          echo "Updating assets..."
+          rm -rf $APP_DIR/static $APP_DIR/templates
+          cp -r static $APP_DIR/
+          cp -r templates $APP_DIR/
+          
+          # Restart services using systemd (Needs SUDO)
+          echo "Restarting services..."
+          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer cold-website
+          
+          # Wait and check
           echo "Verifying deployment..."
           sleep 10
-          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "systemctl is-active cold-employee cold-customer cold-website"
+          
+          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer && systemctl is-active --quiet cold-website; then
+            echo "✅ All services started successfully"
+            echo "--- Employee Service ---"
+            systemctl status cold-employee --no-pager
+            echo "--- Customer Service ---"
+            systemctl status cold-customer --no-pager
+            echo "--- Website Service ---"
+            systemctl status cold-website --no-pager
+          else
+            echo "❌ Some services failed to start"
+            echo "Checking logs..."
+            journalctl -u cold-employee -n 20 --no-pager
+            journalctl -u cold-customer -n 20 --no-pager
+            journalctl -u cold-website -n 20 --no-pager
+            exit 1
+          fi
