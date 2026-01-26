@@ -47,31 +47,27 @@ jobs:
           APP_DIR=/home/cold/cold-storage
           
           echo "Preparing deployment..."
-          # Use sudo to ensure we can write to /home/cold/cold-storage
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S mkdir -p $APP_DIR
+          # No sudo needed - user owns their home dir
+          mkdir -p $APP_DIR
           
           # Backup current binary if exists
           if [ -f $APP_DIR/server ]; then
             echo "Backing up current binary..."
-            echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S cp $APP_DIR/server $APP_DIR/server.bak
+            cp $APP_DIR/server $APP_DIR/server.bak
           fi
           
           # Install new binary
           echo "Installing new binary..."
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S mv cold-backend $APP_DIR/server
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S chmod +x $APP_DIR/server
+          mv cold-backend $APP_DIR/server
+          chmod +x $APP_DIR/server
 
           # Update assets (static files and templates)
           echo "Updating assets..."
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S rm -rf $APP_DIR/static $APP_DIR/templates
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S cp -r static $APP_DIR/
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S cp -r templates $APP_DIR/
+          rm -rf $APP_DIR/static $APP_DIR/templates
+          cp -r static $APP_DIR/
+          cp -r templates $APP_DIR/
           
-          # Fix ownership to ensuring the 'cold' user owns the files
-          echo "Fixing ownership..."
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S chown -R cold:cold $APP_DIR
-          
-          # Restart services using systemd
+          # Restart services using systemd (Needs SUDO)
           echo "Restarting services..."
           echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer cold-website
           
