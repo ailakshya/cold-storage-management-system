@@ -41,56 +41,70 @@ jobs:
           # Copy portfolio template to index.html for the website mode
           cp templates/portfolio.html static/index.html
 
-      - name: Deploy to Remote Server
+      - name: Deploy via Remote Build
         env:
           HOST: 192.168.15.131
           USER: cold
           PASS: ${{ secrets.SUDO_PASSWORD }}
         run: |
           echo "Installing sshpass..."
-          # Install sshpass if not present (works on Ubuntu/Debian runners)
           if ! command -v sshpass &> /dev/null; then
              sudo apt-get update && sudo apt-get install -y sshpass
           fi
 
-          echo "Preparing remote directories..."
-          # Create temp directory on remote
-          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "mkdir -p ~/deploy_temp"
+          echo "Preparing remote build environment..."
+          # Clean previous build temp if exists and recreate
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "rm -rf ~/source_temp && mkdir -p ~/source_temp"
 
-          echo "Uploading artifacts..."
-          # Upload binary and assets to temp folder
-          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no cold-backend $USER@$HOST:~/deploy_temp/server
-          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -r static $USER@$HOST:~/deploy_temp/
-          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -r templates $USER@$HOST:~/deploy_temp/
+          echo "Transferring source code..."
+          # Transfer current directory contents to remote temp excluding .git and other non-essentials
+          # Using rsync if available would be better, but scp is safer default
+          # We transfer everything in current dir (.)
+          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -r . $USER@$HOST:~/source_temp/
 
-          echo " deploying to production..."
-          # Move files into place and restart (using remote sudo)
+          echo "Building and Deploying on Remote Server..."
           sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST << EOF
-            # Define production dir
+            set -e # Fail on error
+
+            # Setup Go Environment
+            export PATH=\$PATH:/usr/local/go/bin
+            export GOCACHE=/tmp/go-build-cache
+            mkdir -p \$GOCACHE
+
+            cd ~/source_temp
+
+            echo "Building binary locally on server..."
+            CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
+
+            echo "Deploying to production..."
             APP_DIR=~/cold-storage
             mkdir -p \$APP_DIR
 
-            # Backup existing
+            # Backup logic
             if [ -f \$APP_DIR/server ]; then
                 cp \$APP_DIR/server \$APP_DIR/server.bak
             fi
 
-            # Move new files (from temp to prod)
-            mv ~/deploy_temp/server \$APP_DIR/server
+            # Install new binary
+            mv cold-backend \$APP_DIR/server
             chmod +x \$APP_DIR/server
-            
-            # Clean old assets and replace
+
+            # Update Assets
             rm -rf \$APP_DIR/static \$APP_DIR/templates
-            mv ~/deploy_temp/static \$APP_DIR/
-            mv ~/deploy_temp/templates \$APP_DIR/
-            
-            # Allow clean up
-            rm -rf ~/deploy_temp
-            
-            # Restart services
+            cp -r static \$APP_DIR/
+            cp -r templates \$APP_DIR/
+
+            # Prepare website index
+            cp templates/portfolio.html \$APP_DIR/static/index.html
+
+            echo "Cleaning up..."
+            cd ~
+            rm -rf ~/source_temp
+
+            echo "Restarting services..."
             echo "$PASS" | sudo -S systemctl restart cold-employee cold-customer cold-website
           EOF
 
-          echo "Verifying remote deployment..."
+          echo "Verifying deployment..."
           sleep 10
           sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "systemctl is-active cold-employee cold-customer cold-website"
