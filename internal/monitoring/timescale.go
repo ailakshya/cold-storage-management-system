@@ -142,14 +142,72 @@ func (ts *TimescaleStore) GetAPISummary(duration time.Duration) (APISummary, err
 }
 
 func (ts *TimescaleStore) GetCPUTrend(duration time.Duration) ([]TimePoint, error) {
+	return ts.getResourceTrend("cpu_percent", duration)
+}
+
+func (ts *TimescaleStore) GetMemoryTrend(duration time.Duration) ([]TimePoint, error) {
+	// Calculate percent on fly or store it?
+	// The table has mem_used and mem_total.
+	// Query: AVG(mem_used::float / mem_total * 100)
 	ctx := context.Background()
 	rows, err := ts.pool.Query(ctx, `
-		SELECT time_bucket('1 minute', time) as bucket, AVG(cpu_percent)
+		SELECT time_bucket('1 minute', time) as bucket, AVG(mem_used::float / NULLIF(mem_total, 0) * 100)
 		FROM metrics_system
 		WHERE time > NOW() - $1::interval
 		GROUP BY bucket
 		ORDER BY bucket
 	`, duration.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []TimePoint
+	for rows.Next() {
+		var p TimePoint
+		if err := rows.Scan(&p.Time, &p.Value); err != nil {
+			continue
+		}
+		points = append(points, p)
+	}
+	return points, nil
+}
+
+func (ts *TimescaleStore) GetDiskTrend(duration time.Duration) ([]TimePoint, error) {
+	ctx := context.Background()
+	rows, err := ts.pool.Query(ctx, `
+		SELECT time_bucket('1 minute', time) as bucket, AVG(disk_used::float / NULLIF(disk_total, 0) * 100)
+		FROM metrics_system
+		WHERE time > NOW() - $1::interval
+		GROUP BY bucket
+		ORDER BY bucket
+	`, duration.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points []TimePoint
+	for rows.Next() {
+		var p TimePoint
+		if err := rows.Scan(&p.Time, &p.Value); err != nil {
+			continue
+		}
+		points = append(points, p)
+	}
+	return points, nil
+}
+
+// Helper to avoid duplication if I refactor later, but for now specific methods are fine.
+func (ts *TimescaleStore) getResourceTrend(column string, duration time.Duration) ([]TimePoint, error) {
+	ctx := context.Background()
+	rows, err := ts.pool.Query(ctx, fmt.Sprintf(`
+		SELECT time_bucket('1 minute', time) as bucket, AVG(%s)
+		FROM metrics_system
+		WHERE time > NOW() - $1::interval
+		GROUP BY bucket
+		ORDER BY bucket
+	`, column), duration.String())
 	if err != nil {
 		return nil, err
 	}

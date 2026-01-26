@@ -136,11 +136,42 @@ func (h *MonitoringHandler) GetAPIAnalytics(w http.ResponseWriter, r *http.Reque
 }
 
 // Stubs for other router methods
-func (h *MonitoringHandler) GetTopEndpoints(w http.ResponseWriter, r *http.Request)          {}
-func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.Request)      {}
-func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request)         {}
-func (h *MonitoringHandler) GetLatestNodeMetrics(w http.ResponseWriter, r *http.Request)     {}
-func (h *MonitoringHandler) GetNodeMetricsHistory(w http.ResponseWriter, r *http.Request)    {}
+func (h *MonitoringHandler) GetTopEndpoints(w http.ResponseWriter, r *http.Request)      {}
+func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.Request)  {}
+func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request)     {}
+func (h *MonitoringHandler) GetLatestNodeMetrics(w http.ResponseWriter, r *http.Request) {}
+
+// GetNodeMetricsHistory returns historical system metrics for charts
+func (h *MonitoringHandler) GetNodeMetricsHistory(w http.ResponseWriter, r *http.Request) {
+	duration := 1 * time.Hour // Default 1h
+	if d := r.URL.Query().Get("range"); d != "" {
+		if pd, err := time.ParseDuration(d); err == nil {
+			duration = pd
+		}
+	}
+
+	cpuTrend, err := h.store.GetCPUTrend(duration)
+	if err != nil {
+		cpuTrend = []monitoring.TimePoint{}
+	}
+
+	memTrend, err := h.store.GetMemoryTrend(duration)
+	if err != nil {
+		memTrend = []monitoring.TimePoint{}
+	}
+
+	diskTrend, err := h.store.GetDiskTrend(duration)
+	if err != nil {
+		diskTrend = []monitoring.TimePoint{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"cpu":  cpuTrend,
+		"mem":  memTrend,
+		"disk": diskTrend,
+	})
+}
 func (h *MonitoringHandler) GetClusterOverview(w http.ResponseWriter, r *http.Request)       {}
 func (h *MonitoringHandler) GetPrometheusMetrics(w http.ResponseWriter, r *http.Request)     {}
 func (h *MonitoringHandler) GetLatestPostgresMetrics(w http.ResponseWriter, r *http.Request) {}

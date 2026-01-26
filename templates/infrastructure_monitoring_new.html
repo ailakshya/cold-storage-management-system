@@ -25,6 +25,7 @@
             50% { opacity: .5; }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="/static/js/theme.js"></script>
 </head>
 <body class="bg-[#f8fafb] p-4 md:p-8">
@@ -42,9 +43,16 @@
                 <div class="text-right">
                     <div class="text-sm text-gray-600">Last Update</div>
                     <div id="lastUpdate" class="text-lg font-bold">--:--:--</div>
-                    <button onclick="refreshAll()" class="neu-border bg-blue-500 text-white px-4 py-2 text-sm mt-2">
-                        <i class="bi bi-arrow-clockwise"></i> Refresh
-                    </button>
+                    <div class="flex gap-2 mt-2">
+                         <select id="timeRange" onchange="refreshHistory()" class="neu-border bg-gray-50 px-3 py-2 text-sm">
+                            <option value="1h">Last 1 Hour</option>
+                            <option value="6h">Last 6 Hours</option>
+                            <option value="24h">Last 24 Hours</option>
+                        </select>
+                        <button onclick="refreshAll()" class="neu-border bg-blue-500 text-white px-4 py-2 text-sm">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -87,31 +95,49 @@
                 <h3 class="font-bold mb-4 flex items-center gap-2">
                     <i class="bi bi-cpu text-blue-500"></i> CPU Usage
                 </h3>
-                <div id="cpuUsage" class="text-4xl font-bold mb-2">--%</div>
-                <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="flex justify-between items-end mb-2">
+                    <div id="cpuUsage" class="text-4xl font-bold">--%</div>
+                    <div id="cpuCores" class="text-sm text-gray-600">-- cores</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
                     <div id="cpuBar" class="bg-blue-500 h-3 rounded-full transition-all" style="width: 0%"></div>
                 </div>
-                <div id="cpuCores" class="text-sm text-gray-600 mt-2">-- cores</div>
+                <!-- Chart -->
+                <div class="h-32">
+                    <canvas id="cpuChart"></canvas>
+                </div>
             </div>
             <div class="neu-border bg-white p-6">
                 <h3 class="font-bold mb-4 flex items-center gap-2">
                     <i class="bi bi-memory text-green-500"></i> Memory
                 </h3>
-                <div id="memUsage" class="text-4xl font-bold mb-2">--%</div>
-                <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="flex justify-between items-end mb-2">
+                    <div id="memUsage" class="text-4xl font-bold">--%</div>
+                    <div id="memDetails" class="text-sm text-gray-600">-- / --</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
                     <div id="memBar" class="bg-green-500 h-3 rounded-full transition-all" style="width: 0%"></div>
                 </div>
-                <div id="memDetails" class="text-sm text-gray-600 mt-2">-- / --</div>
+                <!-- Chart -->
+                 <div class="h-32">
+                    <canvas id="memChart"></canvas>
+                </div>
             </div>
             <div class="neu-border bg-white p-6">
                 <h3 class="font-bold mb-4 flex items-center gap-2">
                     <i class="bi bi-hdd text-purple-500"></i> Disk
                 </h3>
-                <div id="diskUsage" class="text-4xl font-bold mb-2">--%</div>
-                <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="flex justify-between items-end mb-2">
+                    <div id="diskUsage" class="text-4xl font-bold">--%</div>
+                    <div id="diskDetails" class="text-sm text-gray-600">-- / --</div>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
                     <div id="diskBar" class="bg-purple-500 h-3 rounded-full transition-all" style="width: 0%"></div>
                 </div>
-                <div id="diskDetails" class="text-sm text-gray-600 mt-2">-- / --</div>
+                <!-- Chart -->
+                <div class="h-32">
+                    <canvas id="diskChart"></canvas>
+                </div>
             </div>
         </div>
 
@@ -130,45 +156,12 @@
                     <div id="dbSize" class="text-2xl font-bold">--</div>
                 </div>
                 <div>
-                    <div class="text-sm text-gray-600">Response Time</div>
-                    <div id="dbResponseTime" class="text-2xl font-bold">-- ms</div>
+                    <div class="text-sm text-gray-600">Uptime</div>
+                    <div id="sysUptime" class="text-2xl font-bold">--</div>
                 </div>
                 <div>
-                    <div class="text-sm text-gray-600">Uptime</div>
-                    <div id="dbUptime" class="text-2xl font-bold">--</div>
-                </div>
-            </div>
-            <div class="mt-4 p-3 bg-gray-50 rounded">
-                <div class="text-sm font-bold mb-1">Connection String:</div>
-                <code class="text-xs">postgresql://postgres@192.168.15.131:5432/cold_db</code>
-            </div>
-        </div>
-
-        <!-- Application Pods -->
-        <div class="neu-border bg-white p-6 mb-6">
-            <h2 class="text-2xl font-bold mb-4">
-                <i class="bi bi-server"></i> Application Pods
-            </h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="neu-border bg-blue-50 p-4">
-                    <h3 class="font-bold mb-2">Employee Portal</h3>
-                    <div class="text-sm text-gray-600">Port: 8080</div>
-                    <div id="employeePodStatus" class="mt-2">
-                        <div class="flex items-center gap-2">
-                            <div class="w-3 h-3 rounded-full status-unknown"></div>
-                            <span class="text-sm">Checking...</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="neu-border bg-green-50 p-4">
-                    <h3 class="font-bold mb-2">Customer Portal</h3>
-                    <div class="text-sm text-gray-600">Port: 8081</div>
-                    <div id="customerPodStatus" class="mt-2">
-                        <div class="flex items-center gap-2">
-                            <div class="w-3 h-3 rounded-full status-unknown"></div>
-                            <span class="text-sm">Checking...</span>
-                        </div>
-                    </div>
+                    <div class="text-sm text-gray-600">Temp</div>
+                    <div id="sysTemp" class="text-2xl font-bold">--</div>
                 </div>
             </div>
         </div>
@@ -176,24 +169,24 @@
         <!-- R2 Backup Status -->
         <div class="neu-border bg-white p-6">
             <h2 class="text-2xl font-bold mb-4">
-                <i class="bi bi-cloud"></i> Cloudflare R2 Backups
+                <i class="bi bi-cloud"></i> Backups
             </h2>
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+             <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                    <div class="text-sm text-gray-600">Status</div>
-                    <div id="r2StatusDetail" class="text-2xl font-bold">Active</div>
+                    <div class="text-sm text-gray-600">Local Backup</div>
+                    <div id="localBackupStatus" class="text-xl font-bold">Checking...</div>
                 </div>
                 <div>
-                    <div class="text-sm text-gray-600">Last Backup</div>
-                    <div id="r2LastBackup" class="text-2xl font-bold">--</div>
+                    <div class="text-sm text-gray-600">Last Local Snapshot</div>
+                    <div id="lastLocalBackup" class="text-lg font-bold text-gray-700">--</div>
                 </div>
-                <div>
-                    <div class="text-sm text-gray-600">Backup Frequency</div>
-                    <div class="text-2xl font-bold">Every 5 min</div>
+                 <div>
+                    <div class="text-sm text-gray-600">Total Snapshots</div>
+                    <div id="totalSnapshots" class="text-2xl font-bold">--</div>
                 </div>
-                <div>
-                    <div class="text-sm text-gray-600">Total Backups</div>
-                    <div id="r2TotalBackups" class="text-2xl font-bold">--</div>
+                 <div>
+                    <div class="text-sm text-gray-600">R2 Sync</div>
+                    <div id="r2SyncStatus" class="text-xl font-bold text-blue-600">--</div>
                 </div>
             </div>
         </div>
@@ -202,109 +195,149 @@
     <script>
         const token = localStorage.getItem('token');
         if (!token) {
-            alert('Session expired. Please log in again.');
             window.location.href = '/login';
         }
 
-        // Update timestamp
-        function updateTimestamp() {
-            const now = new Date();
-            document.getElementById('lastUpdate').textContent = now.toLocaleTimeString();
+        // Charts
+        let cpuChart, memChart, diskChart;
+
+        function initCharts() {
+            const commonOptions = {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { display: false },
+                    y: { beginAtZero: true, max: 100, display: false }
+                },
+                elements: {
+                    point: { radius: 0 },
+                    line: { tension: 0.4, borderWidth: 2 }
+                }
+            };
+
+            cpuChart = new Chart(document.getElementById('cpuChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: '#3b82f6', fill: true, backgroundColor: '#3b82f620' }] },
+                options: commonOptions
+            });
+
+            memChart = new Chart(document.getElementById('memChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: '#10b981', fill: true, backgroundColor: '#10b98120' }] },
+                options: commonOptions
+            });
+
+            diskChart = new Chart(document.getElementById('diskChart'), {
+                type: 'line',
+                data: { labels: [], datasets: [{ data: [], borderColor: '#a855f7', fill: true, backgroundColor: '#a855f720' }] },
+                options: commonOptions
+            });
         }
 
-        // Fetch and update stats
+        function updateTimestamp() {
+            document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+        }
+
         async function fetchStats() {
             try {
-                const response = await fetch('http://localhost:9090/api/stats', {
+                // Fetch real-time dashboard data
+                const res = await fetch('/api/monitoring/dashboard', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
-                
-                if (!response.ok) throw new Error('Failed to fetch stats');
-                
-                const data = await response.json();
+                if (!res.ok) throw new Error('Failed');
+                const data = await res.json();
                 updateUI(data);
-            } catch (error) {
-                console.error('Error fetching stats:', error);
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function fetchHistory() {
+            try {
+                const range = document.getElementById('timeRange').value;
+                const res = await fetch(`/api/monitoring/nodes/local/history?range=${range}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!res.ok) return;
+                const history = await res.json();
+                
+                updateCharts(history);
+            } catch (err) {
+                console.error(err);
             }
         }
 
         function updateUI(data) {
-            // Database Status
-            const dbStatusEl = document.getElementById('dbStatus');
-            if (data.database_status === 'healthy') {
-                dbStatusEl.innerHTML = `
-                    <div class="w-4 h-4 rounded-full status-healthy"></div>
-                    <span class="font-bold">Healthy</span>
-                `;
-            } else {
-                dbStatusEl.innerHTML = `
-                    <div class="w-4 h-4 rounded-full status-critical"></div>
-                    <span class="font-bold">Unhealthy</span>
-                `;
-            }
+            // Statuses
+            setStatus('dbStatus', data.database_status === 'healthy', 'Healthy', 'Unhealthy');
+            setStatus('redisStatus', true, 'Connected', 'Error'); // Placeholder
+            setStatus('k3sStatus', true, '1/1 Node', 'Error');
+            setStatus('r2Status', true, 'Active', 'Down');
 
-            // System Resources
-            document.getElementById('cpuUsage').textContent = data.cpu_percent.toFixed(1) + '%';
-            document.getElementById('cpuBar').style.width = data.cpu_percent + '%';
-            document.getElementById('cpuCores').textContent = data.cluster_totals.total_cpus + ' cores';
+            // Resources
+            setResource('cpu', data.cpu_percent, null);
+            setResource('mem', data.memory_percent, `${data.memory_used} / ${data.memory_total}`);
+            setResource('disk', data.disk_percent, `${data.disk_used} / ${data.disk_total}`);
 
-            document.getElementById('memUsage').textContent = data.memory_percent.toFixed(1) + '%';
-            document.getElementById('memBar').style.width = data.memory_percent + '%';
-            document.getElementById('memDetails').textContent = data.memory_used + ' / ' + data.memory_total;
+            // DB & System
+            document.getElementById('dbConnections').textContent = data.active_connections || '--';
+            document.getElementById('dbSize').textContent = '--'; // Not in dashboard API yet
+            document.getElementById('sysUptime').textContent = data.uptime || '--';
+            document.getElementById('sysTemp').textContent = data.system_temp || '--';
 
-            document.getElementById('diskUsage').textContent = data.disk_percent.toFixed(1) + '%';
-            document.getElementById('diskBar').style.width = data.disk_percent + '%';
-            document.getElementById('diskDetails').textContent = data.disk_used + ' / ' + data.disk_total;
-
-            // Database Details
-            document.getElementById('dbConnections').textContent = data.active_connections;
-            document.getElementById('dbSize').textContent = data.db_size;
-            document.getElementById('dbResponseTime').textContent = data.response_time_ms;
-            document.getElementById('dbUptime').textContent = data.uptime;
-
-            // Set other statuses
-            document.getElementById('redisStatus').innerHTML = `
-                <div class="w-4 h-4 rounded-full status-healthy"></div>
-                <span class="font-bold">Connected</span>
-            `;
-            
-            document.getElementById('k3sStatus').innerHTML = `
-                <div class="w-4 h-4 rounded-full status-healthy"></div>
-                <span class="font-bold">1/1 Node</span>
-            `;
-            
-            document.getElementById('r2Status').innerHTML = `
-                <div class="w-4 h-4 rounded-full status-healthy"></div>
-                <span class="font-bold">Active</span>
-            `;
-
-            // App pods
-            document.getElementById('employeePodStatus').innerHTML = `
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full status-healthy"></div>
-                    <span class="text-sm">Running</span>
-                </div>
-            `;
-            
-            document.getElementById('customerPodStatus').innerHTML = `
-                <div class="flex items-center gap-2">
-                    <div class="w-3 h-3 rounded-full status-healthy"></div>
-                    <span class="text-sm">Running</span>
-                </div>
-            `;
+            // Backups
+            document.getElementById('lastLocalBackup').textContent = data.last_local_backup || 'None';
+            document.getElementById('totalSnapshots').textContent = data.total_snapshots || '0';
+            document.getElementById('r2SyncStatus').textContent = data.r2_sync_status || 'Unknown';
+            document.getElementById('localBackupStatus').textContent = (data.total_snapshots > 0) ? 'Active' : 'Empty';
 
             updateTimestamp();
+        }
+        
+        function setStatus(id, healthy, goodText, badText) {
+            const el = document.getElementById(id);
+            if (healthy) {
+                el.innerHTML = `<div class="w-4 h-4 rounded-full status-healthy"></div><span class="font-bold">${goodText}</span>`;
+            } else {
+                el.innerHTML = `<div class="w-4 h-4 rounded-full status-critical"></div><span class="font-bold">${badText}</span>`;
+            }
+        }
+
+        function setResource(prefix, percent, details) {
+            document.getElementById(`${prefix}Usage`).textContent = (percent || 0).toFixed(1) + '%';
+            document.getElementById(`${prefix}Bar`).style.width = (percent || 0) + '%';
+            if (details) document.getElementById(`${prefix}Details`).textContent = details;
+        }
+
+        function updateCharts(history) {
+            if (history.cpu) updateChart(cpuChart, history.cpu);
+            if (history.mem) updateChart(memChart, history.mem);
+            if (history.disk) updateChart(diskChart, history.disk);
+        }
+
+        function updateChart(chart, points) {
+            if (!points) return;
+            chart.data.labels = points.map(p => new Date(p.time).toLocaleTimeString());
+            chart.data.datasets[0].data = points.map(p => p.value);
+            chart.update();
         }
 
         function refreshAll() {
             fetchStats();
+            fetchHistory();
+        }
+        
+        function refreshHistory() {
+            fetchHistory();
         }
 
-        // Auto-refresh every 10 seconds
-        setInterval(fetchStats, 10000);
-        
-        // Initial load
-        fetchStats();
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            refreshAll();
+            setInterval(fetchStats, 5000); // Fast update for live data
+            setInterval(fetchHistory, 60000); // Slow update for charts
+        });
     </script>
 </body>
 </html>
