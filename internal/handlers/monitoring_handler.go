@@ -242,28 +242,12 @@ func (h *MonitoringHandler) GetAPIAnalytics(w http.ResponseWriter, r *http.Reque
 // Stubs for other router methods
 func (h *MonitoringHandler) GetTopEndpoints(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	mockData := []map[string]interface{}{
-		{"path": "/api/auth/login", "requests": 1250, "avg_latency": 45.2, "errors": 5},
-		{"path": "/api/dashboard", "requests": 980, "avg_latency": 124.5, "errors": 0},
-		{"path": "/api/rooms/metrics", "requests": 750, "avg_latency": 85.0, "errors": 2},
-		{"path": "/api/inventory", "requests": 450, "avg_latency": 150.2, "errors": 1},
-		{"path": "/api/reports/daily", "requests": 120, "avg_latency": 450.8, "errors": 0},
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"endpoints": mockData,
-	})
+	w.Write([]byte(`{"endpoints": []}`))
 }
 
 func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	mockData := []map[string]interface{}{
-		{"path": "/api/reports/generate", "avg_latency": 2500.5, "p95_latency": 3100.0, "max_latency": 5000.0},
-		{"path": "/api/backup/restore", "avg_latency": 1800.2, "p95_latency": 2200.0, "max_latency": 4500.0},
-		{"path": "/api/analytics/query", "avg_latency": 950.0, "p95_latency": 1200.0, "max_latency": 2000.0},
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"endpoints": mockData,
-	})
+	w.Write([]byte(`{"endpoints": []}`))
 }
 
 func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request) {
@@ -295,22 +279,6 @@ func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Requ
 	logs, err := h.store.GetAPILogs(duration, errorsOnly, limit, offset)
 	if err != nil {
 		logs = []monitoring.APILog{}
-	}
-
-	// Mock logs if store is missing
-	if h.store == nil {
-		w.Header().Set("Content-Type", "application/json")
-		mockLogs := []map[string]interface{}{
-			{"time": time.Now().Format(time.RFC3339), "method": "GET", "path": "/api/dashboard", "status": 200, "duration": "45ms", "user": "admin", "ip": "192.168.1.5"},
-			{"time": time.Now().Add(-2 * time.Second).Format(time.RFC3339), "method": "POST", "path": "/api/auth/login", "status": 200, "duration": "120ms", "user": "test_user", "ip": "192.168.1.8"},
-			{"time": time.Now().Add(-5 * time.Second).Format(time.RFC3339), "method": "GET", "path": "/api/metrics", "status": 200, "duration": "30ms", "user": "system", "ip": "127.0.0.1"},
-			{"time": time.Now().Add(-15 * time.Second).Format(time.RFC3339), "method": "GET", "path": "/api/reports", "status": 200, "duration": "500ms", "user": "manager", "ip": "192.168.1.10"},
-			{"time": time.Now().Add(-45 * time.Second).Format(time.RFC3339), "method": "PUT", "path": "/api/settings", "status": 403, "duration": "15ms", "user": "guest", "ip": "192.168.1.20"},
-		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"logs": mockLogs,
-		})
-		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -386,21 +354,12 @@ func (h *MonitoringHandler) GetPostgresOverview(w http.ResponseWriter, r *http.R
 // Alert stubs - implemented with mocks
 func (h *MonitoringHandler) GetActiveAlerts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	mockAlerts := []map[string]interface{}{
-		{"id": "1", "severity": "warning", "name": "High CPU Usage", "message": "CPU usage > 80% on node-1", "starts_at": time.Now().Add(-15 * time.Minute).Format(time.RFC3339), "status": "active"},
-	}
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"alerts": mockAlerts,
-	})
+	w.Write([]byte(`{"alerts": []}`))
 }
 
 func (h *MonitoringHandler) GetRecentAlerts(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	mockAlerts := []map[string]interface{}{
-		{"id": "1", "severity": "warning", "name": "High CPU Usage", "message": "CPU usage > 80% on node-1", "starts_at": time.Now().Add(-15 * time.Minute).Format(time.RFC3339), "status": "active"},
-		{"id": "2", "severity": "critical", "name": "DB Connection Lost", "message": "PostgreSQL connection failed", "starts_at": time.Now().Add(-2 * time.Hour).Format(time.RFC3339), "ends_at": time.Now().Add(-1 * time.Hour).Format(time.RFC3339), "status": "resolved"},
-	}
-	w.Write([]byte(mustJSON(mockAlerts)))
+	w.Write([]byte(`[]`))
 }
 
 func (h *MonitoringHandler) AcknowledgeAlert(w http.ResponseWriter, r *http.Request) {
