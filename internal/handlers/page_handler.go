@@ -163,7 +163,7 @@ func (h *PageHandler) CustomerPortalDashboardPage(w http.ResponseWriter, r *http
 
 // InfrastructureMonitoringPage serves infrastructure monitoring page
 func (h *PageHandler) InfrastructureMonitoringPage(w http.ResponseWriter, r *http.Request) {
-	h.templates.ExecuteTemplate(w, "infrastructure_monitoring.html", nil)
+	h.templates.ExecuteTemplate(w, "infrastructure_monitoring_new.html", nil)
 }
 
 // MonitoringRewritePage serves the new deep analytics page
