@@ -189,6 +189,14 @@ func (h *MonitoringHandler) GetBackupDBStatus(w http.ResponseWriter, r *http.Req
 
 // GetAPIAnalytics returns historical data from TimescaleDB
 func (h *MonitoringHandler) GetAPIAnalytics(w http.ResponseWriter, r *http.Request) {
+	if h.store == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"summary":   nil,
+			"cpu_trend": []interface{}{},
+		})
+		return
+	}
 	duration := 24 * time.Hour // Default 24h
 	if d := r.URL.Query().Get("range"); d != "" {
 		if pd, err := time.ParseDuration(d); err == nil {
@@ -227,6 +235,13 @@ func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.R
 }
 
 func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request) {
+	if h.store == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"logs": []interface{}{},
+		})
+		return
+	}
 	limit := 50
 	offset := 0
 	if l := r.URL.Query().Get("limit"); l != "" {
@@ -258,6 +273,15 @@ func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Requ
 
 // GetNodeMetricsHistory returns historical system metrics for charts
 func (h *MonitoringHandler) GetNodeMetricsHistory(w http.ResponseWriter, r *http.Request) {
+	if h.store == nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"cpu":  []interface{}{},
+			"mem":  []interface{}{},
+			"disk": []interface{}{},
+		})
+		return
+	}
 	duration := 1 * time.Hour // Default 1h
 	if d := r.URL.Query().Get("range"); d != "" {
 		if pd, err := time.ParseDuration(d); err == nil {
