@@ -41,53 +41,56 @@ jobs:
           # Copy portfolio template to index.html for the website mode
           cp templates/portfolio.html static/index.html
 
-      - name: Deploy to Server
+      - name: Deploy to Remote Server
+        env:
+          HOST: 192.168.15.131
+          USER: cold
+          PASS: ${{ secrets.SUDO_PASSWORD }}
         run: |
-          # Explicitly target the cold user's directory
-          APP_DIR=/home/cold/cold-storage
-          
-          echo "Preparing deployment..."
-          # No sudo needed - user owns their home dir
-          mkdir -p $APP_DIR
-          
-          # Backup current binary if exists
-          if [ -f $APP_DIR/server ]; then
-            echo "Backing up current binary..."
-            cp $APP_DIR/server $APP_DIR/server.bak
+          echo "Installing sshpass..."
+          # Install sshpass if not present (works on Ubuntu/Debian runners)
+          if ! command -v sshpass &> /dev/null; then
+             sudo apt-get update && sudo apt-get install -y sshpass
           fi
-          
-          # Install new binary
-          echo "Installing new binary..."
-          mv cold-backend $APP_DIR/server
-          chmod +x $APP_DIR/server
 
-          # Update assets (static files and templates)
-          echo "Updating assets..."
-          rm -rf $APP_DIR/static $APP_DIR/templates
-          cp -r static $APP_DIR/
-          cp -r templates $APP_DIR/
-          
-          # Restart services using systemd (Needs SUDO)
-          echo "Restarting services..."
-          echo "${{ secrets.SUDO_PASSWORD }}" | sudo -S systemctl restart cold-employee cold-customer cold-website
-          
-          # Wait and check
-          echo "Verifying deployment..."
+          echo "Preparing remote directories..."
+          # Create temp directory on remote
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "mkdir -p ~/deploy_temp"
+
+          echo "Uploading artifacts..."
+          # Upload binary and assets to temp folder
+          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no cold-backend $USER@$HOST:~/deploy_temp/server
+          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -r static $USER@$HOST:~/deploy_temp/
+          sshpass -p "$PASS" scp -o StrictHostKeyChecking=no -r templates $USER@$HOST:~/deploy_temp/
+
+          echo " deploying to production..."
+          # Move files into place and restart (using remote sudo)
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST << EOF
+            # Define production dir
+            APP_DIR=~/cold-storage
+            mkdir -p \$APP_DIR
+
+            # Backup existing
+            if [ -f \$APP_DIR/server ]; then
+                cp \$APP_DIR/server \$APP_DIR/server.bak
+            fi
+
+            # Move new files (from temp to prod)
+            mv ~/deploy_temp/server \$APP_DIR/server
+            chmod +x \$APP_DIR/server
+            
+            # Clean old assets and replace
+            rm -rf \$APP_DIR/static \$APP_DIR/templates
+            mv ~/deploy_temp/static \$APP_DIR/
+            mv ~/deploy_temp/templates \$APP_DIR/
+            
+            # Allow clean up
+            rm -rf ~/deploy_temp
+            
+            # Restart services
+            echo "$PASS" | sudo -S systemctl restart cold-employee cold-customer cold-website
+          EOF
+
+          echo "Verifying remote deployment..."
           sleep 10
-          
-          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer && systemctl is-active --quiet cold-website; then
-            echo "✅ All services started successfully"
-            echo "--- Employee Service ---"
-            systemctl status cold-employee --no-pager
-            echo "--- Customer Service ---"
-            systemctl status cold-customer --no-pager
-            echo "--- Website Service ---"
-            systemctl status cold-website --no-pager
-          else
-            echo "❌ Some services failed to start"
-            echo "Checking logs..."
-            journalctl -u cold-employee -n 20 --no-pager
-            journalctl -u cold-customer -n 20 --no-pager
-            journalctl -u cold-website -n 20 --no-pager
-            exit 1
-          fi
+          sshpass -p "$PASS" ssh -o StrictHostKeyChecking=no $USER@$HOST "systemctl is-active cold-employee cold-customer cold-website"
