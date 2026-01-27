@@ -67,8 +67,22 @@ jobs:
           # Ensure database password matches application expectation
           echo "Configuring Database..."
           echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER postgres PASSWORD 'SecurePostgresPassword123';" || true
+          echo "Lak992723/" | sudo -S -u postgres psql -c "CREATE USER cold_user WITH PASSWORD 'SecurePostgresPassword123';" 2>/dev/null || true
+          echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER cold_user PASSWORD 'SecurePostgresPassword123';" || true
           echo "Lak992723/" | sudo -S -u postgres psql -c "CREATE DATABASE cold_db;" 2>/dev/null || true
+          echo "Lak992723/" | sudo -S -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cold_db TO cold_user;" || true
           
+          # Force TRUST auth for localhost to guarantee connectivity (Production Local DB)
+          PG_HBA=$(echo "Lak992723/" | sudo -S -u postgres psql -t -P format=unaligned -c 'show hba_file')
+          if [ -f "$PG_HBA" ]; then
+             echo "Updating pg_hba.conf at $PG_HBA..."
+             # Add trust rule for 127.0.0.1 at the top if not present
+             if ! echo "Lak992723/" | sudo -S grep -q "host    all             all             127.0.0.1/32            trust" "$PG_HBA"; then
+                 echo "Lak992723/" | sudo -S sed -i '1s/^/host    all             all             127.0.0.1\/32            trust\n/' "$PG_HBA"
+                 echo "Lak992723/" | sudo -S systemctl reload postgresql
+             fi
+          fi
+
           # Restart services using systemd (Needs SUDO)
           echo "Restarting services..."
           # Ensure config directory exists
