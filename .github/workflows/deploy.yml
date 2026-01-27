@@ -1,0 +1,91 @@
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, cold-server-runner]
+    steps:
+      - name: Clean Workspace
+        run: |
+          echo "Cleaning workspace..."
+          rm -rf ./* || true
+          rm -rf ./.git || true
+          rm -rf ./.github || true
+
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+          submodules: false
+
+      - name: Prepare Assets
+        run: |
+          echo "Preparing static assets..."
+          # Ensure static directory exists
+          mkdir -p static
+          # Copy portfolio template to index.html for the website mode
+          cp templates/portfolio.html static/index.html
+
+      - name: Deploy to Server
+        run: |
+          # Explicitly target the cold user's directory
+          APP_DIR=/home/cold/cold-storage
+          
+          echo "Building server binary..."
+          # Listing files to verify checkout
+          ls -F
+          
+          # Setup Go Cache
+          export GOCACHE=/tmp/go-build-cache
+          mkdir -p $GOCACHE
+          
+          # Build binary locally (Runner IS the server) using ABSOLUTE path
+          CGO_ENABLED=0 /usr/local/go/bin/go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
+          
+          echo "Preparing deployment..."
+          mkdir -p $APP_DIR
+          
+          # Backup current binary
+          if [ -f $APP_DIR/server ]; then
+            cp $APP_DIR/server $APP_DIR/server.bak
+          fi
+          
+          # Install new binary
+          mv cold-backend $APP_DIR/server
+          chmod +x $APP_DIR/server
+
+          # Update assets
+          echo "Updating assets..."
+          rm -rf $APP_DIR/static $APP_DIR/templates
+          cp -r static $APP_DIR/
+          cp -r templates $APP_DIR/
+          
+          # Restart services using systemd (Needs SUDO)
+          echo "Restarting services..."
+          echo "Lak992723/" | sudo -S systemctl restart cold-employee cold-customer cold-website
+          
+          # Wait and check
+          echo "Verifying deployment..."
+          sleep 10
+          
+          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer && systemctl is-active --quiet cold-website; then
+            echo "✅ All services started successfully"
+            echo "--- Employee Service ---"
+            systemctl status cold-employee --no-pager
+            echo "--- Customer Service ---"
+            systemctl status cold-customer --no-pager
+            echo "--- Website Service ---"
+            systemctl status cold-website --no-pager
+          else
+            echo "❌ Some services failed to start"
+            echo "Checking logs..."
+            journalctl -u cold-employee -n 20 --no-pager
+            journalctl -u cold-customer -n 20 --no-pager
+            journalctl -u cold-website -n 20 --no-pager
+            exit 1
+          fi
