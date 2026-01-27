@@ -66,15 +66,19 @@ jobs:
           cp -r templates $APP_DIR/
           # Ensure backup directories exist and are writable
           echo "Configuring Backup Directories..."
+          # Change to home to avoid sudo permission warnings
+          cd $HOME
           echo "Lak992723/" | sudo -S mkdir -p /mass-pool/backups
           echo "Lak992723/" | sudo -S chown -R cold:cold /mass-pool/backups
           echo "Lak992723/" | sudo -S chmod -R 775 /mass-pool/backups
+          cd - > /dev/null
           
           mkdir -p $APP_DIR/backups
           chown -R cold:cold $APP_DIR/backups || true
           
           # Ensure database password matches application expectation
           echo "Configuring Database..."
+          cd $HOME
           echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER postgres PASSWORD 'SecurePostgresPassword123';" || true
           echo "Lak992723/" | sudo -S -u postgres psql -c "CREATE USER cold_user WITH PASSWORD 'SecurePostgresPassword123';" 2>/dev/null || true
           echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER cold_user PASSWORD 'SecurePostgresPassword123';" || true
@@ -91,6 +95,7 @@ jobs:
                  echo "Lak992723/" | sudo -S systemctl reload postgresql
              fi
           fi
+          cd - > /dev/null
 
           # Restart services using systemd (Needs SUDO)
           echo "Restarting services..."
@@ -100,7 +105,9 @@ jobs:
              cp -r configs $APP_DIR/
           fi
           
+          cd $HOME
           echo "Lak992723/" | sudo -S systemctl restart cold-employee cold-customer cold-website
+          cd - > /dev/null
           
           # Wait and check
           echo "Verifying deployment..."
