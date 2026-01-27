@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"cold-backend/internal/middleware"
-	"cold-backend/internal/services"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +16,9 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
+
+	"cold-backend/internal/middleware"
+	"cold-backend/internal/services"
 )
 
 type FileManagerHandler struct {
@@ -873,4 +874,94 @@ func (h *FileManagerHandler) GenerateThumbnail(w http.ResponseWriter, r *http.Re
 	// Simply serve the file itself for now (browser handles scaling)
 	// In production, we should cache generated thumbnails
 	http.ServeFile(w, r, fullPath)
+}
+
+// StoreBackup saves a backup file to the backups root
+// This exposes the file manager logic as an internal API
+func (h *FileManagerHandler) StoreBackup(filename string, data []byte) (string, error) {
+	fullPath, err := h.resolvePath("backups", filename)
+	if err != nil {
+		return "", err
+	}
+
+	// Create directory if needed
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+		return "", fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return fullPath, nil
+}
+
+// GetBackup retrieves a backup file from the backups root
+func (h *FileManagerHandler) GetBackup(filename string) ([]byte, error) {
+	fullPath, err := h.resolvePath("backups", filename)
+	if err != nil {
+		return nil, err
+	}
+
+	data, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file: %w", err)
+	}
+
+	return data, nil
+}
+
+// ListBackups returns a list of backup files, implementing StorageProvider interface
+func (h *FileManagerHandler) ListBackups() ([]services.StorageFileInfo, error) {
+	rootPath, ok := h.RootPaths["backups"]
+	if !ok {
+		return nil, fmt.Errorf("backups root not configured")
+	}
+
+	entries, err := os.ReadDir(rootPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []services.StorageFileInfo{}, nil
+		}
+		return nil, err
+	}
+
+	var files []services.StorageFileInfo
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+
+		if entry.IsDir() {
+			continue
+		}
+
+		files = append(files, services.StorageFileInfo{
+			Name:    entry.Name(),
+			Size:    info.Size(),
+			ModTime: info.ModTime(),
+		})
+	}
+
+	// Sort by mod time desc (newest first)
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].ModTime.After(files[j].ModTime)
+	})
+
+	return files, nil
+}
+
+// DeleteBackup deletes a backup file from the backups root
+func (h *FileManagerHandler) DeleteBackup(filename string) error {
+	fullPath, err := h.resolvePath("backups", filename)
+	if err != nil {
+		return err
+	}
+
+	if err := os.Remove(fullPath); err != nil {
+		return fmt.Errorf("failed to delete file: %w", err)
+	}
+
+	return nil
 }

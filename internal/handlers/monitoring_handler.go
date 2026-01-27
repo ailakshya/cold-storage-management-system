@@ -597,7 +597,7 @@ func runLocalSchedulerBackup(s *services.RestoreService) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	_, _, err := s.CreateLocalBackup(ctx)
+	_, _, _, err := s.CreateLocalBackup(ctx)
 	if err != nil {
 		log.Printf("[Scheduler] Local Backup failed: %v", err)
 	} else {

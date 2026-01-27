@@ -27,11 +27,27 @@ import (
 	"cold-backend/migrations"
 )
 
+// StorageFileInfo represents file metadata from storage provider
+type StorageFileInfo struct {
+	Name    string
+	Size    int64
+	ModTime time.Time
+}
+
+// StorageProvider defines the interface for file storage operations
+type StorageProvider interface {
+	StoreBackup(filename string, data []byte) (string, error)
+	GetBackup(filename string) ([]byte, error)
+	ListBackups() ([]StorageFileInfo, error)
+	DeleteBackup(filename string) error
+	// We might need list capability too if we want to replace ListAvailableDates logic
+}
+
 // RestoreService handles point-in-time database restoration from R2
 type RestoreService struct {
 	pool            *pgxpool.Pool
 	connStr         string
-	backupDir       string
+	storage         StorageProvider // Replaces backupDir string
 	pendingTokens   map[string]*RestoreToken
 	tokenMu         sync.RWMutex
 	lastRestoreTime time.Time
@@ -94,17 +110,13 @@ type RestoreResult struct {
 }
 
 // NewRestoreService creates a new restore service
-func NewRestoreService(pool *pgxpool.Pool, connStr string, backupDir string) *RestoreService {
-	// Ensure backup directory exists
-	if err := os.MkdirAll(backupDir, 0755); err != nil {
-		log.Printf("[RestoreService] Warning: failed to create backup dir %s: %v", backupDir, err)
-	}
-
+func NewRestoreService(pool *pgxpool.Pool, connStr string, storage StorageProvider) *RestoreService {
 	return &RestoreService{
 		pool:            pool,
 		connStr:         connStr,
-		backupDir:       backupDir,
+		storage:         storage,
 		pendingTokens:   make(map[string]*RestoreToken),
+		tokenMu:         sync.RWMutex{},
 		restoreCooldown: 5 * time.Minute,
 	}
 }
@@ -130,42 +142,47 @@ func (s *RestoreService) getS3Client(ctx context.Context) (*s3.Client, error) {
 	return client, nil
 }
 
+// formatBytes converts a byte count into a human-readable format.
+func formatBytes(b int64) string {
+	const (
+		_  = iota
+		KB = 1 << (10 * iota)
+		MB
+		GB
+	)
+
+	switch {
+	case b >= GB:
+		return fmt.Sprintf("%.2f GB", float64(b)/float64(GB))
+	case b >= MB:
+		return fmt.Sprintf("%.2f MB", float64(b)/float64(MB))
+	case b >= KB:
+		return fmt.Sprintf("%.2f KB", float64(b)/float64(KB))
+	default:
+		return fmt.Sprintf("%d B", b)
+	}
+}
+
 // ListLocalBackups returns all local backup files
 func (s *RestoreService) ListLocalBackups() ([]LocalBackup, error) {
-	entries, err := os.ReadDir(s.backupDir)
+	files, err := s.storage.ListBackups()
 	if err != nil {
 		return nil, fmt.Errorf("failed to list local backups: %w", err)
 	}
 
 	var backups []LocalBackup
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		name := strings.ToLower(entry.Name())
+	for _, f := range files {
+		name := strings.ToLower(f.Name)
 		if !strings.HasSuffix(name, ".sql") && !strings.HasSuffix(name, ".dump") && !strings.HasSuffix(name, ".tar") && !strings.HasSuffix(name, ".gz") {
 			continue
 		}
 
-		info, err := entry.Info()
-		if err != nil {
-			continue
-		}
-
-		sizeFormatted := fmt.Sprintf("%d B", info.Size())
-		if info.Size() >= 1024*1024 {
-			sizeFormatted = fmt.Sprintf("%.2f MB", float64(info.Size())/(1024*1024))
-		} else if info.Size() >= 1024 {
-			sizeFormatted = fmt.Sprintf("%.2f KB", float64(info.Size())/1024)
-		}
-
 		backups = append(backups, LocalBackup{
-			Filename:      entry.Name(),
-			Size:          info.Size(),
-			SizeFormatted: sizeFormatted,
-			ModTime:       info.ModTime(),
-			ModTimeStr:    info.ModTime().Format("2006-01-02 15:04:05"),
+			Filename:      f.Name,
+			Size:          f.Size,
+			SizeFormatted: formatBytes(f.Size),
+			ModTime:       f.ModTime,
+			ModTimeStr:    f.ModTime.Format("2006-01-02 15:04:05"),
 		})
 	}
 
@@ -267,16 +284,16 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 	}
 
 	// MERGE LOCAL BACKUPS
-	// Also scan local backup directory to include local-only backups
-	localEntries, err := os.ReadDir(s.backupDir)
+	// Also scan local backup directory via storage interface
+	localFiles, err := s.storage.ListBackups()
 	if err == nil {
-		for _, entry := range localEntries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+		for _, f := range localFiles {
+			if !strings.HasSuffix(f.Name, ".sql") {
 				continue
 			}
 
 			// Parse filename: cold_db_YYYYMMDD_HHMMSS.sql
-			matches := keyRegex.FindStringSubmatch(entry.Name())
+			matches := keyRegex.FindStringSubmatch(f.Name)
 			if matches == nil {
 				continue
 			}
@@ -290,30 +307,14 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 				}
 			}
 
-			// We verify if this specific file is already counted (implied by checking if date exists? No, counts need to be accurate)
-			// But differentiating exact file matches between R2 and Local is hard without checking every key.
-			// Simplified approach: If date exists strictly from R2, we assume R2 has the truth.
-			// If date ONLY exists locally (R2 failed or offline), we need to populate it.
-			// For mixed scenarios (some on R2, some local only), the count might be off if we don't deduplicate.
-			// Given the goal is "Visibility", showing the date is priority.
-
-			// Actually, let's just update the count and times if we can.
-			// Re-parsing time for local file
-			timeStr := fmt.Sprintf("%s:%s:%s", matches[4], matches[5], matches[6])
-			t, _ := time.Parse("15:04:05", timeStr)
-
-			// Simple deduplication logic could be complex.
-			// Let's just ensure the DATE is present. The "Count" is less critical than the user executing a restore.
-			// If the user clicks the date, ListSnapshotsForDate runs. We need to update that too!
-
-			// For now, let's just make sure the date is listed.
-			// Note: The UI likely uses the Count to show badge.
-			// We should ideally increment count if it's not likely on R2.
-			// But for "offline recovery", R2 list might be empty.
-
+			// We verify if this specific file is already counted
 			// If R2 list was empty (len(allObjects) == 0), then we definitely need to count local files.
 			if len(allObjects) == 0 {
 				dateMap[dateStr].Count++
+
+				// Re-parsing time for local file
+				timeStr := fmt.Sprintf("%s:%s:%s", matches[4], matches[5], matches[6])
+				t, _ := time.Parse("15:04:05", timeStr)
 
 				// Update earliest/latest for local-only scenario
 				if dateMap[dateStr].LatestTime == "" || t.Format("15:04:05") > dateMap[dateStr].LatestTime {
@@ -412,18 +413,14 @@ func (s *RestoreService) ListSnapshotsForDate(ctx context.Context, date string) 
 	})
 
 	// MERGE LOCAL BACKUPS
-	// Also scan local backup directory
-	localEntries, err := os.ReadDir(s.backupDir)
+	// Also scan local backup directory via storage interface
+	localFiles, err := s.storage.ListBackups()
 	if err == nil {
 		targetDate := strings.ReplaceAll(date, "-", "") // YYYYMMDD
 
-		for _, entry := range localEntries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
-				continue
-			}
-
+		for _, f := range localFiles {
 			// Filename format: cold_db_YYYYMMDD_HHMMSS.sql
-			name := entry.Name()
+			name := f.Name
 			if !strings.HasPrefix(name, "cold_db_"+targetDate) {
 				continue
 			}
@@ -435,7 +432,6 @@ func (s *RestoreService) ListSnapshotsForDate(ctx context.Context, date string) 
 			}
 
 			timeStr := fmt.Sprintf("%s:%s:%s", matches[1], matches[2], matches[3])
-			info, _ := entry.Info()
 
 			// Check for duplicate (if R2 already has it)
 			isDuplicate := false
@@ -450,8 +446,8 @@ func (s *RestoreService) ListSnapshotsForDate(ctx context.Context, date string) 
 				// Format size
 				snapshots = append(snapshots, Snapshot{
 					Key:          name, // Use filename as key for local
-					Size:         info.Size(),
-					LastModified: info.ModTime(),
+					Size:         f.Size,
+					LastModified: f.ModTime,
 					Timestamp:    timeStr,
 				})
 			}
@@ -504,16 +500,22 @@ func (s *RestoreService) FindClosestSnapshot(ctx context.Context, targetTime tim
 
 // PreviewLocalRestore generates a preview and confirmation token for local restore
 func (s *RestoreService) PreviewLocalRestore(filename string, userID int) (*RestorePreview, error) {
-	// Verify file exists
-	filePath := filepath.Join(s.backupDir, filename)
-	cleanPath := filepath.Clean(filePath)
-	if !strings.HasPrefix(cleanPath, filepath.Clean(s.backupDir)) {
-		return nil, fmt.Errorf("invalid file path")
+	// Verify file exists and get metadata via ListBackups
+	files, err := s.storage.ListBackups()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list backups: %w", err)
 	}
 
-	info, err := os.Stat(cleanPath)
-	if err != nil {
-		return nil, fmt.Errorf("backup file not found: %w", err)
+	var targetFile *StorageFileInfo
+	for _, f := range files {
+		if f.Name == filename {
+			targetFile = &f
+			break
+		}
+	}
+
+	if targetFile == nil {
+		return nil, fmt.Errorf("backup file not found: %s", filename)
 	}
 
 	// Generate confirmation token
@@ -535,18 +537,18 @@ func (s *RestoreService) PreviewLocalRestore(filename string, userID int) (*Rest
 
 	// Format size
 	var sizeFormatted string
-	if info.Size() < 1024 {
-		sizeFormatted = fmt.Sprintf("%d B", info.Size())
-	} else if info.Size() < 1024*1024 {
-		sizeFormatted = fmt.Sprintf("%.2f KB", float64(info.Size())/1024)
+	if targetFile.Size < 1024 {
+		sizeFormatted = fmt.Sprintf("%d B", targetFile.Size)
+	} else if targetFile.Size < 1024*1024 {
+		sizeFormatted = fmt.Sprintf("%.2f KB", float64(targetFile.Size)/1024)
 	} else {
-		sizeFormatted = fmt.Sprintf("%.2f MB", float64(info.Size())/(1024*1024))
+		sizeFormatted = fmt.Sprintf("%.2f MB", float64(targetFile.Size)/(1024*1024))
 	}
 
 	return &RestorePreview{
 		SnapshotKey:       filename,
-		SnapshotTime:      info.ModTime(),
-		Size:              info.Size(),
+		SnapshotTime:      targetFile.ModTime,
+		Size:              targetFile.Size,
 		SizeFormatted:     sizeFormatted,
 		ConfirmationToken: token,
 		ExpiresIn:         300, // 5 minutes
@@ -604,15 +606,33 @@ func (s *RestoreService) ExecuteLocalRestore(ctx context.Context, filename, conf
 	}
 
 	// Step 2: Verify file existence
-	filePath := filepath.Join(s.backupDir, filename)
-	cleanPath := filepath.Clean(filePath)
-	if !strings.HasPrefix(cleanPath, filepath.Clean(s.backupDir)) {
-		return nil, fmt.Errorf("invalid file path")
+	// With storage API, we don't check file path prefix, we just try to get it
+	// But PREVIEW needs file info without reading full content if possible.
+	// Our StorageProvider interface currently only has GetBackup (reads full content).
+	// We might need to add StatBackup to interface or just use GetBackup and check error.
+	// For now, let's use GetBackup to verify existence (fine for small files, maybe slow for large dumps if we read all).
+
+	// OPTIMIZATION: If we only want to check existence, we should add Stat/Info to interface.
+	// But FileManagerHandler.GetBackup reads file.
+	// Let's assume for now we just proceed to restore. The restore command needs a file path?
+	// WAIT. psql restore command needs a FILE PATH. `exec.Command("psql", ... "-f", filePath)`
+	// If `s.storage` is an API (FileManagerHandler), it returns BYTES.
+	// `psql` cannot read from bytes in memory via flag easily (needs stdin).
+
+	// We should write the bytes to a TEMP file for `psql` to use.
+
+	log.Println("[Restore] Verifying backup availability...")
+	backupData, err := s.storage.GetBackup(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve backup: %w", err)
 	}
 
-	if _, err := os.Stat(cleanPath); err != nil {
-		return nil, fmt.Errorf("backup file not found: %w", err)
+	// Create temp file for psql
+	tmpFile := filepath.Join(os.TempDir(), "restore_temp_"+filename)
+	if err := os.WriteFile(tmpFile, backupData, 0644); err != nil {
+		return nil, fmt.Errorf("failed to write temp restore file: %w", err)
 	}
+	defer os.Remove(tmpFile)
 
 	// Step 3: Clean database (drop all tables)
 	log.Println("[Restore] Cleaning database...")
@@ -653,9 +673,9 @@ END $$;
 		}
 	}
 
-	// Step 5: Restore data from local file
+	// Step 5: Restore data from local backup (temp file)
 	log.Println("[Restore] Restoring data from local backup...")
-	cmd := exec.Command("psql", s.connStr, "-f", cleanPath)
+	cmd := exec.Command("psql", s.connStr, "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
@@ -881,7 +901,8 @@ END $$;
 }
 
 // CreateLocalBackup creates a local backup file only
-func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string, error) {
+// Returns: filename, localPath, tempFilePath, error
+func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string, string, error) {
 	// Create backup
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("cold_db_%s.sql", timestamp)
@@ -898,40 +919,55 @@ func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string,
 		// Fallback to manual backup
 		data, err = s.createManualBackup(ctx)
 		if err != nil {
-			return "", "", fmt.Errorf("backup failed (pg_dump: %s, manual: %v)", string(output), err)
+			return "", "", "", fmt.Errorf("backup failed (pg_dump: %s, manual: %v)", string(output), err)
 		}
 		// Write to temp file for consistency
 		if err := os.WriteFile(tmpFile, data, 0644); err != nil {
-			return "", "", fmt.Errorf("failed to write temp backup file: %w", err)
+			return "", "", "", fmt.Errorf("failed to write temp backup file: %w", err)
 		}
 	} else {
 		// Read pg_dump output
 		data, err = os.ReadFile(tmpFile)
 		if err != nil {
-			return "", "", fmt.Errorf("failed to read backup file: %w", err)
+			return "", "", "", fmt.Errorf("failed to read backup file: %w", err)
 		}
 	}
 
-	// Ensure temp file is removed eventually
-	defer os.Remove(tmpFile)
+	// We DON'T remove temp file here anymore, caller must do it
+	// defer os.Remove(tmpFile)
 
-	// Save to local backup directory
-	localPath := filepath.Join(s.backupDir, filename)
-	if err := os.WriteFile(localPath, data, 0644); err != nil {
-		log.Printf("[Backup] Warning: failed to save local backup: %v", err)
-		return "", "", fmt.Errorf("failed to save local backup: %w", err)
+	// Save to local backup directory via API
+	storedPath, err := s.storage.StoreBackup(filename, data)
+	if err != nil {
+		log.Printf("[Backup] Warning: failed to save local backup via storage API: %v", err)
+		// Return error but also return paths so R2 can try (storedPath might be empty)
+		return filename, "", tmpFile, fmt.Errorf("failed to save local backup: %w", err)
 	} else {
-		log.Printf("[Backup] Saved local backup to %s", localPath)
+		log.Printf("[Backup] Saved local backup to %s", storedPath)
 	}
 
-	return filename, localPath, nil
+	return filename, storedPath, tmpFile, nil
 }
 
 // CreateBackup creates a new backup (local + R2)
 func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
-	filename, localPath, err := s.CreateLocalBackup(ctx)
-	if err != nil {
+	filename, localPath, tmpFile, err := s.CreateLocalBackup(ctx)
+
+	// If we have a temp file, we can proceed with upload even if local save failed
+	if tmpFile != "" {
+		defer os.Remove(tmpFile)
+	}
+
+	// We only error out if we have NO data (both local failed and no temp file returned?)
+	// Actually CreateLocalBackup returns error if local save failed.
+	// But if tmpFile is set, we can ignore that error for R2 purposes.
+	if err != nil && tmpFile == "" {
 		return "", err
+	}
+
+	// If error exists but we have tmpFile, just log it
+	if err != nil {
+		log.Printf("[Backup] Local save failed (%v), but proceeding with R2 upload via temp file", err)
 	}
 
 	// Upload to R2
@@ -941,11 +977,20 @@ func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
 		return filename + " (Local Only)", nil
 	}
 
-	// Re-open file for streaming upload to save memory
-	f, err := os.Open(localPath)
-	if err != nil {
-		log.Printf("[Backup] Warning: failed to open backup for upload: %v", err)
-		return filename + " (Local Only)", nil
+	// Determine which file to read
+	var f *os.File
+	var fileErr error
+
+	// Try opening local path first
+	f, fileErr = os.Open(localPath)
+	if fileErr != nil {
+		// Fallback to temp file
+		log.Printf("[Backup] Could not read local file (%v), using temp file %s", fileErr, tmpFile)
+		f, fileErr = os.Open(tmpFile)
+		if fileErr != nil {
+			log.Printf("[Backup] Warning: failed to open backup for upload: %v", fileErr)
+			return filename + " (Local Only)", nil
+		}
 	}
 	defer f.Close()
 
@@ -981,14 +1026,7 @@ func (s *RestoreService) DeleteLocalBackup(filename string) error {
 		return fmt.Errorf("invalid filename")
 	}
 
-	path := filepath.Join(s.backupDir, filename)
-
-	// Verify file exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return fmt.Errorf("backup file not found")
-	}
-
-	if err := os.Remove(path); err != nil {
+	if err := s.storage.DeleteBackup(filename); err != nil {
 		return fmt.Errorf("failed to delete backup: %w", err)
 	}
 
@@ -1015,13 +1053,13 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 		return "", fmt.Errorf("failed to read backup file: %w", err)
 	}
 
-	// Save to local backup directory
+	// Save to local backup directory via API
 	localFilename := fmt.Sprintf("cold_prerestore_%s.sql", timestamp)
-	localPath := filepath.Join(s.backupDir, localFilename)
-	if err := os.WriteFile(localPath, data, 0644); err != nil {
+	storedPath, err := s.storage.StoreBackup(localFilename, data)
+	if err != nil {
 		log.Printf("[Restore] Warning: failed to save local pre-restore backup: %v", err)
 	} else {
-		log.Printf("[Restore] Saved local pre-restore backup to %s", localPath)
+		log.Printf("[Restore] Saved local pre-restore backup to %s", storedPath)
 	}
 
 	// Upload to R2 with special prefix

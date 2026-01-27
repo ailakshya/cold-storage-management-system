@@ -667,8 +667,16 @@ func main() {
 			log.Println("[Monitoring] TimescaleDB not available, using in-memory log buffer")
 		}
 
+		// Initialize TOTP service and handler (2FA for admin users)
+		totpService := services.NewTOTPService(userRepo, totpRepo)
+		totpHandler := handlers.NewTOTPHandler(totpService, userRepo, jwtManager)
+
+		// Initialize file manager handler
+		fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService, cfg.BackupDir)
+
 		// Initialize point-in-time restore service (also used for backups)
-		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir)
+		// Now injects fileManagerHandler as StorageProvider (ZFS/File API)
+		restoreService := services.NewRestoreService(pool, connStr, fileManagerHandler)
 		restoreHandler := handlers.NewRestoreHandler(restoreService)
 
 		// Always initialize monitoring handler
@@ -725,13 +733,6 @@ func main() {
 
 		// Initialize merge history handler
 		mergeHistoryHandler := handlers.NewMergeHistoryHandler(customerRepo, entryRepo, entryManagementLogRepo)
-
-		// Initialize TOTP service and handler (2FA for admin users)
-		totpService := services.NewTOTPService(userRepo, totpRepo)
-		totpHandler := handlers.NewTOTPHandler(totpService, userRepo, jwtManager)
-
-		// Initialize file manager handler
-		fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService, cfg.BackupDir)
 
 		// Initialize Razorpay service and handler for online payments (admin view)
 		razorpayService := services.NewRazorpayService(
