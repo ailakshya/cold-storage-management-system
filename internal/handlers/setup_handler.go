@@ -32,16 +32,24 @@ type SetupHandler struct {
 	templates      *template.Template
 	isRecoveryMode bool
 	connStr        string
+	backupDir      string
 }
 
-func NewSetupHandler() *SetupHandler {
+func NewSetupHandler(backupDir string) *SetupHandler {
 	tmpl, err := template.ParseFS(templates.FS, "setup.html")
 	if err != nil {
 		// Template might not exist yet during development
 		tmpl = template.New("setup")
 	}
+	// Ensure backup directory exists
+	if backupDir != "" {
+		if err := os.MkdirAll(backupDir, 0755); err != nil {
+			log.Printf("[SetupHandler] Warning: failed to create backup dir %s: %v", backupDir, err)
+		}
+	}
 	return &SetupHandler{
 		templates: tmpl,
+		backupDir: backupDir,
 	}
 }
 
@@ -228,22 +236,22 @@ func (h *SetupHandler) ListBackups(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":      true,
-		"backups":      backups,
-		"total_count":  len(allObjects),
-		"showing":      limit,
+		"success":     true,
+		"backups":     backups,
+		"total_count": len(allObjects),
+		"showing":     limit,
 	})
 }
 
 // RestoreFromR2 restores database from R2 backup
 func (h *SetupHandler) RestoreFromR2(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Host       string `json:"host"`
-		Port       int    `json:"port"`
-		User       string `json:"user"`
-		Password   string `json:"password"`
-		Database   string `json:"database"`
-		BackupKey  string `json:"backup_key"`
+		Host      string `json:"host"`
+		Port      int    `json:"port"`
+		User      string `json:"user"`
+		Password  string `json:"password"`
+		Database  string `json:"database"`
+		BackupKey string `json:"backup_key"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -730,6 +738,25 @@ func (h *SetupHandler) UploadRestore(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("[UploadRestore] Saved to temp file: %s (%.2f KB)", tmpFile, float64(bytesWritten)/1024)
+
+	// Also save to local backup directory if configured
+	if h.backupDir != "" {
+		timestamp := time.Now().Format("20060102_150405")
+		backupFilename := fmt.Sprintf("cold_manual_restore_%s.sql", timestamp)
+		backupPath := filepath.Join(h.backupDir, backupFilename)
+
+		// Read temp file again
+		data, err := os.ReadFile(tmpFile)
+		if err == nil {
+			if err := os.WriteFile(backupPath, data, 0644); err == nil {
+				log.Printf("[UploadRestore] Saved copy to local backup: %s", backupPath)
+			} else {
+				log.Printf("[UploadRestore] Warning: failed to save local backup copy: %v", err)
+			}
+		} else {
+			log.Printf("[UploadRestore] Warning: failed to read temp file for local copy: %v", err)
+		}
+	}
 
 	// Get DB connection params from form
 	host := r.FormValue("host")

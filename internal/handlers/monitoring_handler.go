@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"cold-backend/internal/monitoring"
@@ -485,4 +487,68 @@ func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
 		"key":     key,
 		"message": "Backup created successfully",
 	})
+}
+
+// R2 Backup Scheduler
+var (
+	r2BackupTicker   *time.Ticker
+	r2BackupStopChan chan bool
+	r2BackupMutex    sync.Mutex
+	r2BackupInterval = 1 * time.Minute
+)
+
+// StartR2BackupScheduler starts the automatic R2 backup scheduler
+func StartR2BackupScheduler(s *services.RestoreService) {
+	r2BackupMutex.Lock()
+	defer r2BackupMutex.Unlock()
+
+	if r2BackupTicker != nil {
+		return // Already running
+	}
+
+	r2BackupTicker = time.NewTicker(r2BackupInterval)
+	r2BackupStopChan = make(chan bool)
+
+	go func() {
+		// Run first backup immediately
+		log.Println("[R2 Scheduler] Starting automatic backup scheduler")
+		runSchedulerBackup(s)
+
+		for {
+			select {
+			case <-r2BackupTicker.C:
+				runSchedulerBackup(s)
+			case <-r2BackupStopChan:
+				log.Println("[R2 Scheduler] Scheduler stopped")
+				return
+			}
+		}
+	}()
+
+	log.Printf("[R2 Scheduler] Scheduler started (interval: %v)", r2BackupInterval)
+}
+
+// StopR2BackupScheduler stops the automatic backup scheduler
+func StopR2BackupScheduler() {
+	r2BackupMutex.Lock()
+	defer r2BackupMutex.Unlock()
+
+	if r2BackupTicker != nil {
+		r2BackupTicker.Stop()
+		r2BackupStopChan <- true
+		r2BackupTicker = nil
+	}
+}
+
+func runSchedulerBackup(s *services.RestoreService) {
+	// Specific context for backup with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	key, err := s.CreateBackup(ctx)
+	if err != nil {
+		log.Printf("[R2 Scheduler] Backup failed: %v", err)
+	} else {
+		log.Printf("[R2 Scheduler] Backup success: %s", key)
+	}
 }

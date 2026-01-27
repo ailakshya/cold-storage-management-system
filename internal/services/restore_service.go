@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -219,10 +220,16 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 	dateMap := make(map[string]*RestoreDate)
 	dateTimeMap := make(map[string][]time.Time)
 
-	// Parse key format: base/YYYY/MM/DD/HH/cold_db_YYYYMMDD_HHMMSS.sql
-	keyRegex := regexp.MustCompile(`base/(\d{4})/(\d{2})/(\d{2})/\d{2}/cold_db_\d{8}_(\d{2})(\d{2})(\d{2})\.sql`)
+	// Parse filename format: cold_db_YYYYMMDD_HHMMSS.sql
+	// We rely on the filename for date/time, ignoring the directory structure to be more robust
+	keyRegex := regexp.MustCompile(`cold_db_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.sql`)
 
 	for _, obj := range allObjects {
+		// Only consider files in "base/" directory to ignore pre-restore backups
+		if !strings.HasPrefix(obj.Key, "base/") {
+			continue
+		}
+
 		matches := keyRegex.FindStringSubmatch(obj.Key)
 		if matches == nil {
 			continue
@@ -754,23 +761,38 @@ END $$;
 
 // CreateBackup creates a new backup (local + R2)
 func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
-	// Create backup using pg_dump
+	// Create backup
 	timestamp := time.Now().Format("20060102_150405")
-	filename := fmt.Sprintf("cold_db_%s.sql", timestamp) // Standard format matching regex
+	filename := fmt.Sprintf("cold_db_%s.sql", timestamp)
 	tmpFile := filepath.Join(os.TempDir(), filename)
 
+	// Try pg_dump first
 	cmd := exec.Command("pg_dump", s.connStr, "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("pg_dump failed: %w\nOutput: %s", err, string(output))
-	}
-	defer os.Remove(tmpFile)
 
-	// Read the backup file
-	data, err := os.ReadFile(tmpFile)
+	var data []byte
+
 	if err != nil {
-		return "", fmt.Errorf("failed to read backup file: %w", err)
+		log.Printf("[Backup] pg_dump failed (%v), trying manual fallback...", err)
+		// Fallback to manual backup
+		data, err = s.createManualBackup(ctx)
+		if err != nil {
+			return "", fmt.Errorf("backup failed (pg_dump: %s, manual: %v)", string(output), err)
+		}
+		// Write to temp file for consistency
+		if err := os.WriteFile(tmpFile, data, 0644); err != nil {
+			return "", fmt.Errorf("failed to write temp backup file: %w", err)
+		}
+	} else {
+		// Read pg_dump output
+		data, err = os.ReadFile(tmpFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read backup file: %w", err)
+		}
 	}
+
+	// Ensure temp file is removed eventually (though we might read it again below)
+	defer os.Remove(tmpFile)
 
 	// Save to local backup directory
 	localPath := filepath.Join(s.backupDir, filename)
@@ -787,6 +809,20 @@ func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
 		return filename + " (Local Only)", nil
 	}
 
+	// Re-open file for streaming upload to save memory
+	f, err := os.Open(localPath)
+	if err != nil {
+		// Fallback to temp file if local write failed
+		f, err = os.Open(tmpFile)
+		if err != nil {
+			log.Printf("[Backup] Warning: failed to open backup for upload: %v", err)
+			return filename + " (Local Only)", nil
+		}
+	}
+	defer f.Close()
+
+	fileInfo, _ := f.Stat()
+
 	now := time.Now()
 	// Format: base/YYYY/MM/DD/HH/cold_db_...
 	key := fmt.Sprintf("base/%s/%s/%s/%s/%s",
@@ -797,15 +833,39 @@ func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
 		filename)
 
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(config.R2BucketName),
-		Key:    aws.String(key),
-		Body:   strings.NewReader(string(data)),
+		Bucket:        aws.String(config.R2BucketName),
+		Key:           aws.String(key),
+		Body:          f,
+		ContentLength: aws.Int64(fileInfo.Size()),
 	})
 	if err != nil {
-		return "", fmt.Errorf("failed to upload to R2: %w", err)
+		log.Printf("[Backup] Warning: failed to upload backup to R2: %v", err)
+		return filename + " (Local Only)", nil
 	}
 
 	return key, nil
+}
+
+// DeleteLocalBackup deletes a local backup file
+func (s *RestoreService) DeleteLocalBackup(filename string) error {
+	// Validate filename to prevent directory traversal
+	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		return fmt.Errorf("invalid filename")
+	}
+
+	path := filepath.Join(s.backupDir, filename)
+
+	// Verify file exists
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return fmt.Errorf("backup file not found")
+	}
+
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("failed to delete backup: %w", err)
+	}
+
+	log.Printf("[Backup] Deleted local backup: %s", filename)
+	return nil
 }
 
 // createPreRestoreBackup creates a backup of current state before restore
@@ -862,33 +922,6 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 	return key, nil
 }
 
-// DeleteLocalBackup deletes a local backup file
-func (s *RestoreService) DeleteLocalBackup(filename string) error {
-	// Security check: ensure strict filename to prevent path traversal
-	if strings.Contains(filename, "/") || strings.Contains(filename, "..") {
-		return fmt.Errorf("invalid filename")
-	}
-
-	filePath := filepath.Join(s.backupDir, filename)
-
-	// Verify it exists in the designated backup directory
-	cleanPath := filepath.Clean(filePath)
-	if !strings.HasPrefix(cleanPath, filepath.Clean(s.backupDir)) {
-		return fmt.Errorf("invalid file path")
-	}
-
-	// Check if file exists
-	if _, err := os.Stat(cleanPath); os.IsNotExist(err) {
-		return fmt.Errorf("file not found")
-	}
-
-	if err := os.Remove(cleanPath); err != nil {
-		return fmt.Errorf("failed to delete file: %w", err)
-	}
-
-	return nil
-}
-
 // CleanupExpiredTokens removes expired confirmation tokens
 func (s *RestoreService) CleanupExpiredTokens() {
 	s.tokenMu.Lock()
@@ -900,4 +933,110 @@ func (s *RestoreService) CleanupExpiredTokens() {
 			delete(s.pendingTokens, token)
 		}
 	}
+}
+
+// createManualBackup creates a SQL dump manually by querying the database
+// This is used as a fallback when pg_dump is not available
+func (s *RestoreService) createManualBackup(ctx context.Context) ([]byte, error) {
+	var buffer bytes.Buffer
+	buffer.WriteString("-- Cold Storage Database Backup (Manual Fallback)\n")
+	buffer.WriteString(fmt.Sprintf("-- Generated: %s\n\n", time.Now().Format(time.RFC3339)))
+
+	// Get all tables in public schema
+	rows, err := s.pool.Query(ctx, "SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+	if err != nil {
+		return nil, fmt.Errorf("failed to list tables: %w", err)
+	}
+	defer rows.Close()
+
+	var tables []string
+	for rows.Next() {
+		var table string
+		if err := rows.Scan(&table); err != nil {
+			continue
+		}
+		// Skip migration table usually
+		if table == "schema_migrations" {
+			continue
+		}
+		tables = append(tables, table)
+	}
+
+	for _, table := range tables {
+		buffer.WriteString(fmt.Sprintf("\n-- Table: %s\n", table))
+
+		// Get columns
+		colRows, err := s.pool.Query(ctx, fmt.Sprintf(`
+			SELECT column_name, data_type 
+			FROM information_schema.columns 
+			WHERE table_name = '%s' 
+			ORDER BY ordinal_position`, table))
+		if err != nil {
+			log.Printf("[Backup] Warning: failed to get columns for %s: %v", table, err)
+			continue
+		}
+
+		var cols []string
+		for colRows.Next() {
+			var colName, dataType string
+			colRows.Scan(&colName, &dataType)
+			cols = append(cols, colName)
+		}
+		colRows.Close()
+
+		if len(cols) == 0 {
+			continue
+		}
+
+		// Get data
+		dataRows, err := s.pool.Query(ctx, fmt.Sprintf("SELECT * FROM %s", table))
+		if err != nil {
+			log.Printf("[Backup] Warning: failed to get data for %s: %v", table, err)
+			continue
+		}
+
+		for dataRows.Next() {
+			// Create a slice of interface{} to hold the row values
+			values := make([]interface{}, len(cols))
+			valuePtrs := make([]interface{}, len(cols))
+			for i := range values {
+				valuePtrs[i] = &values[i]
+			}
+
+			if err := dataRows.Scan(valuePtrs...); err != nil {
+				continue
+			}
+
+			buffer.WriteString(fmt.Sprintf("INSERT INTO %s (%s) VALUES (", table, strings.Join(cols, ", ")))
+			for i, v := range values {
+				if i > 0 {
+					buffer.WriteString(", ")
+				}
+				if v == nil {
+					buffer.WriteString("NULL")
+				} else {
+					switch val := v.(type) {
+					case []byte:
+						buffer.WriteString(fmt.Sprintf("'%s'", strings.ReplaceAll(string(val), "'", "''")))
+					case string:
+						buffer.WriteString(fmt.Sprintf("'%s'", strings.ReplaceAll(val, "'", "''")))
+					case time.Time:
+						// Use microsecond precision for timestamp
+						buffer.WriteString(fmt.Sprintf("'%s'", val.Format("2006-01-02 15:04:05.999999")))
+					case bool:
+						buffer.WriteString(fmt.Sprintf("%t", val))
+					case int, int64, int32, float64, float32:
+						buffer.WriteString(fmt.Sprintf("%v", val))
+					default:
+						// Handle other types as string
+						buffer.WriteString(fmt.Sprintf("'%v'", val))
+					}
+				}
+			}
+			buffer.WriteString(");\n")
+		}
+		dataRows.Close()
+	}
+
+	return buffer.Bytes(), nil
 }

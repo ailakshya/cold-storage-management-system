@@ -35,7 +35,7 @@ import (
 
 // startSetupMode starts the server in setup mode when no database is available
 func startSetupMode(cfg *config.Config) {
-	setupHandler := handlers.NewSetupHandler()
+	setupHandler := handlers.NewSetupHandler(cfg.BackupDir)
 
 	mux := http.NewServeMux()
 
@@ -78,7 +78,7 @@ func startRecoveryMode(cfg *config.Config, connStr string) {
 	log.Println("║    - Continue with current database                        ║")
 	log.Println("╚════════════════════════════════════════════════════════════╝")
 
-	setupHandler := handlers.NewSetupHandler()
+	setupHandler := handlers.NewSetupHandler(cfg.BackupDir)
 	setupHandler.SetRecoveryMode(true, connStr)
 
 	mux := http.NewServeMux()
@@ -674,9 +674,9 @@ func main() {
 		// Always initialize monitoring handler
 		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir, restoreService)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
-		// R2 backup scheduler is now handled by the RestoreService or manual triggers
-		// handlers.StartR2BackupScheduler(pool)
-		// defer handlers.StopR2BackupScheduler()
+		// R2 backup scheduler
+		handlers.StartR2BackupScheduler(restoreService)
+		defer handlers.StopR2BackupScheduler()
 
 		log.Println("[Monitoring] Core monitoring features enabled")
 
@@ -717,7 +717,7 @@ func main() {
 		smsHandler := handlers.NewSMSHandler(smsLogRepo, systemSettingRepo, employeeSMSService)
 
 		// Initialize setup handler (disaster recovery - R2 restore)
-		setupHandler := handlers.NewSetupHandler()
+		setupHandler := handlers.NewSetupHandler(cfg.BackupDir)
 
 		// Initialize ledger and debt handlers
 		ledgerHandler := handlers.NewLedgerHandler(ledgerService)
