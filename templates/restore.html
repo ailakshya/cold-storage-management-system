@@ -154,6 +154,9 @@
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
                 </button>
+                <button onclick="openSettings()" class="neu-button bg-gray-600 text-white">
+                    <i class="bi bi-gear-fill"></i> Settings
+                </button>
                 <button onclick="createBackup()" class="neu-button bg-green-500 text-white" id="createBackupBtn">
                     <i class="bi bi-plus-circle"></i> Create Backup
                 </button>
@@ -200,7 +203,7 @@
                 <div class="flex items-center justify-between">
                     <div>
                         <p class="text-sm text-gray-600">Backup Frequency</p>
-                        <p class="text-3xl font-bold text-orange-600">1 min</p>
+                        <p class="text-3xl font-bold text-orange-600" id="statR2Freq">-</p>
                     </div>
                     <i class="bi bi-clock text-4xl text-orange-600"></i>
                 </div>
@@ -303,6 +306,50 @@
         </div>
     </div>
 
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="font-bold text-2xl">Backup Settings</h3>
+                <button onclick="closeSettings()" class="text-gray-500 hover:text-gray-700">
+                    <i class="bi bi-x-lg text-xl"></i>
+                </button>
+            </div>
+
+            <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">R2/Cloud Backup Interval (Minutes)</label>
+                    <input type="number" name="r2_interval" id="settingR2Interval" class="w-full p-2 border border-gray-300 rounded-md" min="1" required>
+                    <p class="text-xs text-gray-500 mt-1">Saves snapshot to remote R2 storage.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Local Backup Interval (Minutes)</label>
+                    <input type="number" name="local_interval" id="settingLocalInterval" class="w-full p-2 border border-gray-300 rounded-md" min="1" required>
+                    <p class="text-xs text-gray-500 mt-1">Saves snapshot to local disk.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Local Retention</label>
+                    <div class="flex gap-2">
+                        <input type="number" name="local_retention_val" id="settingLocalRetentionVal" class="w-2/3 p-2 border border-gray-300 rounded-md" min="0" required>
+                        <select id="settingLocalRetentionUnit" class="w-1/3 p-2 border border-gray-300 rounded-md">
+                            <option value="minutes">Minutes</option>
+                            <option value="hours">Hours</option>
+                            <option value="days">Days</option>
+                            <option value="months">Months</option>
+                            <option value="years">Years</option>
+                        </select>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">Backups older than this will be deleted. Set to 0 to keep forever.</p>
+                </div>
+
+                <div class="flex gap-4 pt-4">
+                    <button type="button" onclick="closeSettings()" class="neu-button bg-gray-200 flex-1">Cancel</button>
+                    <button type="submit" class="neu-button bg-blue-500 text-white flex-1">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const token = localStorage.getItem('token');
         if (!token) {
@@ -314,6 +361,120 @@
         let selectedSnapshot = null;
         let confirmationToken = null;
         let localBackupsCache = []; // To store local backups and grouping them client-side
+
+        // Settings Modal Functions
+        function openSettings() {
+            loadSettings();
+            document.getElementById('settingsModal').classList.add('active');
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').classList.remove('active');
+        }
+
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/admin/restore/config', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+                
+                document.getElementById('settingR2Interval').value = data.r2_interval_minutes;
+                document.getElementById('settingLocalInterval').value = data.local_interval_minutes;
+                
+                // Convert retention minutes to appropriate unit
+                const minutes = data.local_retention_minutes;
+                let val = minutes;
+                let unit = 'minutes';
+
+                if (minutes > 0) {
+                    const minPerYear = 60 * 24 * 365;
+                    const minPerMonth = 60 * 24 * 30; // approx
+                    const minPerDay = 60 * 24;
+                    const minPerHour = 60;
+
+                    if (minutes % minPerYear === 0) {
+                        val = minutes / minPerYear;
+                        unit = 'years';
+                    } else if (minutes % minPerMonth === 0) {
+                        val = minutes / minPerMonth;
+                        unit = 'months';
+                    } else if (minutes % minPerDay === 0) {
+                        val = minutes / minPerDay;
+                        unit = 'days';
+                    } else if (minutes % minPerHour === 0) {
+                        val = minutes / minPerHour;
+                        unit = 'hours';
+                    }
+                }
+
+                document.getElementById('settingLocalRetentionVal').value = val;
+                document.getElementById('settingLocalRetentionUnit').value = unit;
+
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                alert('Failed to load settings');
+            }
+        }
+
+        async function saveSettings(e) {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = 'Saving...';
+            btn.disabled = true;
+
+            // Calculate minutes
+            const val = parseInt(document.getElementById('settingLocalRetentionVal').value);
+            const unit = document.getElementById('settingLocalRetentionUnit').value;
+            let retentionMinutes = val;
+
+            if (val > 0) {
+                switch(unit) {
+                    case 'hours': retentionMinutes = val * 60; break;
+                    case 'days': retentionMinutes = val * 60 * 24; break;
+                    case 'months': retentionMinutes = val * 60 * 24 * 30; break;
+                    case 'years': retentionMinutes = val * 60 * 24 * 365; break;
+                }
+            }
+
+            const config = {
+                r2_interval_minutes: parseInt(document.getElementById('settingR2Interval').value),
+                local_interval_minutes: parseInt(document.getElementById('settingLocalInterval').value),
+                local_retention_minutes: retentionMinutes
+            };
+
+            try {
+                const response = await fetch('/api/admin/restore/config', {
+                    method: 'PUT',
+                    headers: { 
+                        'Authorization': 'Bearer ' + token,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(config)
+                });
+                
+                if (response.ok) {
+                    alert('Settings updated successfully!');
+                    closeSettings();
+                    loadData(true); // Refresh data and stats
+                } else {
+                    const data = await response.text();
+                    try {
+                         const json = JSON.parse(data);
+                         alert('Failed: ' + (json.error || 'Unknown error'));
+                    } catch {
+                         alert('Failed: ' + data);
+                    }
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert('Error saving settings: ' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
 
         // Switch between Cloud and Local tabs
         function switchTab(tab) {
@@ -350,10 +511,31 @@
             `;
 
             // Load data
-            if (tab === 'cloud') {
+            loadData();
+        }
+
+        function loadData(refreshStats = false) {
+             if (currentTab === 'cloud') {
                 loadCloudBackups();
             } else {
                 loadLocalBackups();
+            }
+            if (refreshStats || document.getElementById('statR2Freq').innerText === '-') {
+                loadStats();
+            }
+        }
+
+        async function loadStats() {
+             try {
+                const response = await fetch('/api/admin/restore/config', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+                if (data.r2_interval_minutes) {
+                    document.getElementById('statR2Freq').textContent = data.r2_interval_minutes + " min";
+                }
+            } catch (e) {
+                console.log("Failed to load stats", e);
             }
         }
 
@@ -794,6 +976,6 @@
         }
 
         // Load data on page load (default to cloud)
-        loadCloudBackups();
+        loadData(true);
     </script></body>
 </html>

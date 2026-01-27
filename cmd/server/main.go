@@ -676,15 +676,15 @@ func main() {
 
 		// Initialize point-in-time restore service (also used for backups)
 		// Reverted to Old Pattern: Direct file access
-		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir)
+		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir, systemSettingRepo)
 		restoreHandler := handlers.NewRestoreHandler(restoreService)
 
 		// Always initialize monitoring handler
 		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
 		// R2 backup scheduler
-		handlers.StartBackupSchedulers(restoreService)
-		defer handlers.StopBackupSchedulers()
+		restoreService.StartScheduler(context.Background())
+		// handlers.StartBackupSchedulers(restoreService)
 
 		log.Println("[Monitoring] Core monitoring features enabled")
 

@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.local
+    container_name: cold-backend
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "9090:9090"
+    environment:
+      - TZ=Asia/Kolkata
+      # Main Database (Standard Postgres)
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cold_storage
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=postgres
+      - DATABASE_PASSWORD=password
+      - DATABASE_NAME=cold_storage
+      # Fix for TryConnectWithFallback
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=password
+      - DB_NAME=cold_storage
+
+      # Monitoring Database (TimescaleDB)
+      - G_ENABLED=true
+      - G_DB_HOST=timescaledb
+      - G_DB_PORT=5432
+      - G_DB_USER=postgres
+      - G_DB_PASSWORD=password
+      - G_DB_NAME=cold_monitoring
+
+      # Cache
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      
+      # App Config
+      - BACKUP_DIR=/app/backups
+      - MODE=all
+    depends_on:
+      - postgres
+      - timescaledb
+      - redis
+    volumes:
+      - ./backups:/app/backups
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: cold-postgres
+    environment:
+      - TZ=Asia/Kolkata
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cold_storage
+    ports:
+      - "5434:5432"
+    volumes:
+      - main_postgres_data:/var/lib/postgresql/data
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cold-timescaledb
+    environment:
+      - TZ=Asia/Kolkata
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=cold_monitoring
+    ports:
+      - "5433:5432"  # Exposed on host port 5433 to avoid conflict
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:alpine
+    container_name: cold-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  main_postgres_data:
+  timescale_data:
+  redis_data:

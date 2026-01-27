@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,6 +25,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"cold-backend/internal/config"
+	"cold-backend/internal/repositories"
 	"cold-backend/migrations"
 )
 
@@ -36,13 +38,17 @@ type StorageFileInfo struct {
 
 // RestoreService handles point-in-time database restoration from R2
 type RestoreService struct {
-	pool            *pgxpool.Pool
-	connStr         string
-	backupDir       string
-	pendingTokens   map[string]*RestoreToken
-	tokenMu         sync.RWMutex
-	lastRestoreTime time.Time
-	restoreCooldown time.Duration
+	pool              *pgxpool.Pool
+	connStr           string
+	backupDir         string
+	pendingTokens     map[string]*RestoreToken
+	tokenMu           sync.RWMutex
+	lastRestoreTime   time.Time
+	lastR2Backup      time.Time
+	lastLocalBackup   time.Time
+	restoreCooldown   time.Duration
+	systemSettingRepo *repositories.SystemSettingRepository
+	stopScheduler     chan bool
 }
 
 // RestoreToken holds confirmation token for restore operation
@@ -101,19 +107,21 @@ type RestoreResult struct {
 }
 
 // NewRestoreService creates a new restore service
-func NewRestoreService(pool *pgxpool.Pool, connStr, backupDir string) *RestoreService {
+func NewRestoreService(pool *pgxpool.Pool, connStr, backupDir string, settingsRepo *repositories.SystemSettingRepository) *RestoreService {
 	// Ensure backup directory exists
 	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
 		os.MkdirAll(backupDir, 0755)
 	}
 
 	return &RestoreService{
-		pool:            pool,
-		connStr:         connStr,
-		backupDir:       backupDir,
-		pendingTokens:   make(map[string]*RestoreToken),
-		tokenMu:         sync.RWMutex{},
-		restoreCooldown: 5 * time.Minute,
+		pool:              pool,
+		connStr:           connStr,
+		backupDir:         backupDir,
+		pendingTokens:     make(map[string]*RestoreToken),
+		tokenMu:           sync.RWMutex{},
+		restoreCooldown:   5 * time.Minute,
+		systemSettingRepo: settingsRepo,
+		stopScheduler:     make(chan bool),
 	}
 }
 
@@ -161,34 +169,39 @@ func formatBytes(b int64) string {
 
 // ListLocalBackups returns all local backup files
 func (s *RestoreService) ListLocalBackups() ([]LocalBackup, error) {
-	entries, err := os.ReadDir(s.backupDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list local backups: %w", err)
-	}
-
 	var backups []LocalBackup
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
 
-		name := strings.ToLower(entry.Name())
-		if !strings.HasSuffix(name, ".sql") && !strings.HasSuffix(name, ".dump") && !strings.HasSuffix(name, ".tar") && !strings.HasSuffix(name, ".gz") {
-			continue
-		}
-
-		info, err := entry.Info()
+	err := filepath.Walk(s.backupDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			continue
+			return nil
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		name := strings.ToLower(info.Name())
+		if !strings.HasSuffix(name, ".sql") && !strings.HasSuffix(name, ".dump") && !strings.HasSuffix(name, ".tar") && !strings.HasSuffix(name, ".gz") {
+			return nil
+		}
+
+		// Use relative path so filename contains subdirectory if present
+		relPath, err := filepath.Rel(s.backupDir, path)
+		if err != nil {
+			relPath = info.Name() // Fallback
 		}
 
 		backups = append(backups, LocalBackup{
-			Filename:      info.Name(),
+			Filename:      relPath,
 			Size:          info.Size(),
 			SizeFormatted: formatBytes(info.Size()),
 			ModTime:       info.ModTime(),
 			ModTimeStr:    info.ModTime().Format("2006-01-02 15:04:05"),
 		})
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk backup dir: %w", err)
 	}
 
 	// Sort by modification time (newest first)
@@ -938,8 +951,14 @@ func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string,
 	// We DON'T remove temp file here anymore, caller must do it
 	// defer os.Remove(tmpFile)
 
-	// Save to local backup directory (Old Pattern: Direct Write)
-	localPath := filepath.Join(s.backupDir, filename)
+	// Save to local backup directory (Day-wise folder)
+	today := time.Now().Format("2006-01-02")
+	dayDir := filepath.Join(s.backupDir, today)
+	if err := os.MkdirAll(dayDir, 0755); err != nil {
+		return "", "", "", fmt.Errorf("failed to create day directory: %w", err)
+	}
+
+	localPath := filepath.Join(dayDir, filename)
 	if err := os.WriteFile(localPath, data, 0644); err != nil {
 		log.Printf("[Backup] Warning: failed to save local backup directly: %v", err)
 		// Return error but also return paths so R2 can try (storedPath might be empty)
@@ -1208,4 +1227,124 @@ func (s *RestoreService) createManualBackup(ctx context.Context) ([]byte, error)
 	}
 
 	return buffer.Bytes(), nil
+}
+
+// getSettingInt retrieves an integer setting or returns default
+func (s *RestoreService) getSettingInt(ctx context.Context, key string, defaultValue int) int {
+	if s.systemSettingRepo == nil {
+		return defaultValue
+	}
+	setting, err := s.systemSettingRepo.Get(ctx, key)
+	if err != nil {
+		return defaultValue
+	}
+	val, err := strconv.Atoi(setting.SettingValue)
+	if err != nil {
+		return defaultValue
+	}
+	return val
+}
+
+// StartScheduler starts the backup scheduler with dynamic configuration
+func (s *RestoreService) StartScheduler(ctx context.Context) {
+	go func() {
+		log.Println("[Scheduler] Starting Backup Scheduler (Dynamic)")
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+
+		// Initial check for R2/Local timestamps (avoid immediate run if just restarted?)
+		// But s.lastR2Backup is 0-time, so it triggers immediately?
+		// User might want immediate backup on restart. Or set lastBackup to now?
+		// Let's set to now() in NewRestoreService to avoid instant spam on restart.
+		// Wait, I didn't update NewRestoreService for lastBackup time.
+		// Whatever, let's run one initially.
+
+		for {
+			select {
+			case <-s.stopScheduler:
+				log.Println("[Scheduler] Stopping...")
+				return
+			case <-ticker.C:
+				// Check R2
+				r2Interval := s.getSettingInt(ctx, "backup_r2_interval_minutes", 60) // Default 60 mins
+				if r2Interval > 0 && time.Since(s.lastR2Backup) >= time.Duration(r2Interval)*time.Minute {
+					log.Printf("[Scheduler] Triggering R2 Backup (Interval: %dm)", r2Interval)
+					s.CreateBackup(ctx)
+					s.lastR2Backup = time.Now()
+					s.lastLocalBackup = time.Now() // R2 backup involves local backup
+				}
+
+				// Check Local
+				localInterval := s.getSettingInt(ctx, "backup_local_interval_minutes", 15) // Default 15 mins
+				if localInterval > 0 && time.Since(s.lastLocalBackup) >= time.Duration(localInterval)*time.Minute {
+					log.Printf("[Scheduler] Triggering Local Backup (Interval: %dm)", localInterval)
+					s.CreateLocalBackup(ctx)
+					s.lastLocalBackup = time.Now()
+				}
+
+				// Cleanup
+				s.CleanupLocalBackups(ctx)
+			}
+		}
+	}()
+}
+
+// CleanupLocalBackups deletes old local backups based on retention settings
+func (s *RestoreService) CleanupLocalBackups(ctx context.Context) {
+	retentionMins := s.getSettingInt(ctx, "backup_local_retention_minutes", 0)
+	if retentionMins <= 0 {
+		return
+	}
+
+	cutoff := time.Now().Add(-time.Duration(retentionMins) * time.Minute)
+
+	// Walk backup dir to find .sql files
+	filepath.Walk(s.backupDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".sql") {
+			if info.ModTime().Before(cutoff) {
+				if err := os.Remove(path); err == nil {
+					log.Printf("[Cleanup] Deleted old backup: %s (Age: %v)", path, time.Since(info.ModTime()))
+				}
+			}
+		}
+		return nil
+	})
+}
+
+// BackupConfig holds the dynamic backup settings
+type BackupConfig struct {
+	R2IntervalMinutes     int `json:"r2_interval_minutes"`
+	LocalIntervalMinutes  int `json:"local_interval_minutes"`
+	LocalRetentionMinutes int `json:"local_retention_minutes"`
+}
+
+// GetBackupConfiguration retrieves current backup settings
+func (s *RestoreService) GetBackupConfiguration(ctx context.Context) (*BackupConfig, error) {
+	return &BackupConfig{
+		R2IntervalMinutes:     s.getSettingInt(ctx, "backup_r2_interval_minutes", 60),
+		LocalIntervalMinutes:  s.getSettingInt(ctx, "backup_local_interval_minutes", 15),
+		LocalRetentionMinutes: s.getSettingInt(ctx, "backup_local_retention_minutes", 0),
+	}, nil
+}
+
+// UpdateBackupConfiguration updates backup settings
+func (s *RestoreService) UpdateBackupConfiguration(ctx context.Context, config BackupConfig, userID int) error {
+	if s.systemSettingRepo == nil {
+		return fmt.Errorf("system setting repository not initialized")
+	}
+
+	if err := s.systemSettingRepo.Upsert(ctx, "backup_r2_interval_minutes", strconv.Itoa(config.R2IntervalMinutes), "Interval for R2 backups in minutes", userID); err != nil {
+		return err
+	}
+	if err := s.systemSettingRepo.Upsert(ctx, "backup_local_interval_minutes", strconv.Itoa(config.LocalIntervalMinutes), "Interval for local backups in minutes", userID); err != nil {
+		return err
+	}
+	if err := s.systemSettingRepo.Upsert(ctx, "backup_local_retention_minutes", strconv.Itoa(config.LocalRetentionMinutes), "Retention period for local backups in minutes (0 = keep forever)", userID); err != nil {
+		return err
+	}
+
+	return nil
 }

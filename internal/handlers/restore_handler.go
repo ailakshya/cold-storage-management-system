@@ -114,11 +114,66 @@ func (h *RestoreHandler) FindClosestSnapshot(w http.ResponseWriter, r *http.Requ
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":     true,
-		"snapshot":    snapshot,
-		"target_time": targetTime.Format(time.RFC3339),
+		"success":  true,
+		"snapshot": snapshot,
 	})
 }
+
+// GetBackupConfiguration returns the current backup settings
+// GET /api/admin/restore/config
+func (h *RestoreHandler) GetBackupConfiguration(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	config, err := h.Service.GetBackupConfiguration(ctx)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(config)
+}
+
+// UpdateBackupConfiguration updates the backup settings
+// PUT /api/admin/restore/config
+func (h *RestoreHandler) UpdateBackupConfiguration(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	var config services.BackupConfig
+	if err := json.NewDecoder(r.Body).Decode(&config); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(ctx)
+	if !ok {
+		http.Error(w, "User ID not found in context", http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.Service.UpdateBackupConfiguration(ctx, config, userID); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Backup configuration updated successfully",
+	})
+}
+
+// PreviewRestore initiates a restore operation (creates confirmation token)
+// POST /api/admin/restore/preview
 
 // PreviewRestore generates a preview and confirmation token
 // POST /api/admin/restore/preview
