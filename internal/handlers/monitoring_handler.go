@@ -7,8 +7,6 @@ import (
 	"log"
 	"math"
 	"net/http"
-	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -64,28 +62,21 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	// Check local backups
-	// Check local backups
-	backupDir := h.backupDir
-
+	// Check local backups via RestoreService (unified API)
 	var lastBackupTime string = "None"
 	var totalBackups int = 0
-	var latestModTime time.Time
 
-	entries, err := os.ReadDir(backupDir)
-	if err == nil {
-		for _, e := range entries {
-			if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
-				totalBackups++
-				info, err := e.Info()
-				if err == nil {
-					if info.ModTime().After(latestModTime) {
-						latestModTime = info.ModTime()
-						lastBackupTime = latestModTime.Format("2006-01-02 15:04:05")
-					}
-				}
-			}
-		}
+	backups, err := h.restoreService.ListLocalBackups()
+	if err == nil && len(backups) > 0 {
+		totalBackups = len(backups)
+
+		// Sort by time (assuming ListLocalBackups might not be sorted or we want to be sure)
+		// ListLocalBackups returns sorted descending? Let's check RestoreService implementation.
+		// restore_service.go:189: return toLocalBackups(files), nil
+		// file_manager_handler.go:948: sort.Slice(files, ... Newest First)
+		// So backup[0] is newest.
+
+		lastBackupTime = backups[0].ModTimeStr // Date string like "2026-01-27 21:00:00"
 	}
 
 	// Cluster Overview structure
