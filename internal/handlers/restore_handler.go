@@ -430,3 +430,39 @@ func (h *RestoreHandler) DeleteLocalBackup(w http.ResponseWriter, r *http.Reques
 		"deleted_by": userID,
 	})
 }
+
+// CreateBackup creates a new local and optionally cloud backup
+// POST /api/admin/restore/create
+func (h *RestoreHandler) CreateBackup(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	// Get user ID from context
+	userID, ok := middleware.GetUserIDFromContext(ctx)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "User not authenticated",
+		})
+		return
+	}
+
+	key, err := h.Service.CreateBackup(ctx)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Backup creation failed: " + err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":    true,
+		"key":        key,
+		"created_by": userID,
+	})
+}

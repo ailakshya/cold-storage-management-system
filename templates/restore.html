@@ -154,6 +154,9 @@
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
                 </button>
+                <button onclick="createBackup()" class="neu-button bg-green-500 text-white" id="createBackupBtn">
+                    <i class="bi bi-plus-circle"></i> Create Backup
+                </button>
                 <button onclick="loadDates()" class="neu-button bg-blue-500 text-white">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
@@ -755,6 +758,40 @@
         document.getElementById('confirmModal').addEventListener('click', function(e) {
             if (e.target === this) closeModal();
         });
+
+        async function createBackup() {
+            if (!confirm('Create a new backup now? This will be saved locally and uploaded to R2.')) return;
+            
+            const btn = document.getElementById('createBackupBtn');
+            const originalContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="bi bi-hourglass-split animate-spin"></i> Creating...';
+
+            try {
+                const response = await fetch('/api/admin/restore/create', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('Backup created successfully!\n\nKey: ' + data.key);
+                    // Refresh current view
+                    if (currentTab === 'cloud') {
+                        loadCloudBackups();
+                    } else {
+                        loadLocalBackups();
+                    }
+                } else {
+                    alert('Failed to create backup: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error creating backup: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }
 
         // Load data on page load (default to cloud)
         loadCloudBackups();

@@ -739,6 +739,7 @@ func NewRouter(
 		restoreAPI.HandleFunc("/closest", restoreHandler.FindClosestSnapshot).Methods("GET")
 		restoreAPI.HandleFunc("/preview", restoreHandler.PreviewRestore).Methods("POST")
 		restoreAPI.HandleFunc("/execute", restoreHandler.ExecuteRestore).Methods("POST")
+		restoreAPI.HandleFunc("/create", restoreHandler.CreateBackup).Methods("POST")
 
 		// Local backup restore routes
 		restoreAPI.HandleFunc("/local", restoreHandler.ListLocalBackups).Methods("GET")
