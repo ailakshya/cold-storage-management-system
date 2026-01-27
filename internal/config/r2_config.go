@@ -26,7 +26,21 @@ var CommonPasswords = []string{
 // Order: VIP-DB (bare metal) -> Backup server -> Localhost (for disaster recovery)
 var DatabaseFallbacks = []DatabaseConfig{
 	{
-		Name:     "Localhost (Primary)",
+		Name:     "Localhost (cold_user)",
+		Host:     "127.0.0.1",
+		Port:     5432,
+		User:     "cold_user",
+		Database: "cold_db",
+	},
+	{
+		Name:     "Localhost (postgres)",
+		Host:     "127.0.0.1",
+		Port:     5432,
+		User:     "postgres",
+		Database: "cold_db",
+	},
+	{
+		Name:     "Localhost (Standard)",
 		Host:     "localhost",
 		Port:     5432,
 		User:     "postgres",
