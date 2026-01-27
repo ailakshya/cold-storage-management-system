@@ -667,8 +667,12 @@ func main() {
 			log.Println("[Monitoring] TimescaleDB not available, using in-memory log buffer")
 		}
 
+		// Initialize point-in-time restore service (also used for backups)
+		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir)
+		restoreHandler := handlers.NewRestoreHandler(restoreService)
+
 		// Always initialize monitoring handler
-		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir)
+		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir, restoreService)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
 		// R2 backup scheduler is now handled by the RestoreService or manual triggers
 		// handlers.StartR2BackupScheduler(pool)
@@ -747,9 +751,7 @@ func main() {
 			totpService,
 		)
 
-		// Initialize point-in-time restore service and handler
-		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir)
-		restoreHandler := handlers.NewRestoreHandler(restoreService)
+		// Point-in-time restore service and handler already initialized above for monitoring integration
 
 		// Create employee router
 		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler)

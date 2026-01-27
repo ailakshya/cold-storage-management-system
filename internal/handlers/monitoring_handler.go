@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"cold-backend/internal/monitoring"
+	"cold-backend/internal/services"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -20,16 +21,18 @@ import (
 )
 
 type MonitoringHandler struct {
-	store     *monitoring.TimescaleStore
-	dbPool    *pgxpool.Pool
-	backupDir string
+	store          *monitoring.TimescaleStore
+	dbPool         *pgxpool.Pool
+	backupDir      string
+	restoreService *services.RestoreService
 }
 
-func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool, backupDir string) *MonitoringHandler {
+func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool, backupDir string, restoreService *services.RestoreService) *MonitoringHandler {
 	return &MonitoringHandler{
-		store:     store,
-		dbPool:    dbPool,
-		backupDir: backupDir,
+		store:          store,
+		dbPool:         dbPool,
+		backupDir:      backupDir,
+		restoreService: restoreService,
 	}
 }
 
@@ -414,7 +417,72 @@ func (h *MonitoringHandler) GetAlertThresholds(w http.ResponseWriter, r *http.Re
 
 func (h *MonitoringHandler) UpdateAlertThreshold(w http.ResponseWriter, r *http.Request) {}
 
-// Backup stubs
-func (h *MonitoringHandler) GetRecentBackups(w http.ResponseWriter, r *http.Request) {}
-func (h *MonitoringHandler) GetR2Status(w http.ResponseWriter, r *http.Request)      {}
-func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request)       {}
+// Backup handlers
+func (h *MonitoringHandler) GetRecentBackups(w http.ResponseWriter, r *http.Request) {
+	if h.restoreService == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"dates": [], "total_backups": 0}`))
+		return
+	}
+
+	dates, total, err := h.restoreService.ListAvailableDates(r.Context())
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		// Log error but return empty list to not break UI
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error":         err.Error(),
+			"dates":         []interface{}{},
+			"total_backups": 0,
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"dates":         dates,
+		"total_backups": total,
+	})
+}
+
+func (h *MonitoringHandler) GetR2Status(w http.ResponseWriter, r *http.Request) {
+	status := "Not Configured"
+	if h.restoreService != nil {
+		status = "Connected"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":   status,
+		"provider": "Cloudflare R2",
+	})
+}
+
+func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
+	if h.restoreService == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Backup service not initialized",
+		})
+		return
+	}
+
+	key, err := h.restoreService.CreateBackup(r.Context())
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Backup failed: " + err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"key":     key,
+		"message": "Backup created successfully",
+	})
+}

@@ -752,6 +752,62 @@ END $$;
 	}, nil
 }
 
+// CreateBackup creates a new backup (local + R2)
+func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
+	// Create backup using pg_dump
+	timestamp := time.Now().Format("20060102_150405")
+	filename := fmt.Sprintf("cold_db_%s.sql", timestamp) // Standard format matching regex
+	tmpFile := filepath.Join(os.TempDir(), filename)
+
+	cmd := exec.Command("pg_dump", s.connStr, "-f", tmpFile)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("pg_dump failed: %w\nOutput: %s", err, string(output))
+	}
+	defer os.Remove(tmpFile)
+
+	// Read the backup file
+	data, err := os.ReadFile(tmpFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to read backup file: %w", err)
+	}
+
+	// Save to local backup directory
+	localPath := filepath.Join(s.backupDir, filename)
+	if err := os.WriteFile(localPath, data, 0644); err != nil {
+		log.Printf("[Backup] Warning: failed to save local backup: %v", err)
+	} else {
+		log.Printf("[Backup] Saved local backup to %s", localPath)
+	}
+
+	// Upload to R2
+	client, err := s.getS3Client(ctx)
+	if err != nil {
+		log.Printf("[Backup] Warning: failed to configure S3 for backup: %v", err)
+		return filename + " (Local Only)", nil
+	}
+
+	now := time.Now()
+	// Format: base/YYYY/MM/DD/HH/cold_db_...
+	key := fmt.Sprintf("base/%s/%s/%s/%s/%s",
+		now.Format("2006"),
+		now.Format("01"),
+		now.Format("02"),
+		now.Format("15"), // Hour
+		filename)
+
+	_, err = client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(config.R2BucketName),
+		Key:    aws.String(key),
+		Body:   strings.NewReader(string(data)),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to upload to R2: %w", err)
+	}
+
+	return key, nil
+}
+
 // createPreRestoreBackup creates a backup of current state before restore
 func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, error) {
 	// Create backup using pg_dump
