@@ -26,15 +26,13 @@ jobs:
       - name: Stop Legacy Systemd Services
         run: |
           echo "Stopping legacy binary services to free up ports..."
-          sudo systemctl stop cold-employee cold-customer cold-website || true
-          sudo systemctl disable cold-employee cold-customer cold-website || true
+          echo "Lak992723/" | sudo -S systemctl stop cold-employee cold-customer cold-website || true
+          echo "Lak992723/" | sudo -S systemctl disable cold-employee cold-customer cold-website || true
           echo "Legacy services stopped."
 
       - name: Deploy with Docker Compose
         env:
           # Pass environment variables typically needed
-          # Assuming Secrets are managed in GitHub or .env exists on host
-          # For self-hosted, we can often rely on a .env file typically present or secrets
           DB_HOST: "host.docker.internal"
           DB_USER: "postgres"
           DB_NAME: "cold_db"
@@ -42,28 +40,25 @@ jobs:
         run: |
           echo "Building and starting containers..."
           
-          # Ensure sensitive env vars are passed if available in GitHub Secrets
-          # echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-          
           # Pull latest base images
-          docker compose pull
+          echo "Lak992723/" | sudo -S docker compose pull
           
           # Build and start
-          docker compose up -d --build --remove-orphans
+          echo "Lak992723/" | sudo -S docker compose up -d --build --remove-orphans
           
           echo "Pruning unused images..."
-          docker image prune -f
+          echo "Lak992723/" | sudo -S docker image prune -f
 
       - name: Verify Deployment
         run: |
           echo "Waiting for services to initialize..."
           sleep 15
           
-          if docker compose ps | grep -q "Up"; then
+          if echo "Lak992723/" | sudo -S docker compose ps | grep -q "Up"; then
              echo "✅ Services are running:"
-             docker compose ps
+             echo "Lak992723/" | sudo -S docker compose ps
           else
              echo "❌ Services failed to start"
-             docker compose logs
+             echo "Lak992723/" | sudo -S docker compose logs
              exit 1
           fi
