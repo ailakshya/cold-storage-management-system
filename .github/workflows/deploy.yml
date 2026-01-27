@@ -67,6 +67,12 @@ jobs:
           
           # Restart services using systemd (Needs SUDO)
           echo "Restarting services..."
+          # Ensure config directory exists
+          mkdir -p $APP_DIR/configs
+          if [ -d "configs" ]; then
+             cp -r configs $APP_DIR/
+          fi
+          
           echo "Lak992723/" | sudo -S systemctl restart cold-employee cold-customer cold-website
           
           # Wait and check
