@@ -39,6 +39,7 @@ func NewRouter(
 	authMiddleware *middleware.AuthMiddleware,
 	operationModeMiddleware *middleware.OperationModeMiddleware,
 	monitoringHandler *handlers.MonitoringHandler,
+	infraHandler *handlers.InfrastructureHandler,
 	apiLoggingMiddleware *middleware.APILoggingMiddleware,
 	nodeProvisioningHandler *handlers.NodeProvisioningHandler,
 	deploymentHandler *handlers.DeploymentHandler,
@@ -483,7 +484,6 @@ func NewRouter(
 	).ServeHTTP).Methods("POST")
 
 	// Protected API routes - Infrastructure Monitoring
-	infraHandler := handlers.NewInfrastructureHandler()
 	infraAPI := r.PathPrefix("/api/infrastructure").Subrouter()
 	infraAPI.Use(authMiddleware.Authenticate)
 	// Read-only endpoints - any authenticated user can view

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
 
@@ -60,11 +61,13 @@ type InfrastructureHandler struct {
 	backupStatusCache     []byte
 	backupStatusCacheTime time.Time
 	backupStatusCacheTTL  time.Duration
+	dbPool                *pgxpool.Pool
 }
 
-func NewInfrastructureHandler() *InfrastructureHandler {
+func NewInfrastructureHandler(dbPool *pgxpool.Pool) *InfrastructureHandler {
 	return &InfrastructureHandler{
 		backupStatusCacheTTL: 30 * time.Second, // Cache for 30 seconds
+		dbPool:               dbPool,
 	}
 }
 
@@ -530,6 +533,49 @@ func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http
 		if pod, ok := podMap[i]; ok {
 			pods = append(pods, pod)
 		}
+	}
+
+	// Add local application DB pool if available
+	if h.dbPool != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		dbSize := "N/A"
+		connections := "N/A"
+		cacheHit := "N/A"
+		status := "Error"
+
+		if err := h.dbPool.Ping(ctx); err == nil {
+			status = "Running"
+
+			var size string
+			if err := h.dbPool.QueryRow(ctx, "SELECT pg_size_pretty(pg_database_size(current_database()))").Scan(&size); err == nil {
+				dbSize = size
+			}
+
+			var count int
+			if err := h.dbPool.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity").Scan(&count); err == nil {
+				connections = fmt.Sprintf("%d", count)
+			}
+
+			// Cache Hit
+			var cache string
+			err = h.dbPool.QueryRow(ctx, `
+				SELECT COALESCE(
+					ROUND(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 1)::text || '%',
+					'N/A'
+				) FROM pg_stat_database WHERE datname = current_database()
+			`).Scan(&cache)
+			if err == nil {
+				cacheHit = cache
+			}
+		}
+
+		pods = append(pods, map[string]interface{}{
+			"name": "App Primary", "role": "Primary", "status": status, "node": "Local",
+			"disk_used": dbSize, "connections": connections, "max_conn": 100,
+			"repl_lag": "N/A", "cache_hit": cacheHit, "sync_pct": -1, "is_external": false,
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")

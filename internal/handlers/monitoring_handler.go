@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -12,6 +13,7 @@ import (
 
 	"cold-backend/internal/monitoring"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -19,11 +21,12 @@ import (
 )
 
 type MonitoringHandler struct {
-	store *monitoring.TimescaleStore
+	store  *monitoring.TimescaleStore
+	dbPool *pgxpool.Pool
 }
 
-func NewMonitoringHandler(store *monitoring.TimescaleStore) *MonitoringHandler {
-	return &MonitoringHandler{store: store}
+func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool) *MonitoringHandler {
+	return &MonitoringHandler{store: store, dbPool: dbPool}
 }
 
 // GetDashboardData returns current system stats (non-historical)
@@ -70,8 +73,6 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	dbStatus := "healthy"
-
 	// Cluster Overview structure
 	overview := map[string]interface{}{
 		"healthy_nodes":      1,
@@ -103,6 +104,36 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		},
 	}
 
+	// Get real database stats
+	dbSize := "--"
+	activeConns := 0
+	dbStatus := "Offline"
+	healthyPods := 0
+
+	if h.dbPool != nil {
+		// Default timeout 2s for all checks
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		if err := h.dbPool.Ping(ctx); err == nil {
+			dbStatus = "Online"
+			healthyPods = 1
+		}
+
+		var size string
+		// We use a new context or reuse the existing one if it supports multiple queries (it does)
+		err := h.dbPool.QueryRow(ctx, "SELECT pg_size_pretty(pg_database_size(current_database()))").Scan(&size)
+		if err == nil {
+			dbSize = size
+		}
+
+		var count int
+		err = h.dbPool.QueryRow(ctx, "SELECT count(*) FROM pg_stat_activity").Scan(&count)
+		if err == nil {
+			activeConns = count
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"cluster_overview": overview,
@@ -114,7 +145,7 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 			"total_backups": totalBackups,
 		},
 		"postgres_overview": map[string]interface{}{
-			"healthy_pods": 1,
+			"healthy_pods": healthyPods,
 			"total_pods":   1,
 		},
 		"alert_summary": map[string]interface{}{
@@ -124,8 +155,8 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		},
 		// Legacy fields for infrastructure_monitoring_new.html compatibility
 		"database_status":    dbStatus,
-		"database_size":      "4.8 GB",
-		"active_connections": 5,
+		"database_size":      dbSize,
+		"active_connections": activeConns,
 		"cpu_percent":        cpuPercent,
 		"memory_percent":     v.UsedPercent,
 		"memory_used":        fmt.Sprintf("%.1f GB", float64(v.Used)/1024/1024/1024),
