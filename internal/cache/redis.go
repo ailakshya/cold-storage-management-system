@@ -66,7 +66,7 @@ func Init() error {
 			DB:       0,
 		})
 
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		err := client.Ping(ctx).Err()
 		cancel()
 
