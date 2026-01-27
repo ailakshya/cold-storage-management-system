@@ -88,21 +88,20 @@ func Load() *Config {
 		log.Fatalf("config unmarshal error: %v", err)
 	}
 
-	// Set BackupDir with smart defaults
+	// Set BackupDir with smart defaults - aligning with FileManager "backups" root
 	if dir := os.Getenv("BACKUP_DIR"); dir != "" {
 		cfg.BackupDir = dir
 	} else if _, err := os.Stat("/mass-pool/backups"); err == nil {
+		// Production: Use the same path as File Manager "backups" root
 		cfg.BackupDir = "/mass-pool/backups"
 	} else {
-		// Fallback for dev environments
+		// Development: Fallback to local
 		home, _ := os.UserHomeDir()
 		if home != "" {
 			backups := os.Getenv("HOME") + "/cold-storage/backups"
-			if _, err := os.Stat(backups); err == nil {
-				cfg.BackupDir = backups
-			} else {
-				cfg.BackupDir = "./backups"
-			}
+			// Create if doesn't exist for dev
+			os.MkdirAll(backups, 0755)
+			cfg.BackupDir = backups
 		} else {
 			cfg.BackupDir = "./backups"
 		}
