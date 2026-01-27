@@ -64,6 +64,15 @@ jobs:
           rm -rf $APP_DIR/static $APP_DIR/templates
           cp -r static $APP_DIR/
           cp -r templates $APP_DIR/
+          # Ensure backup directories exist and are writable
+          echo "Configuring Backup Directories..."
+          echo "Lak992723/" | sudo -S mkdir -p /mass-pool/backups
+          echo "Lak992723/" | sudo -S chown -R cold:cold /mass-pool/backups
+          echo "Lak992723/" | sudo -S chmod -R 775 /mass-pool/backups
+          
+          mkdir -p $APP_DIR/backups
+          chown -R cold:cold $APP_DIR/backups || true
+          
           # Ensure database password matches application expectation
           echo "Configuring Database..."
           echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER postgres PASSWORD 'SecurePostgresPassword123';" || true
