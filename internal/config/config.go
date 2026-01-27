@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -98,7 +99,7 @@ func Load() *Config {
 		// Development: Fallback to local
 		home, _ := os.UserHomeDir()
 		if home != "" {
-			backups := os.Getenv("HOME") + "/cold-storage/backups"
+			backups := filepath.Join(home, "cold-storage", "backups")
 			// Create if doesn't exist for dev
 			os.MkdirAll(backups, 0755)
 			cfg.BackupDir = backups
