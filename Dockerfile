@@ -50,7 +50,7 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # Expose ports
-EXPOSE 8080 8081 9090
+EXPOSE 8080 8081 8082 9090
 
 # Set entrypoint
 ENTRYPOINT ["/app/server"]

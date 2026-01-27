@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # Base application setup - common configuration
+  app-base: &app-base
+    build: .
+    restart: unless-stopped
+    volumes:
+      - /mass-pool:/mass-pool
+      - ./backups:/app/backups
+      - ./logs:/app/logs
+    environment:
+      - BACKUP_DIR=/mass-pool/backups
+      - DB_HOST=${DB_HOST:-host.docker.internal}
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:-postgres}
+      - DB_NAME=${DB_NAME:-cold_db}
+      - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
+      # Allow connecting to host services from container
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Employee Management Portal (Default: 8080)
+  employee-portal:
+    <<: *app-base
+    container_name: cold-employee
+    command: ["-mode", "employee", "-port", "8080"]
+    ports:
+      - "8080:8080"
+      - "9090:9090" # Monitoring dashboard
+
+  # Customer Portal (Default: 8081)
+  customer-portal:
+    <<: *app-base
+    container_name: cold-customer
+    command: ["-mode", "customer", "-port", "8081"]
+    ports:
+      - "8081:8081"
+
+  # Website Public Facing (Default: 8082)
+  website:
+    <<: *app-base
+    container_name: cold-website
+    command: ["-mode", "website", "-port", "8082"]
+    ports:
+      - "8082:8082"
+
+  # Optional: Run Redis if not on host
+  # redis:
+  #   image: redis:alpine
+  #   container_name: cold-redis
+  #   restart: always
+  #   ports:
+  #     - "6379:6379"
