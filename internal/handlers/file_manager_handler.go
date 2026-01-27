@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"log"
 	"net/http"
 	"os"
 	"os/exec"
@@ -55,10 +56,15 @@ func NewFileManagerHandler(userService *services.UserService, totpService *servi
 		paths["archives"] = filepath.Join(base, "archives")
 		paths["trash"] = filepath.Join(base, "trash")
 
-		// Create directories
-		for _, p := range paths {
-			os.MkdirAll(p, 0755)
+		// Create directories and LOG mappings for debugging
+		for k, p := range paths {
+			if err := os.MkdirAll(p, 0755); err != nil {
+				log.Printf("[FileManager] Error creating root %s at %s: %v", k, p, err)
+			} else {
+				log.Printf("[FileManager] Root %s mapped to: %s", k, p)
+			}
 		}
+
 	}
 
 	return &FileManagerHandler{

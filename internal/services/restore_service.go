@@ -308,23 +308,38 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 			}
 
 			// We verify if this specific file is already counted
-			// If R2 list was empty (len(allObjects) == 0), then we definitely need to count local files.
-			if len(allObjects) == 0 {
-				dateMap[dateStr].Count++
+			// Check if this timestamp is already recorded for this date
+			// Re-parsing time for local file
+			timeStr := fmt.Sprintf("%s:%s:%s", matches[4], matches[5], matches[6])
+			t, _ := time.Parse("15:04:05", timeStr)
 
-				// Re-parsing time for local file
-				timeStr := fmt.Sprintf("%s:%s:%s", matches[4], matches[5], matches[6])
-				t, _ := time.Parse("15:04:05", timeStr)
-
-				// Update earliest/latest for local-only scenario
-				if dateMap[dateStr].LatestTime == "" || t.Format("15:04:05") > dateMap[dateStr].LatestTime {
-					dateMap[dateStr].LatestTime = t.Format("15:04:05")
-				}
-				if dateMap[dateStr].EarliestTime == "" || t.Format("15:04:05") < dateMap[dateStr].EarliestTime {
-					dateMap[dateStr].EarliestTime = t.Format("15:04:05")
+			isDuplicate := false
+			if times, ok := dateTimeMap[dateStr]; ok {
+				for _, existingTime := range times {
+					if existingTime.Format("15:04:05") == timeStr {
+						isDuplicate = true
+						break
+					}
 				}
 			}
+
+			if !isDuplicate {
+				dateMap[dateStr].Count++
+				dateTimeMap[dateStr] = append(dateTimeMap[dateStr], t)
+			}
 		}
+	}
+
+	// Recalculate earliest/latest times for each date (including new local ones)
+	for dateStr, times := range dateTimeMap {
+		if len(times) == 0 {
+			continue
+		}
+		sort.Slice(times, func(i, j int) bool {
+			return times[i].Before(times[j])
+		})
+		dateMap[dateStr].EarliestTime = times[0].Format("15:04:05")
+		dateMap[dateStr].LatestTime = times[len(times)-1].Format("15:04:05")
 	}
 
 	// Convert to slice and sort by date (newest first)
@@ -909,23 +924,30 @@ func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string,
 	tmpFile := filepath.Join(os.TempDir(), filename)
 
 	// Try pg_dump first
+	// Log the command for debugging (without exposing sensitive info if possible, but connStr is needed)
+	log.Printf("[Backup] Attempting pg_dump to %s", tmpFile)
 	cmd := exec.Command("pg_dump", s.connStr, "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
 
 	var data []byte
 
 	if err != nil {
-		log.Printf("[Backup] pg_dump failed (%v), trying manual fallback...", err)
+		log.Printf("[Backup] pg_dump failed (%v). Output: %s", err, string(output))
+		log.Printf("[Backup] Initiating manual backup fallback...")
+
 		// Fallback to manual backup
 		data, err = s.createManualBackup(ctx)
 		if err != nil {
-			return "", "", "", fmt.Errorf("backup failed (pg_dump: %s, manual: %v)", string(output), err)
+			return "", "", "", fmt.Errorf("backup failed completely (pg_dump: %s, manual: %v)", string(output), err)
 		}
+		log.Printf("[Backup] Manual backup generated successfully (%d bytes)", len(data))
+
 		// Write to temp file for consistency
 		if err := os.WriteFile(tmpFile, data, 0644); err != nil {
 			return "", "", "", fmt.Errorf("failed to write temp backup file: %w", err)
 		}
 	} else {
+		log.Printf("[Backup] pg_dump succeeded")
 		// Read pg_dump output
 		data, err = os.ReadFile(tmpFile)
 		if err != nil {
