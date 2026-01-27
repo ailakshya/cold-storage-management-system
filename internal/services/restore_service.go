@@ -138,7 +138,12 @@ func (s *RestoreService) ListLocalBackups() ([]LocalBackup, error) {
 
 	var backups []LocalBackup
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := strings.ToLower(entry.Name())
+		if !strings.HasSuffix(name, ".sql") && !strings.HasSuffix(name, ".dump") && !strings.HasSuffix(name, ".tar") && !strings.HasSuffix(name, ".gz") {
 			continue
 		}
 
