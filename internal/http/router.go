@@ -11,7 +11,6 @@ import (
 
 	"cold-backend/internal/handlers"
 	"cold-backend/internal/middleware"
-	"cold-backend/internal/services"
 	"cold-backend/static"
 )
 
@@ -60,20 +59,11 @@ func NewRouter(
 	totpHandler *handlers.TOTPHandler,
 	restoreHandler *handlers.RestoreHandler,
 	printerHandler *handlers.PrinterHandler,
+	fileManagerHandler *handlers.FileManagerHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
-	var userService *services.UserService
-	if authHandler != nil {
-		userService = authHandler.Service
-	}
-
-	var totpService *services.TOTPService
-	if totpHandler != nil {
-		totpService = totpHandler.TOTPService
-	}
-
-	fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService)
+	// Internal initialization of fileManagerHandler removed as it is now passed as an argument
 
 	// Apply security middlewares first
 	r.Use(middleware.HTTPSRedirect)

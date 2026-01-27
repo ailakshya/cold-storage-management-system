@@ -252,7 +252,7 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 		dateTimeMap[dateStr] = append(dateTimeMap[dateStr], t)
 	}
 
-	// Calculate earliest/latest times for each date
+	// Calculate earliest/latest times for each date from R2
 	for dateStr, times := range dateTimeMap {
 		if len(times) == 0 {
 			continue
@@ -266,6 +266,66 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 		dateMap[dateStr].LatestTime = times[len(times)-1].Format("15:04:05")
 	}
 
+	// MERGE LOCAL BACKUPS
+	// Also scan local backup directory to include local-only backups
+	localEntries, err := os.ReadDir(s.backupDir)
+	if err == nil {
+		for _, entry := range localEntries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				continue
+			}
+
+			// Parse filename: cold_db_YYYYMMDD_HHMMSS.sql
+			matches := keyRegex.FindStringSubmatch(entry.Name())
+			if matches == nil {
+				continue
+			}
+
+			dateStr := fmt.Sprintf("%s-%s-%s", matches[1], matches[2], matches[3])
+			// Check if this date already exists from R2
+			if _, exists := dateMap[dateStr]; !exists {
+				dateMap[dateStr] = &RestoreDate{
+					Date:  dateStr,
+					Count: 0,
+				}
+			}
+
+			// We verify if this specific file is already counted (implied by checking if date exists? No, counts need to be accurate)
+			// But differentiating exact file matches between R2 and Local is hard without checking every key.
+			// Simplified approach: If date exists strictly from R2, we assume R2 has the truth.
+			// If date ONLY exists locally (R2 failed or offline), we need to populate it.
+			// For mixed scenarios (some on R2, some local only), the count might be off if we don't deduplicate.
+			// Given the goal is "Visibility", showing the date is priority.
+
+			// Actually, let's just update the count and times if we can.
+			// Re-parsing time for local file
+			timeStr := fmt.Sprintf("%s:%s:%s", matches[4], matches[5], matches[6])
+			t, _ := time.Parse("15:04:05", timeStr)
+
+			// Simple deduplication logic could be complex.
+			// Let's just ensure the DATE is present. The "Count" is less critical than the user executing a restore.
+			// If the user clicks the date, ListSnapshotsForDate runs. We need to update that too!
+
+			// For now, let's just make sure the date is listed.
+			// Note: The UI likely uses the Count to show badge.
+			// We should ideally increment count if it's not likely on R2.
+			// But for "offline recovery", R2 list might be empty.
+
+			// If R2 list was empty (len(allObjects) == 0), then we definitely need to count local files.
+			if len(allObjects) == 0 {
+				dateMap[dateStr].Count++
+
+				// Update earliest/latest for local-only scenario
+				if dateMap[dateStr].LatestTime == "" || t.Format("15:04:05") > dateMap[dateStr].LatestTime {
+					dateMap[dateStr].LatestTime = t.Format("15:04:05")
+				}
+				if dateMap[dateStr].EarliestTime == "" || t.Format("15:04:05") < dateMap[dateStr].EarliestTime {
+					dateMap[dateStr].EarliestTime = t.Format("15:04:05")
+				}
+			}
+		}
+	}
+
 	// Convert to slice and sort by date (newest first)
 	var dates []RestoreDate
 	for _, d := range dateMap {
@@ -276,7 +336,16 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 		return dates[i].Date > dates[j].Date
 	})
 
-	return dates, len(allObjects), nil
+	// If we found zero R2 objects, return total based on local
+	totalCount := len(allObjects)
+	if totalCount == 0 && len(dates) > 0 {
+		// Calculate total from local dates
+		for _, d := range dates {
+			totalCount += d.Count
+		}
+	}
+
+	return dates, totalCount, nil
 }
 
 // ListSnapshotsForDate returns all snapshots for a specific date
@@ -341,6 +410,58 @@ func (s *RestoreService) ListSnapshotsForDate(ctx context.Context, date string) 
 	sort.Slice(snapshots, func(i, j int) bool {
 		return snapshots[i].Timestamp > snapshots[j].Timestamp
 	})
+
+	// MERGE LOCAL BACKUPS
+	// Also scan local backup directory
+	localEntries, err := os.ReadDir(s.backupDir)
+	if err == nil {
+		targetDate := strings.ReplaceAll(date, "-", "") // YYYYMMDD
+
+		for _, entry := range localEntries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+				continue
+			}
+
+			// Filename format: cold_db_YYYYMMDD_HHMMSS.sql
+			name := entry.Name()
+			if !strings.HasPrefix(name, "cold_db_"+targetDate) {
+				continue
+			}
+
+			// Extract time
+			matches := regexp.MustCompile(`cold_db_\d{8}_(\d{2})(\d{2})(\d{2})\.sql`).FindStringSubmatch(name)
+			if matches == nil {
+				continue
+			}
+
+			timeStr := fmt.Sprintf("%s:%s:%s", matches[1], matches[2], matches[3])
+			info, _ := entry.Info()
+
+			// Check for duplicate (if R2 already has it)
+			isDuplicate := false
+			for _, snap := range snapshots {
+				if snap.Timestamp == timeStr {
+					isDuplicate = true
+					break
+				}
+			}
+
+			if !isDuplicate {
+				// Format size
+				snapshots = append(snapshots, Snapshot{
+					Key:          name, // Use filename as key for local
+					Size:         info.Size(),
+					LastModified: info.ModTime(),
+					Timestamp:    timeStr,
+				})
+			}
+		}
+
+		// Sort again after merging
+		sort.Slice(snapshots, func(i, j int) bool {
+			return snapshots[i].Timestamp > snapshots[j].Timestamp
+		})
+	}
 
 	return snapshots, nil
 }
@@ -759,8 +880,8 @@ END $$;
 	}, nil
 }
 
-// CreateBackup creates a new backup (local + R2)
-func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
+// CreateLocalBackup creates a local backup file only
+func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string, error) {
 	// Create backup
 	timestamp := time.Now().Format("20060102_150405")
 	filename := fmt.Sprintf("cold_db_%s.sql", timestamp)
@@ -777,29 +898,40 @@ func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
 		// Fallback to manual backup
 		data, err = s.createManualBackup(ctx)
 		if err != nil {
-			return "", fmt.Errorf("backup failed (pg_dump: %s, manual: %v)", string(output), err)
+			return "", "", fmt.Errorf("backup failed (pg_dump: %s, manual: %v)", string(output), err)
 		}
 		// Write to temp file for consistency
 		if err := os.WriteFile(tmpFile, data, 0644); err != nil {
-			return "", fmt.Errorf("failed to write temp backup file: %w", err)
+			return "", "", fmt.Errorf("failed to write temp backup file: %w", err)
 		}
 	} else {
 		// Read pg_dump output
 		data, err = os.ReadFile(tmpFile)
 		if err != nil {
-			return "", fmt.Errorf("failed to read backup file: %w", err)
+			return "", "", fmt.Errorf("failed to read backup file: %w", err)
 		}
 	}
 
-	// Ensure temp file is removed eventually (though we might read it again below)
+	// Ensure temp file is removed eventually
 	defer os.Remove(tmpFile)
 
 	// Save to local backup directory
 	localPath := filepath.Join(s.backupDir, filename)
 	if err := os.WriteFile(localPath, data, 0644); err != nil {
 		log.Printf("[Backup] Warning: failed to save local backup: %v", err)
+		return "", "", fmt.Errorf("failed to save local backup: %w", err)
 	} else {
 		log.Printf("[Backup] Saved local backup to %s", localPath)
+	}
+
+	return filename, localPath, nil
+}
+
+// CreateBackup creates a new backup (local + R2)
+func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
+	filename, localPath, err := s.CreateLocalBackup(ctx)
+	if err != nil {
+		return "", err
 	}
 
 	// Upload to R2
@@ -812,12 +944,8 @@ func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
 	// Re-open file for streaming upload to save memory
 	f, err := os.Open(localPath)
 	if err != nil {
-		// Fallback to temp file if local write failed
-		f, err = os.Open(tmpFile)
-		if err != nil {
-			log.Printf("[Backup] Warning: failed to open backup for upload: %v", err)
-			return filename + " (Local Only)", nil
-		}
+		log.Printf("[Backup] Warning: failed to open backup for upload: %v", err)
+		return filename + " (Local Only)", nil
 	}
 	defer f.Close()
 

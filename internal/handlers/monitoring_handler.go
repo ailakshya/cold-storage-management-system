@@ -12,14 +12,14 @@ import (
 	"sync"
 	"time"
 
-	"cold-backend/internal/monitoring"
-	"cold-backend/internal/services"
-
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
 	"github.com/shirou/gopsutil/v3/mem"
+
+	"cold-backend/internal/monitoring"
+	"cold-backend/internal/services"
 )
 
 type MonitoringHandler struct {
@@ -70,11 +70,20 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 
 	var lastBackupTime string = "None"
 	var totalBackups int = 0
+	var latestModTime time.Time
+
 	entries, err := os.ReadDir(backupDir)
 	if err == nil {
 		for _, e := range entries {
 			if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
 				totalBackups++
+				info, err := e.Info()
+				if err == nil {
+					if info.ModTime().After(latestModTime) {
+						latestModTime = info.ModTime()
+						lastBackupTime = latestModTime.Format("2006-01-02 15:04:05")
+					}
+				}
 			}
 		}
 	}
@@ -489,54 +498,84 @@ func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// R2 Backup Scheduler
+// Backup Scheduler
 var (
-	r2BackupTicker   *time.Ticker
-	r2BackupStopChan chan bool
-	r2BackupMutex    sync.Mutex
-	r2BackupInterval = 1 * time.Minute
+	backupTicker      *time.Ticker
+	backupStopChan    chan bool
+	backupMutex       sync.Mutex
+	localBackupTicker *time.Ticker
+	localBackupStop   chan bool
+
+	// Schedules
+	r2BackupInterval    = 5 * time.Minute
+	localBackupInterval = 1 * time.Minute
 )
 
-// StartR2BackupScheduler starts the automatic R2 backup scheduler
-func StartR2BackupScheduler(s *services.RestoreService) {
-	r2BackupMutex.Lock()
-	defer r2BackupMutex.Unlock()
+// StartBackupSchedulers starts both local and R2 backup schedulers
+func StartBackupSchedulers(s *services.RestoreService) {
+	backupMutex.Lock()
+	defer backupMutex.Unlock()
 
-	if r2BackupTicker != nil {
+	if backupTicker != nil {
 		return // Already running
 	}
 
-	r2BackupTicker = time.NewTicker(r2BackupInterval)
-	r2BackupStopChan = make(chan bool)
+	backupTicker = time.NewTicker(r2BackupInterval)
+	backupStopChan = make(chan bool)
 
+	localBackupTicker = time.NewTicker(localBackupInterval)
+	localBackupStop = make(chan bool)
+
+	// R2 Backup Routine (Every 5 mins)
 	go func() {
-		// Run first backup immediately
-		log.Println("[R2 Scheduler] Starting automatic backup scheduler")
-		runSchedulerBackup(s)
+		log.Printf("[Scheduler] Starting R2 backup scheduler (interval: %v)", r2BackupInterval)
+		// Run first R2 backup immediately? Maybe not, to avoid clash with local immediate
+		// runSchedulerBackup(s) - Let's wait for first tick
 
 		for {
 			select {
-			case <-r2BackupTicker.C:
-				runSchedulerBackup(s)
-			case <-r2BackupStopChan:
-				log.Println("[R2 Scheduler] Scheduler stopped")
+			case <-backupTicker.C:
+				runSchedulerBackup(s) // Creates local + uploads to R2
+			case <-backupStopChan:
+				log.Println("[Scheduler] R2 Scheduler stopped")
 				return
 			}
 		}
 	}()
 
-	log.Printf("[R2 Scheduler] Scheduler started (interval: %v)", r2BackupInterval)
+	// Local Backup Routine (Every 1 min)
+	go func() {
+		log.Printf("[Scheduler] Starting Local backup scheduler (interval: %v)", localBackupInterval)
+		// Run first local backup immediately
+		runLocalSchedulerBackup(s)
+
+		for {
+			select {
+			case <-localBackupTicker.C:
+				runLocalSchedulerBackup(s)
+			case <-localBackupStop:
+				log.Println("[Scheduler] Local Scheduler stopped")
+				return
+			}
+		}
+	}()
 }
 
-// StopR2BackupScheduler stops the automatic backup scheduler
-func StopR2BackupScheduler() {
-	r2BackupMutex.Lock()
-	defer r2BackupMutex.Unlock()
+// StopBackupSchedulers stops the automatic backup schedulers
+func StopBackupSchedulers() {
+	backupMutex.Lock()
+	defer backupMutex.Unlock()
 
-	if r2BackupTicker != nil {
-		r2BackupTicker.Stop()
-		r2BackupStopChan <- true
-		r2BackupTicker = nil
+	if backupTicker != nil {
+		backupTicker.Stop()
+		backupStopChan <- true
+		backupTicker = nil
+	}
+
+	if localBackupTicker != nil {
+		localBackupTicker.Stop()
+		localBackupStop <- true
+		localBackupTicker = nil
 	}
 }
 
@@ -547,8 +586,23 @@ func runSchedulerBackup(s *services.RestoreService) {
 
 	key, err := s.CreateBackup(ctx)
 	if err != nil {
-		log.Printf("[R2 Scheduler] Backup failed: %v", err)
+		log.Printf("[Scheduler] R2 Backup failed: %v", err)
 	} else {
-		log.Printf("[R2 Scheduler] Backup success: %s", key)
+		log.Printf("[Scheduler] R2 Backup success: %s", key)
+	}
+}
+
+func runLocalSchedulerBackup(s *services.RestoreService) {
+	// Specific context for local backup with shorter timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	_, _, err := s.CreateLocalBackup(ctx)
+	if err != nil {
+		log.Printf("[Scheduler] Local Backup failed: %v", err)
+	} else {
+		// Log success only on debug level or less frequently to avoid spam?
+		// For now logging is fine to verify
+		// log.Printf("[Scheduler] Local Backup success: %s", name)
 	}
 }

@@ -23,22 +23,48 @@ import (
 type FileManagerHandler struct {
 	UserService *services.UserService
 	TOTPService *services.TOTPService
+	RootPaths   map[string]string
 }
 
-func NewFileManagerHandler(userService *services.UserService, totpService *services.TOTPService) *FileManagerHandler {
+func NewFileManagerHandler(userService *services.UserService, totpService *services.TOTPService, backupDir string) *FileManagerHandler {
+	// Default paths
+	paths := map[string]string{
+		"bulk":      "/mass-pool/shared",
+		"highspeed": "/fast-pool/data",
+		"archives":  "/mass-pool/archives",
+		"backups":   "/mass-pool/backups",
+		"trash":     "/mass-pool/trash",
+	}
+
+	// Update backups path from config
+	if backupDir != "" {
+		paths["backups"] = backupDir
+	}
+
+	// If mass-pool doesn't exist (Dev environment), remap other paths to local temp/home
+	if _, err := os.Stat("/mass-pool"); os.IsNotExist(err) {
+		home, _ := os.UserHomeDir()
+		base := filepath.Join(home, "cold-storage")
+
+		// Ensure base exists
+		os.MkdirAll(base, 0755)
+
+		paths["bulk"] = filepath.Join(base, "shared")
+		paths["highspeed"] = filepath.Join(base, "data")
+		paths["archives"] = filepath.Join(base, "archives")
+		paths["trash"] = filepath.Join(base, "trash")
+
+		// Create directories
+		for _, p := range paths {
+			os.MkdirAll(p, 0755)
+		}
+	}
+
 	return &FileManagerHandler{
 		UserService: userService,
 		TOTPService: totpService,
+		RootPaths:   paths,
 	}
-}
-
-// Allowed roots mapping
-var rootPaths = map[string]string{
-	"bulk":      "/mass-pool/shared",
-	"highspeed": "/fast-pool/data",
-	"archives":  "/mass-pool/archives",
-	"backups":   "/mass-pool/backups",
-	"trash":     "/mass-pool/trash",
 }
 
 type FileInfo struct {
@@ -77,7 +103,7 @@ func (h *FileManagerHandler) GetStorageStats(w http.ResponseWriter, r *http.Requ
 
 	stats := []StorageStats{}
 
-	for key, path := range rootPaths {
+	for key, path := range h.RootPaths {
 		var stat syscall.Statfs_t
 		if err := syscall.Statfs(path, &stat); err != nil {
 			// If path doesn't exist or error, skip
@@ -108,8 +134,8 @@ func (h *FileManagerHandler) GetStorageStats(w http.ResponseWriter, r *http.Requ
 }
 
 // resolvePath validates and resolves the full path
-func resolvePath(rootKey, subPath string) (string, error) {
-	baseRoot, ok := rootPaths[rootKey]
+func (h *FileManagerHandler) resolvePath(rootKey, subPath string) (string, error) {
+	baseRoot, ok := h.RootPaths[rootKey]
 	if !ok {
 		return "", fmt.Errorf("invalid root key")
 	}
@@ -136,7 +162,7 @@ func (h *FileManagerHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	subPath := r.URL.Query().Get("path")
 	searchQuery := strings.ToLower(r.URL.Query().Get("search"))
 
-	fullPath, err := resolvePath(rootKey, subPath)
+	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -145,7 +171,7 @@ func (h *FileManagerHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	files := []FileInfo{}
 
 	if searchQuery != "" {
-		baseRoot, ok := rootPaths[rootKey]
+		baseRoot, ok := h.RootPaths[rootKey]
 		if !ok {
 			http.Error(w, "Invalid root", http.StatusInternalServerError)
 			return
@@ -294,7 +320,7 @@ func (h *FileManagerHandler) UploadFile(w http.ResponseWriter, r *http.Request) 
 	rootKey := r.FormValue("root")
 	subPath := r.FormValue("path")
 
-	fullPath, err := resolvePath(rootKey, subPath)
+	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -370,7 +396,7 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Resolve destination directory
-	fullPath, err := resolvePath(rootKey, subPath)
+	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -492,7 +518,7 @@ func (h *FileManagerHandler) RenameFile(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	oldFullPath, err := resolvePath(req.Root, req.OldPath)
+	oldFullPath, err := h.resolvePath(req.Root, req.OldPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -508,7 +534,7 @@ func (h *FileManagerHandler) RenameFile(w http.ResponseWriter, r *http.Request) 
 	newFullPath := filepath.Join(parentDir, req.NewName)
 
 	// Verify new path is within root
-	baseRoot, ok := rootPaths[req.Root]
+	baseRoot, ok := h.RootPaths[req.Root]
 	if !ok || !strings.HasPrefix(newFullPath, baseRoot) {
 		http.Error(w, "Invalid destination path", http.StatusForbidden)
 		return
@@ -529,7 +555,7 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 	subPath := r.URL.Query().Get("path")
 	mode := r.URL.Query().Get("mode") // "inline" or "attachment"
 
-	fullPath, err := resolvePath(rootKey, subPath)
+	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -617,7 +643,7 @@ func (h *FileManagerHandler) CreateFolder(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	fullPath, err := resolvePath(req.Root, req.Path)
+	fullPath, err := h.resolvePath(req.Root, req.Path)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -638,14 +664,14 @@ func (h *FileManagerHandler) DeleteItem(w http.ResponseWriter, r *http.Request) 
 	rootKey := r.URL.Query().Get("root")
 	subPath := r.URL.Query().Get("path")
 
-	fullPath, err := resolvePath(rootKey, subPath)
+	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
 
 	// Prevent deleting root itself (simple check)
-	baseRoot := rootPaths[rootKey]
+	baseRoot := h.RootPaths[rootKey]
 	if fullPath == baseRoot {
 		http.Error(w, "Cannot delete root directory", http.StatusForbidden)
 		return
@@ -663,7 +689,7 @@ func (h *FileManagerHandler) DeleteItem(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Soft Delete: Move to Trash
-	trashRoot := rootPaths["trash"]
+	trashRoot := h.RootPaths["trash"]
 	if _, err := os.Stat(trashRoot); os.IsNotExist(err) {
 		os.MkdirAll(trashRoot, 0777)
 	}
@@ -745,7 +771,7 @@ func (h *FileManagerHandler) EmptyTrash(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Empty Trash
-	trashRoot := rootPaths["trash"]
+	trashRoot := h.RootPaths["trash"]
 	entries, err := os.ReadDir(trashRoot)
 	if err != nil {
 		http.Error(w, "Failed to read trash: "+err.Error(), http.StatusInternalServerError)
@@ -774,13 +800,13 @@ func (h *FileManagerHandler) MoveItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	srcPath, err := resolvePath(req.SourceRoot, req.SourcePath)
+	srcPath, err := h.resolvePath(req.SourceRoot, req.SourcePath)
 	if err != nil {
 		http.Error(w, "Invalid source path: "+err.Error(), http.StatusForbidden)
 		return
 	}
 
-	destDir, err := resolvePath(req.DestRoot, req.DestPath)
+	destDir, err := h.resolvePath(req.DestRoot, req.DestPath)
 	if err != nil {
 		http.Error(w, "Invalid destination path: "+err.Error(), http.StatusForbidden)
 		return
@@ -798,16 +824,12 @@ func (h *FileManagerHandler) MoveItem(w http.ResponseWriter, r *http.Request) {
 			cmd := exec.Command("cp", "-r", srcPath, destPath)
 			out, err := cmd.CombinedOutput()
 			if err != nil {
-				http.Error(w, "Failed to copy cross-device: "+string(out), http.StatusInternalServerError)
+				http.Error(w, fmt.Sprintf("Failed to move item: %v (output: %s)", err, out), http.StatusInternalServerError)
 				return
 			}
-			// Remove source
-			if err := os.RemoveAll(srcPath); err != nil {
-				// Failed to cleanup source
-				// Log it? For now continue.
-			}
+			os.RemoveAll(srcPath)
 		} else {
-			http.Error(w, "Failed to move: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "Failed to move item: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
 	}
@@ -816,66 +838,39 @@ func (h *FileManagerHandler) MoveItem(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
-// GenerateThumbnail generates or serves a cached thumbnail for video files
-func (h *FileManagerHandler) GenerateThumbnail(w http.ResponseWriter, r *http.Request) {
-	rootKey := r.URL.Query().Get("root")
-	subPath := r.URL.Query().Get("path")
-
-	fullPath, err := resolvePath(rootKey, subPath)
-	if err != nil {
-		http.Error(w, "Invalid path", http.StatusBadRequest)
-		return
-	}
-
-	// Create cache directory
-	cacheDir := "/tmp/cold-thumbnails"
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
-		http.Error(w, "Cache error", http.StatusInternalServerError)
-		return
-	}
-
-	// Create a unique filename for the thumbnail based on the path
-	// Replacing slashes with underscores to flatten the structure
-	safeName := strings.ReplaceAll(subPath, "/", "_")
-	safeName = strings.ReplaceAll(safeName, "\\", "_")
-	thumbPath := filepath.Join(cacheDir, safeName+".jpg")
-
-	// Check if thumbnail exists
-	if _, err := os.Stat(thumbPath); os.IsNotExist(err) {
-		// Generate it using ffmpeg
-		// We try to grab a frame at 5 seconds. If the video is shorter, ffmpeg might fail or output nothing.
-		// -y overwrites output
-		cmd := exec.Command("ffmpeg", "-y", "-i", fullPath, "-ss", "00:00:05", "-vframes", "1", "-q:v", "5", thumbPath)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			// Try at 0 seconds if 5s failed
-			cmd = exec.Command("ffmpeg", "-y", "-i", fullPath, "-ss", "00:00:00", "-vframes", "1", "-q:v", "5", thumbPath)
-			if err := cmd.Run(); err != nil {
-				fmt.Printf("Thumbnail generation failed for %s: %v\nOutput: %s\n", fullPath, err, string(output))
-				// Return 404 so the frontend can show a default icon
-				http.Error(w, "Thumbnail generation failed", http.StatusNotFound)
-				return
-			}
-		}
-	}
-
-	http.ServeFile(w, r, thumbPath)
-}
-
 // getDirSize calculates directory size recursively
 func getDirSize(path string) (int64, error) {
 	var size int64
-	err := filepath.WalkDir(path, func(_ string, d fs.DirEntry, err error) error {
+	err := filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
 		if err != nil {
-			return nil
+			return err
 		}
-		if !d.IsDir() {
-			info, err := d.Info()
-			if err == nil {
-				size += info.Size()
-			}
+		if !info.IsDir() {
+			size += info.Size()
 		}
 		return nil
 	})
 	return size, err
+}
+
+// generateThumbnail generates a thumbnail for an image or video
+func (h *FileManagerHandler) GenerateThumbnail(w http.ResponseWriter, r *http.Request) {
+	rootKey := r.URL.Query().Get("root")
+	subPath := r.URL.Query().Get("path")
+
+	fullPath, err := h.resolvePath(rootKey, subPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
+	// Check if file exists
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	// Simply serve the file itself for now (browser handles scaling)
+	// In production, we should cache generated thumbnails
+	http.ServeFile(w, r, fullPath)
 }

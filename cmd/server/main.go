@@ -675,8 +675,8 @@ func main() {
 		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir, restoreService)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
 		// R2 backup scheduler
-		handlers.StartR2BackupScheduler(restoreService)
-		defer handlers.StopR2BackupScheduler()
+		handlers.StartBackupSchedulers(restoreService)
+		defer handlers.StopBackupSchedulers()
 
 		log.Println("[Monitoring] Core monitoring features enabled")
 
@@ -730,6 +730,9 @@ func main() {
 		totpService := services.NewTOTPService(userRepo, totpRepo)
 		totpHandler := handlers.NewTOTPHandler(totpService, userRepo, jwtManager)
 
+		// Initialize file manager handler
+		fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService, cfg.BackupDir)
+
 		// Initialize Razorpay service and handler for online payments (admin view)
 		razorpayService := services.NewRazorpayService(
 			cfg.Razorpay.KeyID,
@@ -754,7 +757,7 @@ func main() {
 		// Point-in-time restore service and handler already initialized above for monitoring integration
 
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler, fileManagerHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {
