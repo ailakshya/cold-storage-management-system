@@ -88,11 +88,24 @@ func Load() *Config {
 		log.Fatalf("config unmarshal error: %v", err)
 	}
 
-	// Set BackupDir from env or default
+	// Set BackupDir with smart defaults
 	if dir := os.Getenv("BACKUP_DIR"); dir != "" {
 		cfg.BackupDir = dir
-	} else {
+	} else if _, err := os.Stat("/mass-pool/backups"); err == nil {
 		cfg.BackupDir = "/mass-pool/backups"
+	} else {
+		// Fallback for dev environments
+		home, _ := os.UserHomeDir()
+		if home != "" {
+			backups := os.Getenv("HOME") + "/cold-storage/backups"
+			if _, err := os.Stat(backups); err == nil {
+				cfg.BackupDir = backups
+			} else {
+				cfg.BackupDir = "./backups"
+			}
+		} else {
+			cfg.BackupDir = "./backups"
+		}
 	}
 
 	// Override database settings from DB_* environment variables

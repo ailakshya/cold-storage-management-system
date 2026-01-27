@@ -668,7 +668,7 @@ func main() {
 		}
 
 		// Always initialize monitoring handler
-		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool)
+		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
 		// R2 backup scheduler is now handled by the RestoreService or manual triggers
 		// handlers.StartR2BackupScheduler(pool)

@@ -7,7 +7,6 @@ import (
 	"math"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -21,12 +20,17 @@ import (
 )
 
 type MonitoringHandler struct {
-	store  *monitoring.TimescaleStore
-	dbPool *pgxpool.Pool
+	store     *monitoring.TimescaleStore
+	dbPool    *pgxpool.Pool
+	backupDir string
 }
 
-func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool) *MonitoringHandler {
-	return &MonitoringHandler{store: store, dbPool: dbPool}
+func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool, backupDir string) *MonitoringHandler {
+	return &MonitoringHandler{
+		store:     store,
+		dbPool:    dbPool,
+		backupDir: backupDir,
+	}
 }
 
 // GetDashboardData returns current system stats (non-historical)
@@ -56,11 +60,8 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Check local backups
-	backupDir := "./backups"
-	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
-		home, _ := os.UserHomeDir()
-		backupDir = filepath.Join(home, "cold-storage", "backups")
-	}
+	// Check local backups
+	backupDir := h.backupDir
 
 	var lastBackupTime string = "None"
 	var totalBackups int = 0
