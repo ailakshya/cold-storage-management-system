@@ -64,6 +64,10 @@ jobs:
           rm -rf $APP_DIR/static $APP_DIR/templates
           cp -r static $APP_DIR/
           cp -r templates $APP_DIR/
+          # Ensure database password matches application expectation
+          echo "Configuring Database..."
+          echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER postgres PASSWORD 'SecurePostgresPassword123';" || true
+          echo "Lak992723/" | sudo -S -u postgres psql -c "CREATE DATABASE cold_db;" 2>/dev/null || true
           
           # Restart services using systemd (Needs SUDO)
           echo "Restarting services..."
