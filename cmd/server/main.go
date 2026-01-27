@@ -675,12 +675,12 @@ func main() {
 		fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService, cfg.BackupDir)
 
 		// Initialize point-in-time restore service (also used for backups)
-		// Now injects fileManagerHandler as StorageProvider (ZFS/File API)
-		restoreService := services.NewRestoreService(pool, connStr, fileManagerHandler)
+		// Reverted to Old Pattern: Direct file access
+		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir)
 		restoreHandler := handlers.NewRestoreHandler(restoreService)
 
 		// Always initialize monitoring handler
-		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir, restoreService)
+		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
 		// R2 backup scheduler
 		handlers.StartBackupSchedulers(restoreService)

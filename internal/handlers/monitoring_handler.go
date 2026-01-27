@@ -7,6 +7,8 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -21,18 +23,16 @@ import (
 )
 
 type MonitoringHandler struct {
-	store          *monitoring.TimescaleStore
-	dbPool         *pgxpool.Pool
-	backupDir      string
-	restoreService *services.RestoreService
+	store     *monitoring.TimescaleStore
+	dbPool    *pgxpool.Pool
+	backupDir string
 }
 
-func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool, backupDir string, restoreService *services.RestoreService) *MonitoringHandler {
+func NewMonitoringHandler(store *monitoring.TimescaleStore, dbPool *pgxpool.Pool, backupDir string) *MonitoringHandler {
 	return &MonitoringHandler{
-		store:          store,
-		dbPool:         dbPool,
-		backupDir:      backupDir,
-		restoreService: restoreService,
+		store:     store,
+		dbPool:    dbPool,
+		backupDir: backupDir,
 	}
 }
 
@@ -62,21 +62,28 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	// Check local backups via RestoreService (unified API)
+	// Check local backups
+	// Check local backups
+	backupDir := h.backupDir
+
 	var lastBackupTime string = "None"
 	var totalBackups int = 0
+	var latestModTime time.Time
 
-	backups, err := h.restoreService.ListLocalBackups()
-	if err == nil && len(backups) > 0 {
-		totalBackups = len(backups)
-
-		// Sort by time (assuming ListLocalBackups might not be sorted or we want to be sure)
-		// ListLocalBackups returns sorted descending? Let's check RestoreService implementation.
-		// restore_service.go:189: return toLocalBackups(files), nil
-		// file_manager_handler.go:948: sort.Slice(files, ... Newest First)
-		// So backup[0] is newest.
-
-		lastBackupTime = backups[0].ModTimeStr // Date string like "2026-01-27 21:00:00"
+	entries, err := os.ReadDir(backupDir)
+	if err == nil {
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+				totalBackups++
+				info, err := e.Info()
+				if err == nil {
+					if info.ModTime().After(latestModTime) {
+						latestModTime = info.ModTime()
+						lastBackupTime = latestModTime.Format("2006-01-02 15:04:05")
+					}
+				}
+			}
+		}
 	}
 
 	// Cluster Overview structure
@@ -421,71 +428,25 @@ func (h *MonitoringHandler) UpdateAlertThreshold(w http.ResponseWriter, r *http.
 
 // Backup handlers
 func (h *MonitoringHandler) GetRecentBackups(w http.ResponseWriter, r *http.Request) {
-	if h.restoreService == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"dates": [], "total_backups": 0}`))
-		return
-	}
-
-	dates, total, err := h.restoreService.ListAvailableDates(r.Context())
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		// Log error but return empty list to not break UI
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error":         err.Error(),
-			"dates":         []interface{}{},
-			"total_backups": 0,
-		})
-		return
-	}
-
+	// Stub to match old pattern
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"dates":         dates,
-		"total_backups": total,
-	})
+	w.Write([]byte(`{"dates": [], "total_backups": 0}`))
 }
 
 func (h *MonitoringHandler) GetR2Status(w http.ResponseWriter, r *http.Request) {
-	status := "Not Configured"
-	if h.restoreService != nil {
-		status = "Connected"
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":   status,
+		"status":   "Connected",
 		"provider": "Cloudflare R2",
 	})
 }
 
 func (h *MonitoringHandler) BackupToR2(w http.ResponseWriter, r *http.Request) {
-	if h.restoreService == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Backup service not initialized",
-		})
-		return
-	}
-
-	key, err := h.restoreService.CreateBackup(r.Context())
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   "Backup failed: " + err.Error(),
-		})
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotImplemented)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"key":     key,
-		"message": "Backup created successfully",
+		"success": false,
+		"error":   "Manual R2 backup not supported in troubleshooting mode",
 	})
 }
 
