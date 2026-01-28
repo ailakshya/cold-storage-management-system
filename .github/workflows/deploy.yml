@@ -193,7 +193,8 @@ jobs:
 
           # Verify all ports respond
           echo "=== Port Verification ==="
-          for PORT in 8080 8081 8082; do
+          # Employee (8080) and Customer (8081) have /health endpoints
+          for PORT in 8080 8081; do
             if curl -sf --max-time 5 "http://localhost:${PORT}/health" > /dev/null 2>&1; then
               echo "  Port $PORT: OK"
             else
@@ -202,6 +203,14 @@ jobs:
               exit 1
             fi
           done
+          # Website (8082) serves HTML, check with HTTP status instead of /health
+          if curl -so /dev/null -w '%{http_code}' --max-time 5 "http://localhost:8082/" | grep -qE '^(200|301|302)$'; then
+            echo "  Port 8082: OK"
+          else
+            echo "::error::Port 8082 not responding"
+            docker logs cold-backend --tail 30
+            exit 1
+          fi
           echo "All ports healthy"
 
       - name: Verify Cloudflare Tunnel
