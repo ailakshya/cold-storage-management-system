@@ -9,6 +9,7 @@ services:
     ports:
       - "8080:8080"
       - "8081:8081"
+      - "8082:8082"
       - "9090:9090"
     environment:
       - TZ=Asia/Kolkata
@@ -56,6 +57,9 @@ services:
       - redis
     volumes:
       - ./backups:/app/backups
+      - file_storage:/mass-pool/shared
+      - file_archives:/mass-pool/archives
+      - file_trash:/mass-pool/trash
 
   postgres:
     image: postgres:15-alpine
@@ -95,3 +99,6 @@ volumes:
   main_postgres_data:
   timescale_data:
   redis_data:
+  file_storage:
+  file_archives:
+  file_trash:

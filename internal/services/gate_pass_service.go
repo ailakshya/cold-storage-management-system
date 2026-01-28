@@ -17,6 +17,7 @@ type GatePassService struct {
 	EntryEventRepo *repositories.EntryEventRepository
 	PickupRepo     *repositories.GatePassPickupRepository
 	RoomEntryRepo  *repositories.RoomEntryRepository
+	MediaRepo      *repositories.GatePassMediaRepository
 }
 
 func NewGatePassService(
@@ -25,6 +26,7 @@ func NewGatePassService(
 	entryEventRepo *repositories.EntryEventRepository,
 	pickupRepo *repositories.GatePassPickupRepository,
 	roomEntryRepo *repositories.RoomEntryRepository,
+	mediaRepo *repositories.GatePassMediaRepository,
 ) *GatePassService {
 	return &GatePassService{
 		GatePassRepo:   gatePassRepo,
@@ -32,6 +34,7 @@ func NewGatePassService(
 		EntryEventRepo: entryEventRepo,
 		PickupRepo:     pickupRepo,
 		RoomEntryRepo:  roomEntryRepo,
+		MediaRepo:      mediaRepo,
 	}
 }
 
@@ -280,37 +283,38 @@ func (s *GatePassService) CompleteGatePass(ctx context.Context, id int, userID i
 }
 
 // RecordPickup records a partial pickup and updates inventory
-func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPickupRequest, userID int) error {
+// Returns the created pickup ID and any error
+func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPickupRequest, userID int) (int, error) {
 	// Check expiration before allowing pickup
 	err := s.CheckAndExpireGatePasses(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Get gate pass details
 	gatePass, err := s.GatePassRepo.GetGatePass(ctx, req.GatePassID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// Validate gate pass status
 	if gatePass.Status != "approved" && gatePass.Status != "partially_completed" {
-		return errors.New("gate pass must be approved to record pickup")
+		return 0, errors.New("gate pass must be approved to record pickup")
 	}
 
 	// Check if expired
 	if gatePass.ApprovalExpiresAt != nil && timeutil.Now().After(*gatePass.ApprovalExpiresAt) {
-		return errors.New("gate pass has expired - pickup window closed")
+		return 0, errors.New("gate pass has expired - pickup window closed")
 	}
 
 	// Validate pickup quantity
 	remainingQty := gatePass.RequestedQuantity - gatePass.TotalPickedUp
 	if req.PickupQuantity > remainingQty {
-		return errors.New("pickup quantity exceeds remaining quantity")
+		return 0, errors.New("pickup quantity exceeds remaining quantity")
 	}
 
 	if req.PickupQuantity <= 0 {
-		return errors.New("pickup quantity must be greater than zero")
+		return 0, errors.New("pickup quantity must be greater than zero")
 	}
 
 	// CRITICAL FIX: Auto-fill storage location from room_entries if not provided
@@ -322,10 +326,10 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 		// Get actual storage location from room_entries
 		roomEntries, err := s.RoomEntryRepo.ListByThockNumber(ctx, gatePass.ThockNumber)
 		if err != nil {
-			return errors.New("failed to get storage location: " + err.Error())
+			return 0, errors.New("failed to get storage location: " + err.Error())
 		}
 		if len(roomEntries) == 0 {
-			return errors.New("no storage location found for truck " + gatePass.ThockNumber + " - items must be assigned to storage first")
+			return 0, errors.New("no storage location found for truck " + gatePass.ThockNumber + " - items must be assigned to storage first")
 		}
 
 		// Use the first room entry with available quantity
@@ -364,7 +368,7 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 	// Step 1: Create pickup record
 	err = s.PickupRepo.CreatePickup(ctx, pickup)
 	if err != nil {
-		return errors.New("failed to create pickup record: " + err.Error())
+		return 0, errors.New("failed to create pickup record: " + err.Error())
 	}
 
 	// Step 1b: Save gatar breakdown if provided
@@ -379,7 +383,7 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 	// Step 2: Update gate pass total_picked_up and status
 	err = s.GatePassRepo.UpdatePickupQuantity(ctx, req.GatePassID, req.PickupQuantity)
 	if err != nil {
-		return errors.New("CRITICAL ERROR: pickup created but gate pass update failed - " +
+		return 0, errors.New("CRITICAL ERROR: pickup created but gate pass update failed - " +
 			"manual intervention required for gate pass ID " + strconv.Itoa(req.GatePassID) + ": " + err.Error())
 	}
 
@@ -388,7 +392,8 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 	// Current inventory is calculated as: room_entries.quantity - total_picked_up
 	// This prevents double-counting in account reports where outgoing is shown separately
 
-	return nil
+	// Return the created pickup ID for media upload
+	return pickup.ID, nil
 }
 
 // GetPickupHistory retrieves all pickups for a gate pass
@@ -420,4 +425,40 @@ func (s *GatePassService) GetExpiredGatePassLogs(ctx context.Context) ([]map[str
 	}
 
 	return s.GatePassRepo.GetExpiredGatePasses(ctx)
+}
+
+// GetMediaByThockNumber retrieves all media (entry + pickup) for a thock number
+// Returns a map with "entry_media" and "pickup_media" arrays
+func (s *GatePassService) GetMediaByThockNumber(ctx context.Context, thockNumber string) (map[string][]models.GatePassMedia, error) {
+	allMedia, err := s.MediaRepo.ListByThockNumber(ctx, thockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	// Separate entry and pickup media
+	entryMedia := []models.GatePassMedia{}
+	pickupMedia := []models.GatePassMedia{}
+
+	for _, m := range allMedia {
+		if m.MediaType == "entry" {
+			entryMedia = append(entryMedia, m)
+		} else if m.MediaType == "pickup" {
+			pickupMedia = append(pickupMedia, m)
+		}
+	}
+
+	return map[string][]models.GatePassMedia{
+		"entry_media":  entryMedia,
+		"pickup_media": pickupMedia,
+	}, nil
+}
+
+// SaveMediaMetadata saves media metadata to the database
+func (s *GatePassService) SaveMediaMetadata(ctx context.Context, media *models.GatePassMedia) error {
+	return s.MediaRepo.Create(ctx, media)
+}
+
+// GetMediaByGatePassID retrieves all media for a specific gate pass
+func (s *GatePassService) GetMediaByGatePassID(ctx context.Context, gatePassID int) ([]models.GatePassMedia, error) {
+	return s.MediaRepo.ListByGatePassID(ctx, gatePassID)
 }

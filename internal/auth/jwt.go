@@ -13,6 +13,7 @@ import (
 
 type Claims struct {
 	UserID              int    `json:"user_id"`
+	Name                string `json:"name"`
 	Email               string `json:"email"`
 	Role                string `json:"role"`
 	HasAccountantAccess bool   `json:"has_accountant_access"`
@@ -35,6 +36,7 @@ func (j *JWTManager) GenerateToken(user *models.User) (string, error) {
 
 	claims := &Claims{
 		UserID:              user.ID,
+		Name:                user.Name,
 		Email:               user.Email,
 		Role:                user.Role,
 		HasAccountantAccess: user.HasAccountantAccess,

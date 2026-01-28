@@ -860,7 +860,9 @@ func getDirSize(path string) (int64, error) {
 	return size, err
 }
 
-// generateThumbnail generates a thumbnail for an image or video
+// GenerateThumbnail generates a thumbnail for an image or video.
+// For videos, it uses ffmpeg to extract the first frame and caches it.
+// For images, it serves the original file (browsers handle scaling).
 func (h *FileManagerHandler) GenerateThumbnail(w http.ResponseWriter, r *http.Request) {
 	rootKey := r.URL.Query().Get("root")
 	subPath := r.URL.Query().Get("path")
@@ -877,9 +879,55 @@ func (h *FileManagerHandler) GenerateThumbnail(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// Simply serve the file itself for now (browser handles scaling)
-	// In production, we should cache generated thumbnails
-	http.ServeFile(w, r, fullPath)
+	ext := strings.ToLower(filepath.Ext(fullPath))
+	videoExts := map[string]bool{".mp4": true, ".mov": true, ".avi": true, ".mkv": true, ".webm": true, ".m4v": true}
+
+	if !videoExts[ext] {
+		// For images, serve the file directly
+		http.ServeFile(w, r, fullPath)
+		return
+	}
+
+	// For videos: generate thumbnail using ffmpeg and cache it
+	thumbDir := filepath.Join(filepath.Dir(fullPath), ".thumbs")
+	baseName := strings.TrimSuffix(filepath.Base(fullPath), ext)
+	thumbPath := filepath.Join(thumbDir, baseName+".jpg")
+
+	// Check if cached thumbnail exists
+	if info, err := os.Stat(thumbPath); err == nil && info.Size() > 0 {
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		http.ServeFile(w, r, thumbPath)
+		return
+	}
+
+	// Create thumbs directory
+	if err := os.MkdirAll(thumbDir, 0755); err != nil {
+		log.Printf("Failed to create thumbs dir: %v", err)
+		http.ServeFile(w, r, fullPath)
+		return
+	}
+
+	// Generate thumbnail with ffmpeg
+	cmd := exec.Command("ffmpeg",
+		"-i", fullPath,
+		"-vframes", "1",
+		"-vf", "scale=320:-1",
+		"-f", "image2",
+		"-y",
+		thumbPath,
+	)
+	if err := cmd.Run(); err != nil {
+		log.Printf("ffmpeg thumbnail generation failed for %s: %v", fullPath, err)
+		// Serve a 1x1 transparent pixel as fallback
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/jpeg")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	http.ServeFile(w, r, thumbPath)
 }
 
 // StoreBackup saves a backup file to the backups root

@@ -413,6 +413,7 @@ func main() {
 	entryManagementLogRepo := repositories.NewEntryManagementLogRepository(pool)
 	adminActionLogRepo := repositories.NewAdminActionLogRepository(pool)
 	gatePassPickupRepo := repositories.NewGatePassPickupRepository(pool)
+	gatePassMediaRepo := repositories.NewGatePassMediaRepository(pool)
 	guardEntryRepo := repositories.NewGuardEntryRepository(pool)
 	tokenColorRepo := repositories.NewTokenColorRepository(pool)
 	ledgerRepo := repositories.NewLedgerRepository(pool)
@@ -530,7 +531,7 @@ func main() {
 		systemSettingService := services.NewSystemSettingService(systemSettingRepo)
 		rentPaymentService := services.NewRentPaymentService(rentPaymentRepo)
 		invoiceService := services.NewInvoiceService(invoiceRepo)
-		gatePassService := services.NewGatePassService(gatePassRepo, entryRepo, entryEventRepo, gatePassPickupRepo, roomEntryRepo)
+		gatePassService := services.NewGatePassService(gatePassRepo, entryRepo, entryEventRepo, gatePassPickupRepo, roomEntryRepo, gatePassMediaRepo)
 		ledgerService := services.NewLedgerService(ledgerRepo)
 		debtService := services.NewDebtService(debtRequestRepo, ledgerService)
 

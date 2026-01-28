@@ -1,0 +1,51 @@
+# Ignore development files
+.git
+.gitignore
+.env*
+*.md
+README*
+
+# Ignore test files
+*_test.go
+test/
+
+# Ignore build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore backups
+backups/*.sql
+backups/remote/
+backups/2026-*/
+
+# Ignore logs
+*.log
+logs/
+
+# Ignore temporary files
+tmp/
+temp/
+.DS_Store
+
+# Ignore Docker files
+docker-compose*.yml
+Dockerfile*
+
+# Ignore scripts (but keep installer which is needed for the app)
+scripts/
+
+# Ignore Kubernetes files
+k8s/
+
+# Ignore documentation
+docs/

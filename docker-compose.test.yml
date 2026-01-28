@@ -1,0 +1,183 @@
+# Docker Compose for Local Testing Environment
+# This sets up PostgreSQL, Redis, TimescaleDB, and the Cold Storage application
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database (Main Application Database)
+  postgres:
+    image: postgres:17-alpine
+    container_name: cold-storage-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: testpassword123
+      POSTGRES_DB: cold_db
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups:ro
+    networks:
+      - cold-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cold_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: cold-storage-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cold-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes
+
+  # TimescaleDB for Metrics (Optional)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: cold-storage-timescaledb
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: metrics
+      POSTGRES_PASSWORD: metricspass123
+      POSTGRES_DB: metrics_db
+    ports:
+      - "5434:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - cold-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metrics -d metrics_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Cold Storage Application (Employee Mode)
+  app-employee:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: cold-storage-app-employee
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: testpassword123
+      DB_NAME: cold_db
+      DB_SSLMODE: disable
+
+      # Redis Configuration
+      REDIS_ADDRESS: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+
+      # TimescaleDB Metrics Configuration
+      METRICS_DB_HOST: timescaledb
+      METRICS_DB_PORT: 5432
+      METRICS_DB_USER: metrics
+      METRICS_DB_PASSWORD: metricspass123
+      METRICS_DB_NAME: metrics_db
+
+      # JWT Configuration
+      JWT_SECRET: test-jwt-secret-for-local-testing-only-change-in-production
+      JWT_ISSUER: cold-storage-test
+      JWT_EXPIRATION_HOURS: 168
+
+      # Server Configuration
+      SERVER_PORT: 8080
+
+      # Backup Configuration
+      BACKUP_DIR: /app/backups
+
+      # Optional: R2 Configuration (leave empty for local testing)
+      R2_ACCOUNT_ID: ""
+      R2_ACCESS_KEY_ID: ""
+      R2_SECRET_ACCESS_KEY: ""
+      R2_BUCKET_NAME: ""
+    ports:
+      - "8080:8080"
+      - "9090:9090"  # Monitoring dashboard
+    volumes:
+      - ./backups:/app/backups
+      - app_logs:/app/logs
+    networks:
+      - cold-network
+    command: ["/app/server", "-mode", "employee"]
+
+  # Cold Storage Application (Customer Portal)
+  app-customer:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: cold-storage-app-customer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      # Same as employee but different mode
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: postgres
+      DB_PASSWORD: testpassword123
+      DB_NAME: cold_db
+      DB_SSLMODE: disable
+
+      REDIS_ADDRESS: redis:6379
+      REDIS_PASSWORD: ""
+      REDIS_DB: 0
+
+      JWT_SECRET: test-jwt-secret-for-local-testing-only-change-in-production
+      JWT_ISSUER: cold-storage-test
+      JWT_EXPIRATION_HOURS: 168
+
+      SERVER_PORT: 8081
+      BACKUP_DIR: /app/backups
+
+      # SMS/WhatsApp Configuration (optional)
+      FAST2SMS_API_KEY: ""
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./backups:/app/backups
+      - app_logs:/app/logs
+    networks:
+      - cold-network
+    command: ["/app/server", "-mode", "customer"]
+
+networks:
+  cold-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  timescale_data:
+    driver: local
+  app_logs:
+    driver: local

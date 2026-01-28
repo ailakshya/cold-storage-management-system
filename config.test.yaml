@@ -1,0 +1,33 @@
+# Test Configuration for Local Development
+# Use this config when testing with local Docker PostgreSQL
+
+server:
+  port: 8080
+
+database:
+  host: localhost
+  port: 5433
+  user: postgres
+  password: testpassword123
+  dbname: cold_db
+  sslmode: disable
+  max_connections: 10
+  min_connections: 2
+
+jwt:
+  secret: test-jwt-secret-change-in-production
+  issuer: cold-storage-test
+  expiration_hours: 168
+
+redis:
+  address: localhost:6379
+  password: ""
+  db: 0
+
+backup:
+  directory: ./backups
+
+razorpay:
+  key_id: ""
+  key_secret: ""
+  webhook_secret: ""

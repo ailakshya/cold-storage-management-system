@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
@@ -203,7 +204,7 @@ func (h *GatePassHandler) RecordPickup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.Service.RecordPickup(context.Background(), &req, userID)
+	pickupID, err := h.Service.RecordPickup(context.Background(), &req, userID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -227,7 +228,10 @@ func (h *GatePassHandler) RecordPickup(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"message": "Pickup recorded successfully"})
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"message":   "Pickup recorded successfully",
+		"pickup_id": pickupID,
+	})
 }
 
 // GetPickupHistory retrieves pickup history for a gate pass
@@ -330,4 +334,62 @@ func (h *GatePassHandler) ListApprovedGatePasses(w http.ResponseWriter, r *http.
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(approvedPasses)
+}
+
+// ListMediaByThock retrieves all media (entry + pickup) for a specific thock number
+// GET /api/gate-passes/media/by-thock?thock_number={thockNumber}
+func (h *GatePassHandler) ListMediaByThock(w http.ResponseWriter, r *http.Request) {
+	thockNumber := r.URL.Query().Get("thock_number")
+	if thockNumber == "" {
+		http.Error(w, "thock_number parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	media, err := h.Service.GetMediaByThockNumber(r.Context(), thockNumber)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(media)
+}
+
+// SaveMediaMetadata saves media metadata after file upload
+// POST /api/gate-passes/media
+func (h *GatePassHandler) SaveMediaMetadata(w http.ResponseWriter, r *http.Request) {
+	var media models.GatePassMedia
+	if err := json.NewDecoder(r.Body).Decode(&media); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Get user ID from context
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	media.UploadedByUserID = &userID
+
+	// Validate media type
+	if media.MediaType != "entry" && media.MediaType != "pickup" {
+		http.Error(w, "Invalid media_type. Must be 'entry' or 'pickup'", http.StatusBadRequest)
+		return
+	}
+
+	// Validate file path doesn't contain directory traversal
+	if strings.Contains(media.FilePath, "..") {
+		http.Error(w, "Invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Service.SaveMediaMetadata(r.Context(), &media); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(media)
 }

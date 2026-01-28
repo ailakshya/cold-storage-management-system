@@ -21,8 +21,8 @@ FROM alpine:latest
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata curl postgresql-client
+# Install runtime dependencies (including su-exec for entrypoint, ffmpeg for video thumbnails)
+RUN apk add --no-cache ca-certificates tzdata curl postgresql-client su-exec ffmpeg
 
 # Create user
 RUN addgroup -g 1000 appuser && \
@@ -35,13 +35,19 @@ COPY --from=builder /app/templates ./templates
 COPY --from=builder /app/migrations ./migrations
 COPY --from=builder /app/configs ./configs
 
+# Copy startup scripts
+COPY start-all-modes.sh .
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x start-all-modes.sh /usr/local/bin/docker-entrypoint.sh
+
 # Fix permissions
 RUN chown -R appuser:appuser /app
 
-# User
-USER appuser
-
 # Ports
-EXPOSE 8080 8081 9090
+EXPOSE 8080 8081 8082 9090
 
-CMD ["./cold-backend"]
+# Set entrypoint to fix permissions on startup
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Use shell script if MODE=all, otherwise start normally
+CMD ["sh", "-c", "if [ \"$MODE\" = \"all\" ]; then ./start-all-modes.sh; else ./cold-backend; fi"]

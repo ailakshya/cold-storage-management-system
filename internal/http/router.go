@@ -146,8 +146,8 @@ func NewRouter(
 	r.HandleFunc("/admin/report", pageHandler.AdminReportPage).Methods("GET")
 	r.HandleFunc("/admin/logs", pageHandler.AdminLogsPage).Methods("GET")
 	r.HandleFunc("/admin/restore", pageHandler.RestorePage).Methods("GET")
-	r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
-	r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
+	// r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
+	// r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
 	r.HandleFunc("/room-visualization", pageHandler.RoomVisualizationPage).Methods("GET")
 	r.HandleFunc("/items-in-stock", pageHandler.ItemsInStockPage).Methods("GET")
@@ -472,6 +472,13 @@ func NewRouter(
 	gatePassAPI.HandleFunc("/{id}/pickups", gatePassHandler.GetPickupHistory).Methods("GET")            // View only - allowed in any mode
 	gatePassAPI.HandleFunc("/pickup", operationModeMiddleware.RequireUnloadingMode(
 		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.RecordPickup)),
+	).ServeHTTP).Methods("POST")
+	// Media routes - view entry media and save pickup media
+	gatePassAPI.HandleFunc("/media/by-thock", operationModeMiddleware.RequireUnloadingMode(
+		http.HandlerFunc(gatePassHandler.ListMediaByThock),
+	).ServeHTTP).Methods("GET")
+	gatePassAPI.HandleFunc("/media", operationModeMiddleware.RequireUnloadingMode(
+		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(gatePassHandler.SaveMediaMetadata)),
 	).ServeHTTP).Methods("POST")
 
 	// Protected API routes - Infrastructure Monitoring
