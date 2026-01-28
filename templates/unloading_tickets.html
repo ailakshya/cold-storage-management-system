@@ -1136,18 +1136,27 @@
         // Load media when gate pass is selected
         async function loadMediaForGatePass(thockNumber, gatePassId) {
             try {
-                const response = await fetch(
-                    `/api/gate-passes/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`,
-                    { headers: { 'Authorization': `Bearer ${token}` } }
-                );
+                // Fetch gate pass media and room entry edit media in parallel
+                const [gpResponse, reResponse] = await Promise.all([
+                    fetch(`/api/gate-passes/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch(`/api/room-entries/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`,
+                        { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
 
-                if (!response.ok) throw new Error('Failed to load media');
+                if (!gpResponse.ok) throw new Error('Failed to load media');
 
-                const data = await response.json();
+                const gpData = await gpResponse.json();
+                let editMedia = [];
+                if (reResponse.ok) {
+                    const reData = await reResponse.json();
+                    editMedia = reData.edit_media || [];
+                }
+
                 // Cache for reuse by viewAllMedia modal
                 window.cachedMediaThock = thockNumber;
-                window.cachedMediaData = data;
-                displayMediaPreview(data.entry_media || [], data.pickup_media || []);
+                window.cachedMediaData = { ...gpData, edit_media: editMedia };
+                displayMediaPreview(gpData.entry_media || [], gpData.pickup_media || [], editMedia);
             } catch (error) {
                 console.error('Error loading media:', error);
                 document.getElementById('mediaPreview').innerHTML =
@@ -1156,9 +1165,9 @@
             }
         }
 
-        function displayMediaPreview(entryMedia, pickupMedia) {
+        function displayMediaPreview(entryMedia, pickupMedia, editMedia = []) {
             const preview = document.getElementById('mediaPreview');
-            const allMedia = [...entryMedia, ...pickupMedia];
+            const allMedia = [...entryMedia, ...pickupMedia, ...editMedia];
 
             if (allMedia.length === 0) {
                 preview.innerHTML = '<p class="text-xs text-gray-400 col-span-4">No media available</p>';
@@ -1176,6 +1185,18 @@
                     hour: '2-digit',
                     minute: '2-digit'
                 });
+            };
+
+            // Helper to get badge color based on media type
+            const getBadgeColor = (mediaType) => {
+                if (mediaType === 'entry') return 'bg-blue-500';
+                if (mediaType === 'edit') return 'bg-orange-500';
+                return 'bg-green-500'; // pickup
+            };
+            const getBadgeLabel = (mediaType) => {
+                if (mediaType === 'entry') return 'ENTRY';
+                if (mediaType === 'edit') return 'EDIT';
+                return 'PICKUP';
             };
 
             // Store media array globally for navigation
@@ -1203,8 +1224,8 @@
                     `}
 
                     <!-- Media Type Badge -->
-                    <span class="absolute top-1 right-1 ${m.media_type === 'entry' ? 'bg-blue-500' : 'bg-green-500'} text-white text-[9px] px-2 py-0.5 rounded-full font-bold shadow-md">
-                        ${m.media_type === 'entry' ? 'ENTRY' : 'PICKUP'}
+                    <span class="absolute top-1 right-1 ${getBadgeColor(m.media_type)} text-white text-[9px] px-2 py-0.5 rounded-full font-bold shadow-md">
+                        ${getBadgeLabel(m.media_type)}
                     </span>
 
                     <!-- File Type Icon -->
@@ -1225,14 +1246,12 @@
             const countText = allMedia.length > 1 ? `${allMedia.length} media files` : '1 media file';
             const entryCount = entryMedia.length;
             const pickupCount = pickupMedia.length;
-            let breakdown = '';
-            if (entryCount > 0 && pickupCount > 0) {
-                breakdown = ` (${entryCount} entry, ${pickupCount} pickup)`;
-            } else if (entryCount > 0) {
-                breakdown = ' (entry)';
-            } else if (pickupCount > 0) {
-                breakdown = ' (pickup)';
-            }
+            const editCount = editMedia.length;
+            let parts = [];
+            if (entryCount > 0) parts.push(`${entryCount} entry`);
+            if (pickupCount > 0) parts.push(`${pickupCount} pickup`);
+            if (editCount > 0) parts.push(`${editCount} edit`);
+            const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : '';
             document.getElementById('mediaCount').textContent = countText + breakdown;
         }
 
@@ -1692,26 +1711,34 @@
         async function loadAllMediaInModal(thockNumber) {
             try {
                 // Reuse cached media data if available for the same thock
-                let entryMedia, pickupMedia;
+                let entryMedia, pickupMedia, editMedia;
                 if (window.cachedMediaThock === thockNumber && window.cachedMediaData) {
                     entryMedia = window.cachedMediaData.entry_media || [];
                     pickupMedia = window.cachedMediaData.pickup_media || [];
+                    editMedia = window.cachedMediaData.edit_media || [];
                 } else {
-                    const response = await fetch(
-                        `/api/gate-passes/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`,
-                        { headers: { 'Authorization': `Bearer ${token}` } }
-                    );
+                    const [gpResponse, reResponse] = await Promise.all([
+                        fetch(`/api/gate-passes/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`,
+                            { headers: { 'Authorization': `Bearer ${token}` } }),
+                        fetch(`/api/room-entries/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`,
+                            { headers: { 'Authorization': `Bearer ${token}` } })
+                    ]);
 
-                    if (!response.ok) throw new Error('Failed to load media');
+                    if (!gpResponse.ok) throw new Error('Failed to load media');
 
-                    const data = await response.json();
-                    entryMedia = data.entry_media || [];
-                    pickupMedia = data.pickup_media || [];
+                    const gpData = await gpResponse.json();
+                    entryMedia = gpData.entry_media || [];
+                    pickupMedia = gpData.pickup_media || [];
+                    editMedia = [];
+                    if (reResponse.ok) {
+                        const reData = await reResponse.json();
+                        editMedia = reData.edit_media || [];
+                    }
                     // Cache for reuse
                     window.cachedMediaThock = thockNumber;
-                    window.cachedMediaData = data;
+                    window.cachedMediaData = { ...gpData, edit_media: editMedia };
                 }
-                const totalMedia = entryMedia.length + pickupMedia.length;
+                const totalMedia = entryMedia.length + pickupMedia.length + editMedia.length;
 
                 // Helper function to format timestamp
                 const formatTimestamp = (timestamp) => {
@@ -1739,7 +1766,7 @@
                 statsDiv.innerHTML = `
                     <div class="text-2xl font-bold text-gray-800">${totalMedia}</div>
                     <div class="text-sm text-gray-500">Total Files</div>
-                    <div class="flex gap-4 mt-2 text-sm">
+                    <div class="flex flex-wrap gap-4 mt-2 text-sm">
                         <div class="flex items-center gap-1">
                             <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
                             <span>${entryMedia.length} Entry</span>
@@ -1748,6 +1775,12 @@
                             <span class="w-3 h-3 bg-green-500 rounded-full"></span>
                             <span>${pickupMedia.length} Pickup</span>
                         </div>
+                        ${editMedia.length > 0 ? `
+                        <div class="flex items-center gap-1">
+                            <span class="w-3 h-3 bg-orange-500 rounded-full"></span>
+                            <span>${editMedia.length} Edit</span>
+                        </div>
+                        ` : ''}
                     </div>
                 `;
 
@@ -1759,7 +1792,7 @@
                 }
 
                 // Combine all media for navigation
-                const allMedia = [...entryMedia, ...pickupMedia];
+                const allMedia = [...entryMedia, ...pickupMedia, ...editMedia];
                 window.currentModalMedia = allMedia;
 
                 // Function to render media grid
@@ -1846,10 +1879,11 @@
                     `;
                 };
 
-                // Render both sections with correct indices
+                // Render all sections with correct indices
                 contentDiv.innerHTML =
                     renderMediaGrid(entryMedia, 'Entry Media', 'blue', 0) +
-                    renderMediaGrid(pickupMedia, 'Pickup Media', 'green', entryMedia.length);
+                    renderMediaGrid(pickupMedia, 'Pickup Media', 'green', entryMedia.length) +
+                    renderMediaGrid(editMedia, 'Edit Media', 'orange', entryMedia.length + pickupMedia.length);
 
             } catch (error) {
                 console.error('Error loading all media:', error);
@@ -2309,34 +2343,47 @@
             const percentText = document.getElementById('pickupUploadPercent');
 
             progressDiv.classList.remove('hidden');
+            statusText.textContent = 'Uploading...';
+            statusText.className = 'text-xs font-bold text-green-700';
 
             const thockNo = gatePass.thock_number;
             const customerName = gatePass.customer_name;
             const userInfo = getUserInfoFromToken();
 
-            // Sanitize for filename (same as room-config-1)
             const safeCustomer = customerName.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
             const safeEmployee = userInfo.name.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
             const safeThok = thockNo.toString().replace(/\//g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
 
             const targetPath = 'Room Config';
 
-            try {
-                for (let i = 0; i < files.length; i++) {
-                    const file = files[i];
-                    // Get file extension
-                    const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
-                    // Generate timestamp for uniqueness
-                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-                    const newFileName = `Thok_${safeThok}_${safeCustomer}_pickup_GP${gatePass.id}_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
+            let successCount = 0;
+            let failCount = 0;
 
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const newFileName = `Thok_${safeThok}_${safeCustomer}_pickup_GP${gatePass.id}_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
+
+                statusText.textContent = `Uploading file ${i + 1} of ${files.length}...`;
+
+                // Step 1: Upload file
+                try {
                     await uploadSingleFile(file, targetPath, (pct) => {
                         const totalPct = ((i + (pct/100)) / files.length) * 100;
                         progressBar.style.width = `${totalPct}%`;
                         percentText.textContent = `${Math.round(totalPct)}%`;
                     }, newFileName);
+                } catch (uploadErr) {
+                    console.error(`File upload failed for ${newFileName}:`, uploadErr);
+                    failCount++;
+                    statusText.textContent = `File ${i + 1} upload failed - skipping`;
+                    statusText.className = 'text-xs font-bold text-red-700';
+                    continue; // Skip metadata save — file didn't upload
+                }
 
-                    // Save metadata to database
+                // Step 2: Save metadata (only if file upload succeeded)
+                try {
                     await saveMediaMetadata({
                         gate_pass_id: gatePass.id,
                         gate_pass_pickup_id: pickupId,
@@ -2347,18 +2394,30 @@
                         file_type: file.type.startsWith('image/') ? 'image' : 'video',
                         file_size: file.size
                     });
+                    successCount++;
+                } catch (metaErr) {
+                    console.error(`Metadata save failed for ${newFileName}:`, metaErr);
+                    failCount++;
+                    statusText.textContent = `File ${i + 1} metadata save failed`;
+                    statusText.className = 'text-xs font-bold text-red-700';
                 }
-
-                statusText.textContent = 'Upload Complete';
-                setTimeout(() => {
-                    progressDiv.classList.add('hidden');
-                    progressBar.style.width = '0%';
-                }, 2000);
-            } catch (error) {
-                console.error('Error uploading media:', error);
-                statusText.textContent = 'Upload Failed';
-                statusText.classList.add('text-red-700');
             }
+
+            if (failCount === 0) {
+                statusText.textContent = `Upload Complete (${successCount} files)`;
+                statusText.className = 'text-xs font-bold text-green-700';
+            } else if (successCount > 0) {
+                statusText.textContent = `${successCount} uploaded, ${failCount} failed`;
+                statusText.className = 'text-xs font-bold text-orange-600';
+            } else {
+                statusText.textContent = `Upload Failed (${failCount} files)`;
+                statusText.className = 'text-xs font-bold text-red-700';
+            }
+
+            setTimeout(() => {
+                progressDiv.classList.add('hidden');
+                progressBar.style.width = '0%';
+            }, 3000);
         }
 
         // Upload a single file with progress tracking
@@ -2378,12 +2437,18 @@
                 });
 
                 xhr.addEventListener('load', () => {
-                    xhr.status === 200 ? resolve() : reject(new Error(xhr.statusText));
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve();
+                    } else {
+                        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                    }
                 });
 
                 xhr.addEventListener('error', () => reject(new Error('Network Error')));
+                xhr.addEventListener('timeout', () => reject(new Error('Upload timed out')));
 
                 xhr.open('POST', '/api/files/upload');
+                xhr.timeout = 120000; // 2 minute timeout for large videos
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 xhr.send(formData);
             });
@@ -2391,18 +2456,19 @@
 
         // Save media metadata to database
         async function saveMediaMetadata(mediaData) {
-            try {
-                await fetch('/api/gate-passes/media', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(mediaData)
-                });
-            } catch (error) {
-                console.error('Error saving media metadata:', error);
+            const resp = await fetch('/api/gate-passes/media', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mediaData)
+            });
+            if (!resp.ok) {
+                const errText = await resp.text();
+                throw new Error(`Metadata save failed (${resp.status}): ${errText}`);
             }
+            return await resp.json();
         }
 
         // Get user name from JWT token

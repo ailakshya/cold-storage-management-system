@@ -1,25 +1,23 @@
 #!/bin/sh
 
 # Docker entrypoint script
-# Fixes permissions for volume-mounted directories and starts the application
+# Verifies top-level directory ownership and starts the application as appuser.
+#
+# NOTE: ZFS datasets should be created with UID 1000 ownership (one-time setup).
+# This script only checks top-level dirs — it does NOT do recursive chown,
+# which would be extremely slow on large ZFS pools (7.5TB+).
 
-echo "[Entrypoint] Fixing permissions for volume directories..."
+echo "[Entrypoint] Checking volume directory ownership..."
 
-# Fix ownership of volume-mounted directories if they exist
-if [ -d "/mass-pool" ]; then
-    chown -R appuser:appuser /mass-pool 2>/dev/null || true
-    echo "[Entrypoint] Fixed permissions for /mass-pool"
-fi
+for dir in /mass-pool/shared /mass-pool/archives /mass-pool/trash /mass-pool/backups /fast-pool/data; do
+  if [ -d "$dir" ]; then
+    # Only fix top-level dir ownership, not recursive
+    chown appuser:appuser "$dir" 2>/dev/null || true
+  fi
+done
 
-if [ -d "/fast-pool" ]; then
-    chown -R appuser:appuser /fast-pool 2>/dev/null || true
-    echo "[Entrypoint] Fixed permissions for /fast-pool"
-fi
-
-if [ -d "/app/backups" ]; then
-    chown -R appuser:appuser /app/backups 2>/dev/null || true
-    echo "[Entrypoint] Fixed permissions for /app/backups"
-fi
+# Fix app directory ownership
+chown -R appuser:appuser /app 2>/dev/null || true
 
 echo "[Entrypoint] Switching to appuser and starting application..."
 

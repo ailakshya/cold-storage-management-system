@@ -160,12 +160,25 @@ func (h *MonitoringHandler) GetDashboardData(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
+	// Get API analytics summary (1h window for the summary card)
+	apiAnalytics := map[string]interface{}{
+		"total_requests": 0,
+		"error_rate":     0.0,
+	}
+	if h.store != nil {
+		if summary, err := h.store.GetAPISummary(1 * time.Hour); err == nil {
+			apiAnalytics["total_requests"] = summary.TotalRequests
+			apiAnalytics["error_rate"] = summary.ErrorRate
+		}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"cluster_overview": overview,
 		"nodes":            nodes,
 		"uptime":           uptime.String(),
 		"system_temp":      tempStr,
+		"api_analytics":    apiAnalytics,
 		"backup_summary": map[string]interface{}{
 			"last_backup":   lastBackupTime,
 			"total_backups": totalBackups,
@@ -293,24 +306,14 @@ func (h *MonitoringHandler) GetBackupDBStatus(w http.ResponseWriter, r *http.Req
 // GetAPIAnalytics returns historical data from TimescaleDB
 func (h *MonitoringHandler) GetAPIAnalytics(w http.ResponseWriter, r *http.Request) {
 	if h.store == nil {
-		// Generate mock trend data for demonstration
-		points := []monitoring.TimePoint{}
-		now := time.Now()
-		for i := 24; i >= 0; i-- {
-			t := now.Add(-time.Duration(i) * time.Hour)
-			// Sine wave pattern
-			val := 10.0 + 5.0*math.Sin(float64(i)/4.0)
-			points = append(points, monitoring.TimePoint{Time: t, Value: val})
-		}
-
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"summary": map[string]interface{}{
-				"total_requests": 15420,
-				"error_rate":     0.05,
-				"avg_latency":    "45ms",
-			},
-			"cpu_trend": points,
+			"total_requests":   0,
+			"success_requests": 0,
+			"avg_duration_ms":  0,
+			"p95_duration_ms":  0,
+			"error_rate":       0,
+			"cpu_trend":        []monitoring.TimePoint{},
 		})
 		return
 	}
@@ -335,20 +338,73 @@ func (h *MonitoringHandler) GetAPIAnalytics(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"summary":   summary,
-		"cpu_trend": cpuTrend,
+		"total_requests":   summary.TotalRequests,
+		"success_requests": summary.SuccessRequests,
+		"avg_duration_ms":  summary.AvgDurationMs,
+		"p95_duration_ms":  summary.P95DurationMs,
+		"error_rate":       summary.ErrorRate,
+		"cpu_trend":        cpuTrend,
 	})
 }
 
-// Stubs for other router methods
 func (h *MonitoringHandler) GetTopEndpoints(w http.ResponseWriter, r *http.Request) {
+	duration := 24 * time.Hour
+	if d := r.URL.Query().Get("range"); d != "" {
+		if pd, err := time.ParseDuration(d); err == nil {
+			duration = pd
+		}
+	}
+	limit := 10
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+
+	var endpoints []monitoring.EndpointStat
+	if h.store != nil {
+		var err error
+		endpoints, err = h.store.GetTopEndpoints(duration, limit)
+		if err != nil {
+			endpoints = []monitoring.EndpointStat{}
+		}
+	}
+	if endpoints == nil {
+		endpoints = []monitoring.EndpointStat{}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"endpoints": []}`))
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"endpoints": endpoints,
+	})
 }
 
 func (h *MonitoringHandler) GetSlowestEndpoints(w http.ResponseWriter, r *http.Request) {
+	duration := 24 * time.Hour
+	if d := r.URL.Query().Get("range"); d != "" {
+		if pd, err := time.ParseDuration(d); err == nil {
+			duration = pd
+		}
+	}
+	limit := 10
+	if l := r.URL.Query().Get("limit"); l != "" {
+		fmt.Sscanf(l, "%d", &limit)
+	}
+
+	var endpoints []monitoring.EndpointStat
+	if h.store != nil {
+		var err error
+		endpoints, err = h.store.GetSlowestEndpoints(duration, limit)
+		if err != nil {
+			endpoints = []monitoring.EndpointStat{}
+		}
+	}
+	if endpoints == nil {
+		endpoints = []monitoring.EndpointStat{}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Write([]byte(`{"endpoints": []}`))
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"endpoints": endpoints,
+	})
 }
 
 func (h *MonitoringHandler) GetRecentAPILogs(w http.ResponseWriter, r *http.Request) {

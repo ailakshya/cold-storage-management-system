@@ -70,12 +70,6 @@
             <button onclick="showTab('overview')" id="tab-overview" class="neu-border px-4 py-2 tab-active">
                 <i class="bi bi-grid-1x2"></i> Overview
             </button>
-            <button onclick="showTab('nodes')" id="tab-nodes" class="neu-border px-4 py-2 bg-white">
-                <i class="bi bi-hdd-stack"></i> K3s Nodes
-            </button>
-            <button onclick="showTab('postgres')" id="tab-postgres" class="neu-border px-4 py-2 bg-white">
-                <i class="bi bi-database"></i> PostgreSQL
-            </button>
             <button onclick="showTab('api')" id="tab-api" class="neu-border px-4 py-2 bg-white">
                 <i class="bi bi-braces"></i> API Analytics
             </button>
@@ -86,31 +80,7 @@
 
         <!-- Overview Tab -->
         <div id="content-overview" class="tab-content">
-            <!-- Summary Cards -->
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div class="neu-border bg-white p-4 metric-card">
-                    <div class="text-sm text-gray-600">K3s Nodes</div>
-                    <div id="summary-nodes" class="text-2xl font-bold">-/-</div>
-                    <div class="text-xs text-green-600"><i class="bi bi-check-circle"></i> Healthy</div>
-                </div>
-                <div class="neu-border bg-white p-4 metric-card">
-                    <div class="text-sm text-gray-600">PostgreSQL</div>
-                    <div id="summary-postgres" class="text-2xl font-bold">-/-</div>
-                    <div class="text-xs text-green-600"><i class="bi bi-check-circle"></i> Primary + Replicas</div>
-                </div>
-                <div class="neu-border bg-white p-4 metric-card">
-                    <div class="text-sm text-gray-600">API Requests (1h)</div>
-                    <div id="summary-requests" class="text-2xl font-bold">-</div>
-                    <div id="summary-error-rate" class="text-xs">Error rate: --%</div>
-                </div>
-                <div class="neu-border bg-white p-4 metric-card">
-                    <div class="text-sm text-gray-600">Active Alerts</div>
-                    <div id="summary-alerts" class="text-2xl font-bold">-</div>
-                    <div id="summary-alerts-breakdown" class="text-xs">- critical, - warning</div>
-                </div>
-            </div>
-
-            <!-- Cluster Resources -->
+            <!-- Section 1: Cluster Resources -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div class="neu-border bg-white p-4">
                     <div class="text-sm text-gray-600 mb-2">Cluster CPU</div>
@@ -144,7 +114,121 @@
                 </div>
             </div>
 
-            <!-- Backup Database Status -->
+            <!-- Section 2: Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">K3s Nodes</div>
+                    <div id="summary-nodes" class="text-2xl font-bold">-/-</div>
+                    <div class="text-xs text-green-600"><i class="bi bi-check-circle"></i> Healthy</div>
+                </div>
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">PostgreSQL</div>
+                    <div id="summary-postgres" class="text-2xl font-bold">-/-</div>
+                    <div class="text-xs text-green-600"><i class="bi bi-check-circle"></i> Primary + Replicas</div>
+                </div>
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">API Requests (1h)</div>
+                    <div id="summary-requests" class="text-2xl font-bold">-</div>
+                    <div id="summary-error-rate" class="text-xs">Error rate: --%</div>
+                </div>
+                <div class="neu-border bg-white p-4 metric-card">
+                    <div class="text-sm text-gray-600">Active Alerts</div>
+                    <div id="summary-alerts" class="text-2xl font-bold">-</div>
+                    <div id="summary-alerts-breakdown" class="text-xs">- critical, - warning</div>
+                </div>
+            </div>
+
+            <!-- Section 3: K3s Nodes (merged from Nodes tab) -->
+            <div class="neu-border bg-white p-4 mb-6">
+                <h3 class="font-bold mb-4"><i class="bi bi-hdd-stack text-blue-500"></i> K3s Nodes</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="nodes-grid">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-cpu text-blue-500"></i> Node CPU Usage (%)</h3>
+                    <div style="height: 250px;">
+                        <canvas id="cpuChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-memory text-green-500"></i> Node Memory Usage (%)</h3>
+                    <div style="height: 250px;">
+                        <canvas id="memoryChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section 4: PostgreSQL (merged from PostgreSQL tab) -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Total Size</div>
+                    <div id="pg-total-size" class="text-2xl font-bold">- GB</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Connections</div>
+                    <div id="pg-connections" class="text-2xl font-bold">-</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Max Repl. Lag</div>
+                    <div id="pg-repl-lag" class="text-2xl font-bold">- s</div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <div class="text-sm text-gray-600">Cache Hit Ratio</div>
+                    <div id="pg-cache-ratio" class="text-2xl font-bold">--%</div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-plug text-purple-500"></i> PostgreSQL Connections</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgConnectionsChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-lightning text-yellow-500"></i> Cache Hit Ratio (%)</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgCacheHitChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-hdd text-red-500"></i> DB Size (MB)</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgDbSizeChart"></canvas>
+                    </div>
+                </div>
+                <div class="neu-border bg-white p-4">
+                    <h3 class="font-bold mb-2"><i class="bi bi-arrow-repeat text-orange-500"></i> Replication Lag</h3>
+                    <div style="height: 220px;">
+                        <canvas id="pgReplLagChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="neu-border bg-white p-4 mb-6">
+                <h3 class="font-bold mb-4"><i class="bi bi-database"></i> Database Nodes</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 text-left">Server Name</th>
+                                <th class="p-2 text-left">Role</th>
+                                <th class="p-2 text-left">Status</th>
+                                <th class="p-2 text-left">Host IP</th>
+                                <th class="p-2 text-left">DB Size</th>
+                                <th class="p-2 text-left">Connections</th>
+                                <th class="p-2 text-left">Repl. Lag</th>
+                                <th class="p-2 text-left">Sync %</th>
+                                <th class="p-2 text-left">Cache Hit</th>
+                            </tr>
+                        </thead>
+                        <tbody id="postgres-pods-table"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section 6: Backup Database Status -->
             <div class="neu-border bg-white p-4 mb-6">
                 <h3 class="font-bold mb-4"><i class="bi bi-hdd-rack"></i> Backup Database Server (192.168.15.195)</h3>
                 <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -203,112 +287,12 @@
                 </div>
             </div>
 
-            <!-- K3s Node Charts Row -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div class="neu-border bg-white p-4">
-                    <h3 class="font-bold mb-2"><i class="bi bi-cpu text-blue-500"></i> Node CPU Usage (%)</h3>
-                    <div style="height: 250px;">
-                        <canvas id="cpuChart"></canvas>
-                    </div>
-                </div>
-                <div class="neu-border bg-white p-4">
-                    <h3 class="font-bold mb-2"><i class="bi bi-memory text-green-500"></i> Node Memory Usage (%)</h3>
-                    <div style="height: 250px;">
-                        <canvas id="memoryChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- PostgreSQL Charts Row -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div class="neu-border bg-white p-4">
-                    <h3 class="font-bold mb-2"><i class="bi bi-plug text-purple-500"></i> PostgreSQL Connections</h3>
-                    <div style="height: 220px;">
-                        <canvas id="pgConnectionsChart"></canvas>
-                    </div>
-                </div>
-                <div class="neu-border bg-white p-4">
-                    <h3 class="font-bold mb-2"><i class="bi bi-lightning text-yellow-500"></i> Cache Hit Ratio (%)</h3>
-                    <div style="height: 220px;">
-                        <canvas id="pgCacheHitChart"></canvas>
-                    </div>
-                </div>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div class="neu-border bg-white p-4">
-                    <h3 class="font-bold mb-2"><i class="bi bi-hdd text-red-500"></i> DB Size (MB)</h3>
-                    <div style="height: 220px;">
-                        <canvas id="pgDbSizeChart"></canvas>
-                    </div>
-                </div>
-                <div class="neu-border bg-white p-4">
-                    <h3 class="font-bold mb-2"><i class="bi bi-arrow-repeat text-orange-500"></i> Replication Lag</h3>
-                    <div style="height: 220px;">
-                        <canvas id="pgReplLagChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Alerts -->
+            <!-- Section 7: Recent Alerts -->
             <div class="neu-border bg-white p-4">
                 <h3 class="font-bold mb-4"><i class="bi bi-bell"></i> Recent Alerts</h3>
                 <div id="recent-alerts" class="space-y-2">
                     <div class="text-gray-500 text-center py-4">No recent alerts</div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Nodes Tab -->
-        <div id="content-nodes" class="tab-content hidden">
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" id="nodes-grid">
-            </div>
-            <div class="neu-border bg-white p-4">
-                <h3 class="font-bold mb-2">Node Metrics History</h3>
-                <select id="nodeSelect" onchange="loadNodeHistory()" class="border px-3 py-1 mb-4">
-                    <option value="">Select a node</option>
-                </select>
-                <canvas id="nodeHistoryChart" height="300"></canvas>
-            </div>
-        </div>
-
-        <!-- PostgreSQL Tab -->
-        <div id="content-postgres" class="tab-content hidden">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="neu-border bg-white p-4">
-                    <div class="text-sm text-gray-600">Total Size</div>
-                    <div id="pg-total-size" class="text-2xl font-bold">- GB</div>
-                </div>
-                <div class="neu-border bg-white p-4">
-                    <div class="text-sm text-gray-600">Connections</div>
-                    <div id="pg-connections" class="text-2xl font-bold">-</div>
-                </div>
-                <div class="neu-border bg-white p-4">
-                    <div class="text-sm text-gray-600">Max Repl. Lag</div>
-                    <div id="pg-repl-lag" class="text-2xl font-bold">- s</div>
-                </div>
-                <div class="neu-border bg-white p-4">
-                    <div class="text-sm text-gray-600">Cache Hit Ratio</div>
-                    <div id="pg-cache-ratio" class="text-2xl font-bold">--%</div>
-                </div>
-            </div>
-            <div class="neu-border bg-white p-4">
-                <h3 class="font-bold mb-4"><i class="bi bi-database"></i> Database Nodes</h3>
-                <table class="w-full text-sm">
-                    <thead class="bg-gray-100">
-                        <tr>
-                            <th class="p-2 text-left">Server Name</th>
-                            <th class="p-2 text-left">Role</th>
-                            <th class="p-2 text-left">Status</th>
-                            <th class="p-2 text-left">Host IP</th>
-                            <th class="p-2 text-left">DB Size</th>
-                            <th class="p-2 text-left">Connections</th>
-                            <th class="p-2 text-left">Repl. Lag</th>
-                            <th class="p-2 text-left">Sync %</th>
-                            <th class="p-2 text-left">Cache Hit</th>
-                        </tr>
-                    </thead>
-                    <tbody id="postgres-pods-table"></tbody>
-                </table>
             </div>
         </div>
 
@@ -466,8 +450,6 @@
             document.getElementById(`tab-${tab}`).classList.add('tab-active');
             document.getElementById(`tab-${tab}`).classList.remove('bg-white');
 
-            if (tab === 'nodes') loadNodes();
-            if (tab === 'postgres') loadPostgres();
             if (tab === 'api') loadAPIAnalytics();
             if (tab === 'alerts') loadAlerts();
         }
@@ -517,8 +499,12 @@
             // Load backup DB status
             loadBackupDBStatus();
 
-            // Load PostgreSQL charts
+            // Load PostgreSQL charts and data (merged from PostgreSQL tab)
             loadPgCharts();
+            loadPostgres();
+
+            // Load K3s node grid and history dropdown (merged from Nodes tab)
+            loadNodes();
 
             document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
         }

@@ -146,8 +146,8 @@ func NewRouter(
 	r.HandleFunc("/admin/report", pageHandler.AdminReportPage).Methods("GET")
 	r.HandleFunc("/admin/logs", pageHandler.AdminLogsPage).Methods("GET")
 	r.HandleFunc("/admin/restore", pageHandler.RestorePage).Methods("GET")
-	// r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
-	// r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
+	r.HandleFunc("/infrastructure", pageHandler.InfrastructureMonitoringPage).Methods("GET")
+	r.HandleFunc("/infrastructure/nodes", pageHandler.NodeProvisioningPage).Methods("GET")
 	r.HandleFunc("/monitoring", pageHandler.MonitoringDashboardPage).Methods("GET")
 	r.HandleFunc("/room-visualization", pageHandler.RoomVisualizationPage).Methods("GET")
 	r.HandleFunc("/items-in-stock", pageHandler.ItemsInStockPage).Methods("GET")
@@ -256,6 +256,10 @@ func NewRouter(
 	roomEntriesAPI.HandleFunc("/{id}", operationModeMiddleware.RequireLoadingMode(
 		authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(roomEntryHandler.UpdateRoomEntry)),
 	).ServeHTTP).Methods("PUT")
+	// Room entry media routes
+	roomEntriesAPI.HandleFunc("/media/by-thock", roomEntryHandler.ListRoomEntryMediaByThock).Methods("GET")
+	roomEntriesAPI.HandleFunc("/{id}/media", roomEntryHandler.ListRoomEntryMedia).Methods("GET")
+	roomEntriesAPI.HandleFunc("/media", authMiddleware.RequireRole("employee", "admin")(http.HandlerFunc(roomEntryHandler.SaveRoomEntryMedia)).ServeHTTP).Methods("POST")
 
 	// Protected API routes - Entry Events
 	entryEventsAPI := r.PathPrefix("/api/entry-events").Subrouter()

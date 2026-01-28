@@ -2,41 +2,110 @@ name: Rollback Production
 
 on:
   workflow_dispatch:
+    inputs:
+      target_sha:
+        description: 'Git SHA of the image to rollback to (leave empty for previous deploy)'
+        required: false
+        default: ''
 
 jobs:
   rollback:
-    runs-on: self-hosted
+    runs-on: [self-hosted, cold-server-runner]
+    timeout-minutes: 10
+    env:
+      APP_DIR: /home/cold/cold-storage
+      IMAGE_NAME: cold-backend
+
     steps:
-      - name: Rollback to Backup
+      - name: Determine Rollback Target
+        id: target
         run: |
-          APP_DIR=~/cold-storage
-          LOG_FILE=$APP_DIR/server.log
-          
-          if [ ! -f $APP_DIR/server.bak ]; then
-            echo "❌ No backup binary found to rollback to!"
-            exit 1
-          fi
-          
-          echo "Stopping current server..."
-          pkill -f "cold-storage/server" || true
-          sleep 2
-          
-          echo "Restoring backup binary..."
-          mv $APP_DIR/server $APP_DIR/server.failed
-          mv $APP_DIR/server.bak $APP_DIR/server
-          chmod +x $APP_DIR/server
-          
-          echo "Starting restored server..."
-          cd $APP_DIR
-          nohup ./server --mode employee > $LOG_FILE 2>&1 &
-          
-          echo "Verifying rollback..."
-          sleep 5
-          if pgrep -f "server --mode employee" > /dev/null; then
-            echo "✅ Rollback successful - Server running"
-            tail -n 10 $LOG_FILE
+          if [ -n "${{ github.event.inputs.target_sha }}" ]; then
+            TAG="${{ github.event.inputs.target_sha }}"
+            echo "Using user-specified tag: $TAG"
           else
-            echo "❌ Rollback failed - Server not running"
-            tail -n 20 $LOG_FILE
+            # Find the second most recent image tag (skip 'latest' and current)
+            CURRENT=$(docker inspect --format='{{.Config.Image}}' cold-backend 2>/dev/null | cut -d: -f2 || echo "")
+            TAG=$(docker image ls "$IMAGE_NAME" --format '{{.Tag}}' | \
+              grep -vE "^(latest|$CURRENT)$" | sort -r | head -n 1)
+
+            if [ -z "$TAG" ]; then
+              echo "::error::No previous image found to rollback to"
+              echo "Available images:"
+              docker image ls "$IMAGE_NAME" --format "table {{.Tag}}\t{{.CreatedAt}}"
+              exit 1
+            fi
+            echo "Rolling back to previous image: $TAG"
+          fi
+
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Image Exists
+        run: |
+          TAG="${{ steps.target.outputs.tag }}"
+          if ! docker image inspect "$IMAGE_NAME:$TAG" > /dev/null 2>&1; then
+            echo "::error::Image $IMAGE_NAME:$TAG not found locally"
+            echo "Available images:"
+            docker image ls "$IMAGE_NAME" --format "table {{.Tag}}\t{{.CreatedAt}}"
             exit 1
           fi
+          echo "Image $IMAGE_NAME:$TAG verified"
+
+      - name: Rollback
+        run: |
+          TAG="${{ steps.target.outputs.tag }}"
+          cd "$APP_DIR"
+
+          # Only the app container is recreated — redis/timescaledb stay running
+          IMAGE_TAG="$TAG" \
+            docker compose -f docker-compose.production.yml \
+            --env-file .env.production \
+            up -d
+
+          echo "Rollback deployed — waiting for health..."
+
+      - name: Wait for Health
+        run: |
+          MAX_WAIT=90
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            HEALTH=$(docker inspect --format='{{.State.Health.Status}}' cold-backend 2>/dev/null || echo "starting")
+            if [ "$HEALTH" = "healthy" ]; then
+              echo "Container healthy after ${ELAPSED}s"
+              break
+            fi
+            echo "  Status: $HEALTH (${ELAPSED}s/${MAX_WAIT}s)"
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          if [ "$HEALTH" != "healthy" ]; then
+            echo "::error::Rollback container did not become healthy within ${MAX_WAIT}s"
+            echo "=== Container Logs ==="
+            docker logs cold-backend --tail 50
+            exit 1
+          fi
+
+          # Verify all ports
+          for PORT in 8080 8081 8082; do
+            if curl -sf --max-time 5 "http://localhost:${PORT}/health" > /dev/null 2>&1; then
+              echo "  Port $PORT: OK"
+            else
+              echo "::error::Port $PORT not responding after rollback"
+              docker logs cold-backend --tail 30
+              exit 1
+            fi
+          done
+
+      - name: Rollback Summary
+        if: always()
+        run: |
+          echo "============================================"
+          echo "  Rollback Complete"
+          echo "============================================"
+          echo "  Rolled back to: $IMAGE_NAME:${{ steps.target.outputs.tag }}"
+          echo ""
+          echo "=== Container Status ==="
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "cold-|NAME" || true
+          echo "============================================"

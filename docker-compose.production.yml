@@ -1,0 +1,122 @@
+services:
+  app:
+    image: cold-backend:${IMAGE_TAG:-latest}
+    container_name: cold-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"   # Employee portal
+      - "8081:8081"   # Customer portal
+      - "8082:8082"   # Website
+      - "9090:9090"   # Monitoring dashboard
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      - TZ=Asia/Kolkata
+      # PostgreSQL — bare metal on host via Docker bridge gateway
+      - DB_HOST=172.17.0.1
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-cold_user}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME:-cold_db}
+      - POSTGRES_HOST=172.17.0.1
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=${DB_USER:-cold_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME:-cold_db}
+      - DATABASE_HOST=172.17.0.1
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${DB_USER:-cold_user}
+      - DATABASE_PASSWORD=${DB_PASSWORD}
+      - DATABASE_NAME=${DB_NAME:-cold_db}
+      # TimescaleDB — container
+      - METRICS_DB_HOST=timescaledb
+      - METRICS_DB_PORT=5432
+      - METRICS_DB_USER=${METRICS_DB_USER:-postgres}
+      - METRICS_DB_PASSWORD=${METRICS_DB_PASSWORD}
+      - METRICS_DB_NAME=${METRICS_DB_NAME:-cold_monitoring}
+      - G_ENABLED=${G_ENABLED:-false}
+      - G_DB_HOST=timescaledb
+      - G_DB_PORT=5432
+      - G_DB_USER=${METRICS_DB_USER:-postgres}
+      - G_DB_PASSWORD=${METRICS_DB_PASSWORD}
+      - G_DB_NAME=${METRICS_DB_NAME:-cold_monitoring}
+      # Redis — container
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      # App config
+      - MODE=all
+      - BACKUP_DIR=/mass-pool/backups
+      - JWT_SECRET=${JWT_SECRET}
+      - FAST2SMS_API_KEY=${FAST2SMS_API_KEY:-}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID:-}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
+      - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # mass-pool (3x4TB HDD RAIDZ1 ~7.5TB) — bulk storage
+      - /mass-pool/shared:/mass-pool/shared
+      - /mass-pool/archives:/mass-pool/archives
+      - /mass-pool/trash:/mass-pool/trash
+      - /mass-pool/backups:/mass-pool/backups
+      # fast-pool (2x1TB SSD mirror) — high-speed storage
+      - /fast-pool/data:/fast-pool/data
+    networks:
+      - cold-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    container_name: cold-timescaledb
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Kolkata
+      - POSTGRES_USER=${METRICS_DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${METRICS_DB_PASSWORD}
+      - POSTGRES_DB=${METRICS_DB_NAME:-cold_monitoring}
+    ports:
+      - "5433:5432"
+    volumes:
+      # TimescaleDB data on fast-pool SSD for performance
+      - /fast-pool/timescaledb:/var/lib/postgresql/data
+    networks:
+      - cold-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${METRICS_DB_USER:-postgres} -d ${METRICS_DB_NAME:-cold_monitoring}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  redis:
+    image: redis:7-alpine
+    container_name: cold-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - cold-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+
+networks:
+  cold-net:
+    driver: bridge
+
+volumes:
+  redis_data:
+    driver: local

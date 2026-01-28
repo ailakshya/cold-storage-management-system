@@ -15,16 +15,48 @@ type RoomEntryService struct {
 	EntryRepo          *repositories.EntryRepository
 	EntryEventRepo     *repositories.EntryEventRepository
 	PrinterService     *PrinterService
+	MediaRepo          *repositories.RoomEntryMediaRepository
 }
 
-func NewRoomEntryService(roomEntryRepo *repositories.RoomEntryRepository, roomEntryGatarRepo *repositories.RoomEntryGatarRepository, entryRepo *repositories.EntryRepository, entryEventRepo *repositories.EntryEventRepository, printerService *PrinterService) *RoomEntryService {
+func NewRoomEntryService(roomEntryRepo *repositories.RoomEntryRepository, roomEntryGatarRepo *repositories.RoomEntryGatarRepository, entryRepo *repositories.EntryRepository, entryEventRepo *repositories.EntryEventRepository, printerService *PrinterService, mediaRepo *repositories.RoomEntryMediaRepository) *RoomEntryService {
 	return &RoomEntryService{
 		RoomEntryRepo:      roomEntryRepo,
 		RoomEntryGatarRepo: roomEntryGatarRepo,
 		EntryRepo:          entryRepo,
 		EntryEventRepo:     entryEventRepo,
 		PrinterService:     printerService,
+		MediaRepo:          mediaRepo,
 	}
+}
+
+func (s *RoomEntryService) GetMediaByRoomEntryID(ctx context.Context, roomEntryID int) (map[string][]models.RoomEntryMedia, error) {
+	allMedia, err := s.MediaRepo.ListByRoomEntryID(ctx, roomEntryID)
+	if err != nil {
+		return nil, err
+	}
+
+	entryMedia := []models.RoomEntryMedia{}
+	editMedia := []models.RoomEntryMedia{}
+	for _, m := range allMedia {
+		if m.MediaType == "edit" {
+			editMedia = append(editMedia, m)
+		} else {
+			entryMedia = append(entryMedia, m)
+		}
+	}
+
+	return map[string][]models.RoomEntryMedia{
+		"entry_media": entryMedia,
+		"edit_media":  editMedia,
+	}, nil
+}
+
+func (s *RoomEntryService) GetMediaByThockNumber(ctx context.Context, thockNumber string) ([]models.RoomEntryMedia, error) {
+	return s.MediaRepo.ListByThockNumber(ctx, thockNumber)
+}
+
+func (s *RoomEntryService) SaveMediaMetadata(ctx context.Context, media *models.RoomEntryMedia) error {
+	return s.MediaRepo.Create(ctx, media)
 }
 
 func (s *RoomEntryService) CreateRoomEntry(ctx context.Context, req *models.CreateRoomEntryRequest, userID int) (*models.RoomEntry, error) {

@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -368,174 +367,9 @@ func (h *InfrastructureHandler) GetPostgreSQLStatus(w http.ResponseWriter, r *ht
 // GetPostgreSQLPods returns detailed PostgreSQL node metrics (bare metal)
 // Optimized: runs all node checks in parallel for faster response
 func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http.Request) {
-	nodes := getDBNodes()
-	user, password, dbname := getDBCredentials()
+	pods := make([]map[string]interface{}, 0)
 
-	// Result channel and wait group for parallel execution
-	type nodeResult struct {
-		index int
-		data  map[string]interface{}
-	}
-	results := make(chan nodeResult, len(nodes)+1)
-	var wg sync.WaitGroup
-
-	// Check all PostgreSQL nodes in parallel
-	for i, node := range nodes {
-		wg.Add(1)
-		go func(idx int, n dbNode) {
-			defer wg.Done()
-
-			// Default values
-			dbSize := "N/A"
-			connections := "N/A"
-			lag := "N/A"
-			cacheHit := "N/A"
-			status := "Error"
-			role := "Unknown"
-			var syncPct float64 = -1
-
-			// Connect to this node
-			connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable&connect_timeout=3",
-				user, url.QueryEscape(password), n.Host, n.Port, dbname)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			db, err := sql.Open("pgx", connStr)
-			if err != nil {
-				results <- nodeResult{idx, map[string]interface{}{
-					"name": n.Name, "role": role, "status": status, "node": n.Host,
-					"disk_used": dbSize, "connections": connections, "max_conn": 200,
-					"repl_lag": lag, "cache_hit": cacheHit, "sync_pct": syncPct, "is_external": false,
-				}}
-				return
-			}
-			defer db.Close()
-
-			if err := db.PingContext(ctx); err != nil {
-				results <- nodeResult{idx, map[string]interface{}{
-					"name": n.Name, "role": role, "status": status, "node": n.Host,
-					"disk_used": dbSize, "connections": connections, "max_conn": 200,
-					"repl_lag": lag, "cache_hit": cacheHit, "sync_pct": syncPct, "is_external": false,
-				}}
-				return
-			}
-
-			status = "Running"
-
-			// Check if primary or replica
-			var isInRecovery bool
-			err = db.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&isInRecovery)
-			if err == nil {
-				if isInRecovery {
-					role = "Replica"
-				} else {
-					role = "Primary"
-					syncPct = -1
-				}
-			}
-
-			// Get database size
-			var size sql.NullString
-			err = db.QueryRowContext(ctx, "SELECT pg_size_pretty(pg_database_size('cold_db'))").Scan(&size)
-			if err == nil && size.Valid {
-				dbSize = size.String
-			}
-
-			// Get active connections
-			var connCount sql.NullInt64
-			err = db.QueryRowContext(ctx, "SELECT count(*) FROM pg_stat_activity WHERE datname = 'cold_db' AND pid <> pg_backend_pid()").Scan(&connCount)
-			if err == nil && connCount.Valid {
-				connections = fmt.Sprintf("%d", connCount.Int64)
-			}
-
-			// Get cache hit ratio
-			var cache sql.NullString
-			err = db.QueryRowContext(ctx, `
-				SELECT COALESCE(
-					ROUND(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 1)::text || '%',
-					'N/A'
-				) FROM pg_stat_database WHERE datname = 'cold_db'
-			`).Scan(&cache)
-			if err == nil && cache.Valid && cache.String != "%" {
-				cacheHit = cache.String
-			}
-
-			// Get replication lag for replicas
-			if role == "Replica" {
-				var lagBytes sql.NullFloat64
-				err = db.QueryRowContext(ctx, `
-					SELECT COALESCE(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn()), 0)::float
-				`).Scan(&lagBytes)
-				if err == nil && lagBytes.Valid {
-					if lagBytes.Float64 == 0 {
-						lag = "0"
-						syncPct = 100
-					} else if lagBytes.Float64 < 1024 {
-						lag = fmt.Sprintf("%.0f B", lagBytes.Float64)
-					} else if lagBytes.Float64 < 1024*1024 {
-						lag = fmt.Sprintf("%.1f KB", lagBytes.Float64/1024)
-					} else {
-						lag = fmt.Sprintf("%.1f MB", lagBytes.Float64/(1024*1024))
-					}
-				}
-
-				// Get sync percentage if not already 100
-				if syncPct != 100 {
-					var pct sql.NullFloat64
-					err = db.QueryRowContext(ctx, `
-						SELECT CASE
-							WHEN pg_last_wal_receive_lsn() IS NULL THEN 0
-							WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn() THEN 100
-							ELSE ROUND((100.0 - (pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn())::numeric /
-								GREATEST(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), '0/0')::numeric, 1) * 100))::numeric, 1)
-						END
-					`).Scan(&pct)
-					if err == nil && pct.Valid {
-						syncPct = pct.Float64
-					}
-				}
-			}
-
-			results <- nodeResult{idx, map[string]interface{}{
-				"name": n.Name, "role": role, "status": status, "node": n.Host,
-				"disk_used": dbSize, "connections": connections, "max_conn": 200,
-				"repl_lag": lag, "cache_hit": cacheHit, "sync_pct": syncPct, "is_external": false,
-			}}
-		}(i, node)
-	}
-
-	// Also check external backup database in parallel
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		metricsDBPod := h.getMetricsDBStatus()
-		if metricsDBPod != nil {
-			results <- nodeResult{len(nodes), metricsDBPod}
-		}
-	}()
-
-	// Wait for all checks to complete
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Collect results and maintain order
-	podMap := make(map[int]map[string]interface{})
-	for result := range results {
-		podMap[result.index] = result.data
-	}
-
-	// Build ordered pods slice
-	pods := make([]map[string]interface{}, 0, len(podMap))
-	for i := 0; i <= len(nodes); i++ {
-		if pod, ok := podMap[i]; ok {
-			pods = append(pods, pod)
-		}
-	}
-
-	// Add local application DB pool if available
+	// Local application DB pool
 	if h.dbPool != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
@@ -558,9 +392,8 @@ func (h *InfrastructureHandler) GetPostgreSQLPods(w http.ResponseWriter, r *http
 				connections = fmt.Sprintf("%d", count)
 			}
 
-			// Cache Hit
 			var cache string
-			err = h.dbPool.QueryRow(ctx, `
+			err := h.dbPool.QueryRow(ctx, `
 				SELECT COALESCE(
 					ROUND(100.0 * sum(blks_hit) / NULLIF(sum(blks_hit) + sum(blks_read), 0), 1)::text || '%',
 					'N/A'

@@ -414,6 +414,7 @@ func main() {
 	adminActionLogRepo := repositories.NewAdminActionLogRepository(pool)
 	gatePassPickupRepo := repositories.NewGatePassPickupRepository(pool)
 	gatePassMediaRepo := repositories.NewGatePassMediaRepository(pool)
+	roomEntryMediaRepo := repositories.NewRoomEntryMediaRepository(pool)
 	guardEntryRepo := repositories.NewGuardEntryRepository(pool)
 	tokenColorRepo := repositories.NewTokenColorRepository(pool)
 	ledgerRepo := repositories.NewLedgerRepository(pool)
@@ -527,7 +528,7 @@ func main() {
 		entryService.SetFamilyMemberRepo(familyMemberRepo) // Wire FamilyMemberRepo for family member auto-assign
 		printerService := services.NewPrinterService()
 		printerHandler := handlers.NewPrinterHandler(printerService)
-		roomEntryService := services.NewRoomEntryService(roomEntryRepo, roomEntryGatarRepo, entryRepo, entryEventRepo, printerService)
+		roomEntryService := services.NewRoomEntryService(roomEntryRepo, roomEntryGatarRepo, entryRepo, entryEventRepo, printerService, roomEntryMediaRepo)
 		systemSettingService := services.NewSystemSettingService(systemSettingRepo)
 		rentPaymentService := services.NewRentPaymentService(rentPaymentRepo)
 		invoiceService := services.NewInvoiceService(invoiceRepo)

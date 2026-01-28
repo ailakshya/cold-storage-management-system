@@ -378,6 +378,70 @@
                         <div id="qualityRemarksList" class="flex flex-wrap gap-2 min-h-[24px]"></div>
                     </div>
 
+                    <!-- Media Gallery -->
+                    <div class="neu-border bg-white p-4 mb-6">
+                        <div class="flex justify-between items-center mb-3">
+                            <h3 class="text-lg font-bold flex items-center gap-2">
+                                <i class="bi bi-camera text-purple-600"></i>
+                                Media
+                            </h3>
+                            <button type="button" onclick="viewAllRoomEntryMedia()" id="viewAllMediaBtn"
+                                    class="text-xs bg-purple-200 px-2 py-1 rounded hover:bg-purple-300 transition-colors hidden">
+                                View All
+                            </button>
+                        </div>
+                        <div id="reMediaPreview" class="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto">
+                            <p class="text-xs text-gray-400 col-span-4">No media yet</p>
+                        </div>
+                        <p id="reMediaCount" class="text-xs text-gray-500 mt-1"></p>
+                    </div>
+
+                    <!-- Media Capture (Edit) -->
+                    <div class="neu-border bg-white p-4 mb-6">
+                        <label class="block text-sm font-bold text-gray-700 mb-2 flex items-center gap-2">
+                            <i class="bi bi-camera shadow-sm bg-green-100 p-1 rounded"></i>
+                            Capture Media <span class="text-gray-400 font-normal">(Optional)</span>
+                        </label>
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            <button type="button" onclick="document.getElementById('rePhotoInput').click()"
+                                    class="flex-1 min-w-[100px] neu-button bg-blue-500 text-white hover:bg-blue-600 py-2 px-3 text-sm rounded">
+                                <i class="bi bi-camera-fill"></i> Photo
+                            </button>
+                            <button type="button" onclick="document.getElementById('reVideoInput').click()"
+                                    class="flex-1 min-w-[100px] neu-button bg-red-500 text-white hover:bg-red-600 py-2 px-3 text-sm rounded">
+                                <i class="bi bi-camera-video-fill"></i> Video
+                            </button>
+                            <button type="button" onclick="document.getElementById('reMediaFiles').click()"
+                                    class="flex-1 min-w-[100px] neu-button bg-gray-500 text-white hover:bg-gray-600 py-2 px-3 text-sm rounded">
+                                <i class="bi bi-file-earmark-image"></i> Gallery
+                            </button>
+                        </div>
+                        <input type="file" id="rePhotoInput" accept="image/*" capture="environment"
+                               onchange="handleREMediaCapture(this)" class="hidden">
+                        <input type="file" id="reVideoInput" accept="video/*" capture="environment"
+                               onchange="handleREMediaCapture(this)" class="hidden">
+                        <input type="file" id="reMediaFiles" multiple accept="image/*,video/*"
+                               onchange="previewREMedia(this)" class="hidden">
+
+                        <div id="reMediaPreviewNew" class="hidden mt-3">
+                            <div class="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                                <i class="bi bi-images text-green-600"></i>
+                                <span>Selected (<span id="reMediaCountNew">0</span>)</span>
+                            </div>
+                            <div id="reMediaThumbnails" class="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto"></div>
+                        </div>
+
+                        <div id="reUploadProgress" class="hidden mt-2">
+                            <div class="flex justify-between text-xs mb-1">
+                                <span class="text-green-700 font-bold" id="reUploadStatus">Uploading...</span>
+                                <span id="reUploadPercent">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-1.5">
+                                <div id="reUploadBar" class="bg-green-600 h-1.5 rounded-full transition-all" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Change History Logs -->
                     <div class="neu-border bg-white p-6">
                         <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
@@ -875,6 +939,9 @@
                 // Load change history
                 loadChangeHistory();
 
+                // Load media for this room entry
+                loadRoomEntryMedia(roomEntryId);
+
                 // Show form
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('editForm').classList.remove('hidden');
@@ -1031,13 +1098,20 @@
                 // Show success message
                 showSuccess();
 
+                // Upload media if files were captured
+                const fileInput = document.getElementById('reMediaFiles');
+                if (fileInput && fileInput.files.length > 0) {
+                    await uploadREMedia(fileInput.files, roomEntryData);
+                    setTimeout(() => loadRoomEntryMedia(roomEntryId), 500);
+                }
+
                 // Add change log entry
                 addChangeLogEntry(updateData);
 
-                // Redirect back after 2 seconds
+                // Redirect back after 3 seconds (extra time for media upload)
                 setTimeout(() => {
                     goBack();
-                }, 2000);
+                }, 3000);
 
             } catch (error) {
                 console.error('Error updating room entry:', error);
@@ -1521,6 +1595,818 @@
 
         function goBack() {
             window.history.back();
+        }
+
+        // ==================== MEDIA FUNCTIONS ====================
+
+        // Global state for media navigation
+        let currentMediaArray = [];
+        let currentMediaIndex = 0;
+
+        async function loadRoomEntryMedia(id) {
+            try {
+                const thockNumber = roomEntryData ? roomEntryData.thock_number : '';
+                // Fetch room entry media AND gate pass media (entry/pickup) in parallel
+                const fetches = [
+                    fetch(`/api/room-entries/${id}/media`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    })
+                ];
+                if (thockNumber) {
+                    fetches.push(
+                        fetch(`/api/gate-passes/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        })
+                    );
+                }
+
+                const [reResponse, gpResponse] = await Promise.all(fetches);
+                if (!reResponse.ok) throw new Error('Failed to load media');
+
+                const reData = await reResponse.json();
+                let gpEntryMedia = [], gpPickupMedia = [];
+                if (gpResponse && gpResponse.ok) {
+                    const gpData = await gpResponse.json();
+                    gpEntryMedia = gpData.entry_media || [];
+                    gpPickupMedia = gpData.pickup_media || [];
+                }
+
+                // Cache combined data
+                window.cachedREMediaData = {
+                    entry_media: gpEntryMedia,
+                    pickup_media: gpPickupMedia,
+                    edit_media: reData.edit_media || []
+                };
+                displayREMediaPreview(gpEntryMedia, gpPickupMedia, reData.edit_media || []);
+            } catch (error) {
+                console.error('Error loading media:', error);
+                document.getElementById('reMediaPreview').innerHTML =
+                    '<p class="text-xs text-gray-400 col-span-4">No media yet</p>';
+                document.getElementById('reMediaCount').textContent = '';
+            }
+        }
+
+        function displayREMediaPreview(entryMedia, pickupMedia, editMedia) {
+            const preview = document.getElementById('reMediaPreview');
+            const allMedia = [...entryMedia, ...pickupMedia, ...editMedia];
+
+            if (allMedia.length === 0) {
+                preview.innerHTML = '<p class="text-xs text-gray-400 col-span-4">No media yet</p>';
+                document.getElementById('reMediaCount').textContent = '';
+                document.getElementById('viewAllMediaBtn').classList.add('hidden');
+                return;
+            }
+
+            document.getElementById('viewAllMediaBtn').classList.remove('hidden');
+
+            const formatTimestamp = (timestamp) => {
+                if (!timestamp) return '';
+                const date = new Date(timestamp);
+                return date.toLocaleDateString('en-IN', {
+                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
+                });
+            };
+
+            const getBadgeColor = (mediaType) => {
+                if (mediaType === 'entry') return 'bg-blue-500';
+                if (mediaType === 'edit') return 'bg-orange-500';
+                return 'bg-green-500'; // pickup
+            };
+            const getBadgeLabel = (mediaType) => {
+                if (mediaType === 'entry') return 'ENTRY';
+                if (mediaType === 'edit') return 'EDIT';
+                return 'PICKUP';
+            };
+
+            window.currentREMedia = allMedia;
+
+            preview.innerHTML = allMedia.slice(0, 8).map((m, index) => `
+                <div class="relative cursor-pointer hover:shadow-lg transition-all group"
+                     onclick='openMediaViewer("${m.download_url}", "${m.file_type}", window.currentREMedia, ${index})'>
+                    ${m.file_type === 'image' ? `
+                        <div class="w-full h-20 bg-black rounded-lg border-2 border-gray-300 flex items-center justify-center overflow-hidden group-hover:border-blue-400">
+                            <img src="${m.download_url}" loading="lazy" class="max-w-full max-h-full object-contain" alt="${m.file_name}"
+                                 onerror="this.parentElement.innerHTML='<div class=\\'w-full h-20 bg-gray-200 rounded-lg flex items-center justify-center text-xs text-gray-500\\'>Error</div>'">
+                        </div>
+                    ` : `
+                        <div class="w-full h-20 bg-gray-900 rounded-lg border-2 border-gray-600 flex items-center justify-center overflow-hidden relative group-hover:border-purple-400">
+                            <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                <i class="bi bi-play-circle-fill text-white text-3xl drop-shadow-lg"></i>
+                                <span class="text-white text-[8px] mt-1 drop-shadow">VIDEO</span>
+                            </div>
+                        </div>
+                    `}
+                    <span class="absolute top-1 right-1 ${getBadgeColor(m.media_type)} text-white text-[9px] px-2 py-0.5 rounded-full font-bold shadow-md">
+                        ${getBadgeLabel(m.media_type)}
+                    </span>
+                    <span class="absolute top-1 left-1 bg-black bg-opacity-60 text-white text-xs px-1.5 py-0.5 rounded">
+                        <i class="bi bi-${m.file_type === 'image' ? 'image' : 'camera-video'}-fill"></i>
+                    </span>
+                    <div class="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white text-[8px] px-1 py-0.5 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div class="truncate" title="${m.uploaded_by_user_name || 'Unknown'}">
+                            <i class="bi bi-person-fill"></i> ${m.uploaded_by_user_name || 'Unknown'}
+                        </div>
+                        ${m.created_at ? `<div class="truncate"><i class="bi bi-clock"></i> ${formatTimestamp(m.created_at)}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+
+            const countText = allMedia.length > 1 ? `${allMedia.length} media files` : '1 media file';
+            let parts = [];
+            if (entryMedia.length > 0) parts.push(`${entryMedia.length} entry`);
+            if (pickupMedia.length > 0) parts.push(`${pickupMedia.length} pickup`);
+            if (editMedia.length > 0) parts.push(`${editMedia.length} edit`);
+            const breakdown = parts.length > 0 ? ` (${parts.join(', ')})` : '';
+            document.getElementById('reMediaCount').textContent = countText + breakdown;
+        }
+
+        function openMediaViewer(url, type, mediaArray = null, index = 0) {
+            if (mediaArray && mediaArray.length > 0) {
+                currentMediaArray = mediaArray;
+                currentMediaIndex = index;
+            } else {
+                currentMediaArray = [{download_url: url, file_type: type}];
+                currentMediaIndex = 0;
+            }
+
+            const existingModal = document.getElementById('mediaViewerModal');
+            if (existingModal) existingModal.remove();
+
+            const modal = document.createElement('div');
+            modal.id = 'mediaViewerModal';
+            modal.className = 'fixed inset-0 bg-black bg-opacity-95';
+            modal.style.zIndex = '200';
+            modal.onclick = (e) => {
+                if (e.target === modal) {
+                    modal.remove();
+                    document.body.style.overflow = '';
+                }
+            };
+
+            document.body.style.overflow = 'hidden';
+            renderMediaViewer(modal);
+            document.body.appendChild(modal);
+
+            window.mediaViewerKeyHandler = (e) => {
+                if (e.key === 'ArrowLeft') navigateMedia(-1);
+                else if (e.key === 'ArrowRight') navigateMedia(1);
+                else if (e.key === 'Escape') {
+                    modal.remove();
+                    document.removeEventListener('keydown', window.mediaViewerKeyHandler);
+                    document.body.style.overflow = '';
+                }
+            };
+            document.addEventListener('keydown', window.mediaViewerKeyHandler);
+
+            let touchStartX = 0, touchStartY = 0, touchEndX = 0, touchEndY = 0;
+
+            window.mediaViewerTouchStart = (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+                touchStartY = e.changedTouches[0].screenY;
+            };
+            window.mediaViewerTouchEnd = (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                touchEndY = e.changedTouches[0].screenY;
+                const deltaX = touchEndX - touchStartX;
+                const deltaY = touchEndY - touchStartY;
+                if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+                    deltaX > 0 ? navigateMedia(-1) : navigateMedia(1);
+                }
+            };
+
+            modal.addEventListener('touchstart', window.mediaViewerTouchStart, { passive: true });
+            modal.addEventListener('touchend', window.mediaViewerTouchEnd, { passive: true });
+        }
+
+        function renderMediaViewer(modal) {
+            const currentMedia = currentMediaArray[currentMediaIndex];
+            const url = currentMedia.download_url;
+            const type = currentMedia.file_type;
+            const totalMedia = currentMediaArray.length;
+            const hasMultiple = totalMedia > 1;
+
+            let rotation = 0;
+            let scale = 1;
+            const minScale = 0.5;
+            const maxScale = 3;
+
+            const controls = `
+                <div class="absolute top-0 left-0 right-0 z-30 bg-gradient-to-b from-black/80 to-transparent">
+                    <div class="flex items-center justify-between px-3 py-2 md:px-5 md:py-3">
+                        <div class="flex flex-wrap gap-1.5 md:gap-2">
+                            ${type === 'image' ? `
+                                <button onclick="rotateMedia(-90)" title="Rotate Left"
+                                        class="text-white bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-full w-12 h-12 md:w-10 md:h-10 flex items-center justify-center shadow-lg transition-all touch-manipulation">
+                                    <i class="bi bi-arrow-counterclockwise text-lg md:text-base"></i>
+                                </button>
+                                <button onclick="rotateMedia(90)" title="Rotate Right"
+                                        class="text-white bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-full w-12 h-12 md:w-10 md:h-10 flex items-center justify-center shadow-lg transition-all touch-manipulation">
+                                    <i class="bi bi-arrow-clockwise text-lg md:text-base"></i>
+                                </button>
+                                <button onclick="zoomMedia(-0.2)" title="Zoom Out"
+                                        class="text-white bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-full w-12 h-12 md:w-10 md:h-10 flex items-center justify-center shadow-lg transition-all touch-manipulation">
+                                    <i class="bi bi-dash-lg text-lg md:text-base"></i>
+                                </button>
+                                <button onclick="zoomMedia(0.2)" title="Zoom In"
+                                        class="text-white bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-full w-12 h-12 md:w-10 md:h-10 flex items-center justify-center shadow-lg transition-all touch-manipulation">
+                                    <i class="bi bi-plus-lg text-lg md:text-base"></i>
+                                </button>
+                                <button onclick="resetMedia()" title="Reset View"
+                                        class="text-white bg-gray-700 hover:bg-gray-600 active:bg-gray-500 rounded-full w-12 h-12 md:w-10 md:h-10 flex items-center justify-center shadow-lg transition-all touch-manipulation">
+                                    <i class="bi bi-arrow-repeat text-lg md:text-base"></i>
+                                </button>
+                            ` : `
+                                <span class="text-white text-sm font-medium px-2 py-1">${hasMultiple ? (currentMediaIndex + 1) + ' / ' + totalMedia : ''}</span>
+                            `}
+                        </div>
+                        <button onclick="document.getElementById('mediaViewerModal').remove(); document.body.style.overflow = '';"
+                                class="text-white bg-red-500 hover:bg-red-600 active:bg-red-700 rounded-lg px-5 py-2.5 md:px-4 md:py-2 flex items-center justify-center gap-2 text-base md:text-sm font-semibold shadow-lg transition-all touch-manipulation">
+                            <span>Exit</span>
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            const navigation = hasMultiple ? `
+                <div class="absolute ${type === 'video' ? 'bottom-20 md:bottom-20' : 'bottom-4 md:bottom-4'} left-1/2 transform -translate-x-1/2 flex items-center gap-3 md:gap-4 z-10">
+                    <button onclick="navigateMedia(-1)"
+                            ${currentMediaIndex === 0 ? 'disabled' : ''}
+                            class="text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full w-14 h-14 md:w-12 md:h-12 flex items-center justify-center text-2xl md:text-xl shadow-lg transition-all touch-manipulation">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <div class="bg-black bg-opacity-75 text-white px-4 py-2.5 md:px-6 md:py-2 rounded-full text-sm md:text-sm font-semibold shadow-lg">
+                        ${currentMediaIndex + 1} of ${totalMedia}
+                    </div>
+                    <button onclick="navigateMedia(1)"
+                            ${currentMediaIndex === totalMedia - 1 ? 'disabled' : ''}
+                            class="text-white bg-blue-600 hover:bg-blue-700 active:bg-blue-800 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-full w-14 h-14 md:w-12 md:h-12 flex items-center justify-center text-2xl md:text-xl shadow-lg transition-all touch-manipulation">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>
+            ` : '';
+
+            const mediaContent = type === 'image' ? `
+                <div class="flex items-center justify-center w-full h-full max-h-[calc(100vh-5rem)] px-2">
+                    <img id="mediaViewerImage" src="${url}"
+                         class="max-w-full max-h-full object-contain transition-transform duration-200 touch-manipulation"
+                         style="transform: rotate(0deg) scale(1);">
+                </div>
+            ` : `
+                <div class="relative w-full h-full max-h-[calc(100vh-5rem)] flex flex-col items-center justify-center bg-black overflow-hidden" id="videoPlayerContainer">
+                    <video id="mediaViewerVideo" playsinline webkit-playsinline class="w-full h-full object-contain bg-black cursor-pointer">
+                        <source src="${url}" type="video/mp4">
+                        <source src="${url}" type="video/mov">
+                        <source src="${url}">
+                        Your browser does not support the video tag.
+                    </video>
+                    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent p-3 md:p-4 z-20" id="videoControls">
+                        <div class="relative w-full h-2 bg-gray-600 rounded-full mb-3 cursor-pointer group" id="progressContainer">
+                            <div class="absolute h-full bg-gray-400 rounded-full" id="bufferedBar" style="width: 0%"></div>
+                            <div class="absolute h-full bg-blue-500 rounded-full" id="progressBar" style="width: 0%"></div>
+                            <div class="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow" id="progressHandle" style="left: 0%"></div>
+                        </div>
+                        <div class="flex items-center gap-2 md:gap-4 text-white">
+                            <button id="playPauseBtn" class="hover:text-blue-400 transition w-10 h-10 flex items-center justify-center">
+                                <i class="bi bi-play-fill text-2xl" id="playIcon"></i>
+                            </button>
+                            <span class="text-xs md:text-sm font-mono whitespace-nowrap" id="timeDisplay">0:00 / 0:00</span>
+                            <div class="flex-1"></div>
+                            <button onclick="window.skipMediaVideo(-10)" class="hover:text-blue-400 transition w-10 h-10 flex items-center justify-center" title="-10s">
+                                <i class="bi bi-skip-backward-fill text-xl"></i>
+                            </button>
+                            <button onclick="window.skipMediaVideo(30)" class="hover:text-blue-400 transition w-10 h-10 flex items-center justify-center" title="+30s">
+                                <i class="bi bi-skip-forward-fill text-xl"></i>
+                            </button>
+                            <button id="volumeBtn" class="hover:text-blue-400 transition w-10 h-10 flex items-center justify-center">
+                                <i class="bi bi-volume-up-fill text-xl" id="volumeIcon"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            modal.innerHTML = `
+                <div class="relative w-full h-full flex items-center justify-center">
+                    ${mediaContent}
+                    ${controls}
+                    ${navigation}
+                </div>
+            `;
+
+            if (type === 'video') {
+                setTimeout(() => {
+                    const video = document.getElementById('mediaViewerVideo');
+                    const playPauseBtn = document.getElementById('playPauseBtn');
+                    const playIcon = document.getElementById('playIcon');
+                    const progressBar = document.getElementById('progressBar');
+                    const bufferedBar = document.getElementById('bufferedBar');
+                    const progressHandle = document.getElementById('progressHandle');
+                    const progressContainer = document.getElementById('progressContainer');
+                    const timeDisplay = document.getElementById('timeDisplay');
+                    const volumeBtn = document.getElementById('volumeBtn');
+                    const volumeIcon = document.getElementById('volumeIcon');
+
+                    if (!video) return;
+
+                    function formatTime(seconds) {
+                        if (isNaN(seconds)) return '0:00';
+                        const mins = Math.floor(seconds / 60);
+                        const secs = Math.floor(seconds % 60);
+                        return `${mins}:${secs.toString().padStart(2, '0')}`;
+                    }
+
+                    video.preload = 'auto';
+                    video.load();
+                    const playPromise = video.play();
+                    if (playPromise !== undefined) {
+                        playPromise.catch(() => {});
+                    }
+
+                    if (playPauseBtn) {
+                        playPauseBtn.onclick = () => { video.paused ? video.play() : video.pause(); };
+                    }
+                    video.onclick = () => { video.paused ? video.play() : video.pause(); };
+                    video.onplay = () => { if (playIcon) playIcon.className = 'bi bi-pause-fill text-2xl'; };
+                    video.onpause = () => { if (playIcon) playIcon.className = 'bi bi-play-fill text-2xl'; };
+
+                    video.ontimeupdate = () => {
+                        const progress = (video.currentTime / video.duration) * 100;
+                        if (progressBar) progressBar.style.width = progress + '%';
+                        if (progressHandle) progressHandle.style.left = progress + '%';
+                        if (timeDisplay) timeDisplay.textContent = `${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+                    };
+                    video.onprogress = () => {
+                        if (video.buffered.length > 0 && bufferedBar) {
+                            const buffered = (video.buffered.end(video.buffered.length - 1) / video.duration) * 100;
+                            bufferedBar.style.width = buffered + '%';
+                        }
+                    };
+                    if (progressContainer) {
+                        progressContainer.onclick = (e) => {
+                            const rect = progressContainer.getBoundingClientRect();
+                            video.currentTime = ((e.clientX - rect.left) / rect.width) * video.duration;
+                        };
+                    }
+                    if (volumeBtn) {
+                        volumeBtn.onclick = () => {
+                            video.muted = !video.muted;
+                            if (volumeIcon) volumeIcon.className = video.muted ? 'bi bi-volume-mute-fill text-xl' : 'bi bi-volume-up-fill text-xl';
+                        };
+                    }
+                    window.skipMediaVideo = (seconds) => {
+                        video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + seconds));
+                    };
+                }, 100);
+            }
+
+            if (type === 'image') {
+                window.rotateMedia = (deg) => {
+                    rotation += deg;
+                    const img = document.getElementById('mediaViewerImage');
+                    if (img) img.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+                };
+                window.zoomMedia = (delta) => {
+                    scale = Math.max(minScale, Math.min(maxScale, scale + delta));
+                    const img = document.getElementById('mediaViewerImage');
+                    if (img) img.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+                };
+                window.resetMedia = () => {
+                    rotation = 0; scale = 1;
+                    const img = document.getElementById('mediaViewerImage');
+                    if (img) img.style.transform = 'rotate(0deg) scale(1)';
+                };
+
+                const img = document.getElementById('mediaViewerImage');
+                if (img) {
+                    let initialDistance = 0, initialScale = 1;
+                    img.addEventListener('touchstart', (e) => {
+                        if (e.touches.length === 2) {
+                            e.preventDefault();
+                            initialDistance = Math.sqrt(
+                                Math.pow(e.touches[0].clientX - e.touches[1].clientX, 2) +
+                                Math.pow(e.touches[0].clientY - e.touches[1].clientY, 2)
+                            );
+                            initialScale = scale;
+                        }
+                    }, { passive: false });
+                    img.addEventListener('touchmove', (e) => {
+                        if (e.touches.length === 2) {
+                            e.preventDefault();
+                            const currentDistance = Math.sqrt(
+                                Math.pow(e.touches[0].clientX - e.touches[1].clientX, 2) +
+                                Math.pow(e.touches[0].clientY - e.touches[1].clientY, 2)
+                            );
+                            scale = Math.max(minScale, Math.min(maxScale, initialScale * (currentDistance / initialDistance)));
+                            img.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+                        }
+                    }, { passive: false });
+                }
+            }
+        }
+
+        function navigateMedia(direction) {
+            const newIndex = currentMediaIndex + direction;
+            if (newIndex >= 0 && newIndex < currentMediaArray.length) {
+                currentMediaIndex = newIndex;
+                const modal = document.getElementById('mediaViewerModal');
+                if (modal) {
+                    const video = document.getElementById('mediaViewerVideo');
+                    if (video) video.pause();
+                    renderMediaViewer(modal);
+                }
+            }
+        }
+
+        function viewAllRoomEntryMedia() {
+            if (!roomEntryData) return;
+            document.body.style.overflow = 'hidden';
+
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center p-4';
+            modal.style.zIndex = '200';
+            modal.onclick = (e) => {
+                if (e.target === modal) { modal.remove(); document.body.style.overflow = ''; }
+            };
+
+            const closeBtn = `
+                <button onclick="this.parentElement.remove(); document.body.style.overflow = '';"
+                        class="absolute top-2 md:top-4 right-2 md:right-4 text-white bg-red-500 hover:bg-red-600 active:bg-red-700 rounded-full w-14 h-14 md:w-12 md:h-12 flex items-center justify-center text-3xl md:text-2xl z-10 shadow-lg touch-manipulation transition-all">
+                    &times;
+                </button>
+            `;
+
+            modal.innerHTML = closeBtn + `
+                <div class="bg-white rounded-xl max-w-7xl w-full max-h-[90vh] overflow-y-auto p-4 md:p-8 shadow-2xl" onclick="event.stopPropagation()">
+                    <div class="flex flex-col md:flex-row items-start md:items-center justify-between mb-4 md:mb-6 gap-3">
+                        <div>
+                            <h2 class="text-2xl md:text-3xl font-bold text-gray-800">Media Gallery</h2>
+                            <p class="text-sm md:text-base text-gray-600 mt-1">Thock Number: <span class="font-semibold">${roomEntryData.thock_number}</span></p>
+                        </div>
+                        <div id="allMediaStats" class="text-left md:text-right">
+                            <div class="text-sm text-gray-500">Loading...</div>
+                        </div>
+                    </div>
+                    <div id="allMediaContent">
+                        <div class="flex items-center justify-center py-12">
+                            <div class="text-gray-400">Loading media...</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+            loadAllREMediaInModal();
+        }
+
+        async function loadAllREMediaInModal() {
+            try {
+                let entryMedia, pickupMedia, editMedia;
+                if (window.cachedREMediaData) {
+                    entryMedia = window.cachedREMediaData.entry_media || [];
+                    pickupMedia = window.cachedREMediaData.pickup_media || [];
+                    editMedia = window.cachedREMediaData.edit_media || [];
+                } else {
+                    const thockNumber = roomEntryData ? roomEntryData.thock_number : '';
+                    const fetches = [
+                        fetch(`/api/room-entries/${roomEntryId}/media`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        })
+                    ];
+                    if (thockNumber) {
+                        fetches.push(
+                            fetch(`/api/gate-passes/media/by-thock?thock_number=${encodeURIComponent(thockNumber)}`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            })
+                        );
+                    }
+                    const [reResponse, gpResponse] = await Promise.all(fetches);
+                    if (!reResponse.ok) throw new Error('Failed to load media');
+                    const reData = await reResponse.json();
+                    entryMedia = [];
+                    pickupMedia = [];
+                    if (gpResponse && gpResponse.ok) {
+                        const gpData = await gpResponse.json();
+                        entryMedia = gpData.entry_media || [];
+                        pickupMedia = gpData.pickup_media || [];
+                    }
+                    editMedia = reData.edit_media || [];
+                    window.cachedREMediaData = { entry_media: entryMedia, pickup_media: pickupMedia, edit_media: editMedia };
+                }
+
+                const totalMedia = entryMedia.length + pickupMedia.length + editMedia.length;
+
+                const formatTimestamp = (timestamp) => {
+                    if (!timestamp) return 'Unknown time';
+                    const date = new Date(timestamp);
+                    return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                };
+                const formatFileSize = (bytes) => {
+                    if (!bytes) return '';
+                    if (bytes < 1024) return bytes + ' B';
+                    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+                    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+                };
+
+                const statsDiv = document.getElementById('allMediaStats');
+                statsDiv.innerHTML = `
+                    <div class="text-2xl font-bold text-gray-800">${totalMedia}</div>
+                    <div class="text-sm text-gray-500">Total Files</div>
+                    <div class="flex flex-wrap gap-4 mt-2 text-sm">
+                        <div class="flex items-center gap-1">
+                            <span class="w-3 h-3 bg-blue-500 rounded-full"></span>
+                            <span>${entryMedia.length} Entry</span>
+                        </div>
+                        ${pickupMedia.length > 0 ? `
+                        <div class="flex items-center gap-1">
+                            <span class="w-3 h-3 bg-green-500 rounded-full"></span>
+                            <span>${pickupMedia.length} Pickup</span>
+                        </div>
+                        ` : ''}
+                        <div class="flex items-center gap-1">
+                            <span class="w-3 h-3 bg-orange-500 rounded-full"></span>
+                            <span>${editMedia.length} Edit</span>
+                        </div>
+                    </div>
+                `;
+
+                const contentDiv = document.getElementById('allMediaContent');
+                if (totalMedia === 0) {
+                    contentDiv.innerHTML = '<p class="text-gray-500 text-center py-12">No media available</p>';
+                    return;
+                }
+
+                const allMedia = [...entryMedia, ...pickupMedia, ...editMedia];
+                window.currentModalMedia = allMedia;
+
+                const renderMediaGrid = (mediaList, title, colorClass, startIndex) => {
+                    if (mediaList.length === 0) return '';
+                    return `
+                        <div class="mb-8">
+                            <div class="flex items-center gap-2 mb-4">
+                                <h3 class="text-xl font-bold text-gray-800">${title}</h3>
+                                <span class="bg-${colorClass}-100 text-${colorClass}-700 px-3 py-1 rounded-full text-sm font-semibold">
+                                    ${mediaList.length} ${mediaList.length === 1 ? 'file' : 'files'}
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                                ${mediaList.map((m, idx) => `
+                                    <div class="border-2 border-gray-200 rounded-xl overflow-hidden hover:shadow-xl hover:border-${colorClass}-400 transition-all group">
+                                        <div class="relative cursor-pointer"
+                                             onclick='openMediaViewer("${m.download_url}", "${m.file_type}", window.currentModalMedia, ${startIndex + idx})'>
+                                            ${m.file_type === 'image' ? `
+                                                <div class="w-full h-48 bg-black flex items-center justify-center overflow-hidden">
+                                                    <img src="${m.download_url}" loading="lazy" class="max-w-full max-h-full object-contain" alt="${m.file_name}">
+                                                </div>
+                                            ` : `
+                                                <div class="w-full h-48 bg-gray-900 overflow-hidden relative flex items-center justify-center">
+                                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                                                        <i class="bi bi-play-circle-fill text-white text-6xl drop-shadow-lg"></i>
+                                                        <span class="text-white text-sm mt-2 drop-shadow">Click to Play</span>
+                                                    </div>
+                                                </div>
+                                            `}
+                                            <div class="absolute top-2 left-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded-md flex items-center gap-1">
+                                                <i class="bi bi-${m.file_type === 'image' ? 'image' : 'camera-video'}-fill"></i>
+                                                <span class="uppercase">${m.file_type}</span>
+                                            </div>
+                                            <div class="absolute top-2 right-2 bg-${colorClass}-500 text-white text-xs px-3 py-1 rounded-full font-bold shadow-lg">
+                                                ${title.toUpperCase()}
+                                            </div>
+                                            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all flex items-center justify-center">
+                                                <i class="bi bi-zoom-in text-white text-4xl opacity-0 group-hover:opacity-100 transition-opacity"></i>
+                                            </div>
+                                        </div>
+                                        <div class="p-3 bg-gray-50">
+                                            <div class="flex items-start gap-2 mb-2">
+                                                <i class="bi bi-person-fill text-gray-600 mt-0.5"></i>
+                                                <p class="text-sm font-semibold text-gray-800 truncate" title="${m.uploaded_by_user_name || 'Unknown'}">
+                                                    ${m.uploaded_by_user_name || 'Unknown User'}
+                                                </p>
+                                            </div>
+                                            <div class="flex items-start gap-2 mb-2">
+                                                <i class="bi bi-clock text-gray-600 mt-0.5"></i>
+                                                <p class="text-xs text-gray-600">${formatTimestamp(m.created_at)}</p>
+                                            </div>
+                                            ${m.file_size ? `
+                                                <div class="flex items-center gap-2">
+                                                    <i class="bi bi-file-earmark text-gray-600"></i>
+                                                    <p class="text-xs text-gray-600">${formatFileSize(m.file_size)}</p>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                };
+
+                contentDiv.innerHTML =
+                    renderMediaGrid(entryMedia, 'Entry Media', 'blue', 0) +
+                    renderMediaGrid(pickupMedia, 'Pickup Media', 'green', entryMedia.length) +
+                    renderMediaGrid(editMedia, 'Edit Media', 'orange', entryMedia.length + pickupMedia.length);
+
+            } catch (error) {
+                console.error('Error loading all media:', error);
+                const contentDiv = document.getElementById('allMediaContent');
+                if (contentDiv) contentDiv.innerHTML = '<p class="text-red-500 text-center py-12">Failed to load media.</p>';
+            }
+        }
+
+        // Media capture handlers
+        function handleREMediaCapture(input) {
+            const mainInput = document.getElementById('reMediaFiles');
+            if (input.files && input.files.length > 0) {
+                const dt = new DataTransfer();
+                if (mainInput.files) {
+                    Array.from(mainInput.files).forEach(file => dt.items.add(file));
+                }
+                Array.from(input.files).forEach(file => dt.items.add(file));
+                mainInput.files = dt.files;
+                previewREMedia(mainInput);
+                input.value = '';
+            }
+        }
+
+        function previewREMedia(input) {
+            const previewDiv = document.getElementById('reMediaPreviewNew');
+            const thumbnailsDiv = document.getElementById('reMediaThumbnails');
+            const countSpan = document.getElementById('reMediaCountNew');
+
+            if (!input.files || input.files.length === 0) {
+                previewDiv.classList.add('hidden');
+                return;
+            }
+
+            countSpan.textContent = input.files.length;
+            previewDiv.classList.remove('hidden');
+            thumbnailsDiv.innerHTML = '';
+
+            Array.from(input.files).forEach((file, index) => {
+                const isVideo = file.type.startsWith('video/');
+                const isImage = file.type.startsWith('image/');
+                const thumbDiv = document.createElement('div');
+                thumbDiv.className = 'relative border-2 border-green-300 rounded-lg overflow-hidden h-16';
+
+                if (isImage) {
+                    const objUrl = URL.createObjectURL(file);
+                    thumbDiv.innerHTML = `
+                        <img src="${objUrl}" class="w-full h-full object-cover" onload="URL.revokeObjectURL(this.src)">
+                        <div class="absolute top-0 right-0 bg-green-500 text-white text-[8px] px-1 rounded-bl">${index + 1}</div>
+                    `;
+                } else if (isVideo) {
+                    thumbDiv.innerHTML = `
+                        <div class="w-full h-full bg-gradient-to-br from-gray-700 to-gray-900 flex flex-col items-center justify-center">
+                            <i class="bi bi-play-circle-fill text-white text-xl"></i>
+                            <span class="text-white text-[8px] mt-0.5">VIDEO</span>
+                        </div>
+                        <div class="absolute top-0 right-0 bg-green-500 text-white text-[8px] px-1 rounded-bl">${index + 1}</div>
+                    `;
+                } else {
+                    thumbDiv.innerHTML = `<div class="w-full h-full bg-gray-200 flex items-center justify-center"><i class="bi bi-file-earmark text-gray-500"></i></div>`;
+                }
+
+                thumbnailsDiv.appendChild(thumbDiv);
+            });
+        }
+
+        // Upload media files and save metadata
+        async function uploadREMedia(files, reData) {
+            const progressDiv = document.getElementById('reUploadProgress');
+            const progressBar = document.getElementById('reUploadBar');
+            const statusText = document.getElementById('reUploadStatus');
+            const percentText = document.getElementById('reUploadPercent');
+
+            progressDiv.classList.remove('hidden');
+            statusText.textContent = 'Uploading...';
+            statusText.className = 'text-xs font-bold text-green-700';
+
+            const thockNo = reData.thock_number;
+            const userInfo = getUserInfoFromToken();
+            const safeEmployee = userInfo.name.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
+            const safeThok = thockNo.toString().replace(/\//g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
+            const targetPath = 'Room Config';
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                const newFileName = `RE_${safeThok}_edit_RE${roomEntryId}_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
+
+                statusText.textContent = `Uploading file ${i + 1} of ${files.length}...`;
+
+                // Step 1: Upload file
+                try {
+                    await uploadSingleFile(file, targetPath, (pct) => {
+                        const totalPct = ((i + (pct/100)) / files.length) * 100;
+                        progressBar.style.width = `${totalPct}%`;
+                        percentText.textContent = `${Math.round(totalPct)}%`;
+                    }, newFileName);
+                } catch (uploadErr) {
+                    console.error(`File upload failed for ${newFileName}:`, uploadErr);
+                    failCount++;
+                    statusText.textContent = `File ${i + 1} upload failed - skipping`;
+                    statusText.className = 'text-xs font-bold text-red-700';
+                    continue; // Skip metadata save — file didn't upload
+                }
+
+                // Step 2: Save metadata (only if file upload succeeded)
+                try {
+                    await saveREMediaMetadata({
+                        room_entry_id: parseInt(roomEntryId),
+                        thock_number: thockNo,
+                        media_type: 'edit',
+                        file_name: newFileName,
+                        file_path: `Room Config/${newFileName}`,
+                        file_type: file.type.startsWith('image/') ? 'image' : 'video',
+                        file_size: file.size
+                    });
+                    successCount++;
+                } catch (metaErr) {
+                    console.error(`Metadata save failed for ${newFileName}:`, metaErr);
+                    failCount++;
+                    statusText.textContent = `File ${i + 1} metadata save failed`;
+                    statusText.className = 'text-xs font-bold text-red-700';
+                }
+            }
+
+            if (failCount === 0) {
+                statusText.textContent = `Upload Complete (${successCount} files)`;
+                statusText.className = 'text-xs font-bold text-green-700';
+            } else if (successCount > 0) {
+                statusText.textContent = `${successCount} uploaded, ${failCount} failed`;
+                statusText.className = 'text-xs font-bold text-orange-600';
+            } else {
+                statusText.textContent = `Upload Failed (${failCount} files)`;
+                statusText.className = 'text-xs font-bold text-red-700';
+            }
+
+            setTimeout(() => {
+                progressDiv.classList.add('hidden');
+                progressBar.style.width = '0%';
+            }, 3000);
+        }
+
+        function uploadSingleFile(file, path, onProgress, customName = null) {
+            return new Promise((resolve, reject) => {
+                const formData = new FormData();
+                formData.append('file', customName ? new File([file], customName, {type: file.type}) : file);
+                formData.append('root', 'bulk');
+                formData.append('path', path);
+
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+                });
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve();
+                    } else {
+                        reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
+                    }
+                });
+                xhr.addEventListener('error', () => reject(new Error('Network error during file upload')));
+                xhr.addEventListener('timeout', () => reject(new Error('File upload timed out')));
+                xhr.timeout = 120000; // 2 min timeout for large videos
+                xhr.open('POST', '/api/files/upload');
+                xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                xhr.send(formData);
+            });
+        }
+
+        async function saveREMediaMetadata(mediaData) {
+            const resp = await fetch('/api/room-entries/media', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mediaData)
+            });
+            if (!resp.ok) {
+                const errText = await resp.text();
+                throw new Error(`Metadata save failed (${resp.status}): ${errText}`);
+            }
+            return await resp.json();
+        }
+
+        function getUserInfoFromToken() {
+            try {
+                const tkn = localStorage.getItem('token');
+                const base64Url = tkn.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c =>
+                    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+                ).join(''));
+                const data = JSON.parse(jsonPayload);
+                return { name: data.name || 'Employee', id: data.user_id || 0 };
+            } catch (e) {
+                return { name: 'Employee', id: 0 };
+            }
         }
     </script>
 </body>

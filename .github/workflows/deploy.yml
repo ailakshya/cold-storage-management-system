@@ -9,123 +9,199 @@ on:
 jobs:
   deploy:
     runs-on: [self-hosted, cold-server-runner]
+    timeout-minutes: 15
+    env:
+      APP_DIR: /home/cold/cold-storage
+      IMAGE_NAME: cold-backend
+
     steps:
       - name: Clean Workspace
         run: |
-          echo "Cleaning workspace..."
-          rm -rf ./* || true
-          rm -rf ./.git || true
-          rm -rf ./.github || true
+          rm -rf ./* ./.git ./.github || true
 
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
-          submodules: false
 
       - name: Prepare Assets
         run: |
-          echo "Preparing static assets..."
-          # Ensure static directory exists
           mkdir -p static
-          # Copy portfolio template to index.html for the website mode
           cp templates/portfolio.html static/index.html
 
-      - name: Deploy to Server
+      - name: Set Image Tag
+        id: tag
         run: |
-          # Explicitly target the cold user's directory
-          APP_DIR=/home/cold/cold-storage
-          
-          echo "Building server binary..."
-          # Listing files to verify checkout
-          ls -F
-          
-          # Setup Go Cache
-          export GOCACHE=/tmp/go-build-cache
-          mkdir -p $GOCACHE
-          
-          # Build binary locally (Runner IS the server) using ABSOLUTE path
-          CGO_ENABLED=0 /usr/local/go/bin/go build -trimpath -ldflags="-w -s" -o cold-backend ./cmd/server
-          
-          echo "Preparing deployment..."
-          mkdir -p $APP_DIR
-          
-          # Backup current binary
-          if [ -f $APP_DIR/server ]; then
-            cp $APP_DIR/server $APP_DIR/server.bak
-          fi
-          
-          # Install new binary
-          mv cold-backend $APP_DIR/server
-          chmod +x $APP_DIR/server
+          SHA=$(git rev-parse --short HEAD)
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Image tag: $SHA"
 
-          # Update assets
-          echo "Updating assets..."
-          rm -rf $APP_DIR/static $APP_DIR/templates
-          cp -r static $APP_DIR/
-          cp -r templates $APP_DIR/
-          # Ensure backup directories exist and are writable
-          echo "Configuring Backup Directories..."
-          # Change to home to avoid sudo permission warnings
-          cd $HOME
-          echo "Lak992723/" | sudo -S mkdir -p /mass-pool/backups
-          echo "Lak992723/" | sudo -S chown -R cold:cold /mass-pool/backups
-          echo "Lak992723/" | sudo -S chmod -R 775 /mass-pool/backups
-          cd - > /dev/null
-          
-          mkdir -p $APP_DIR/backups
-          chown -R cold:cold $APP_DIR/backups || true
-          
-          # Ensure database password matches application expectation
-          echo "Configuring Database..."
-          cd $HOME
-          echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER postgres PASSWORD 'SecurePostgresPassword123';" || true
-          echo "Lak992723/" | sudo -S -u postgres psql -c "CREATE USER cold_user WITH PASSWORD 'SecurePostgresPassword123';" 2>/dev/null || true
-          echo "Lak992723/" | sudo -S -u postgres psql -c "ALTER USER cold_user PASSWORD 'SecurePostgresPassword123';" || true
-          echo "Lak992723/" | sudo -S -u postgres psql -c "CREATE DATABASE cold_db;" 2>/dev/null || true
-          echo "Lak992723/" | sudo -S -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE cold_db TO cold_user;" || true
-          
-          # Force TRUST auth for localhost to guarantee connectivity (Production Local DB)
-          PG_HBA=$(echo "Lak992723/" | sudo -S -u postgres psql -t -P format=unaligned -c 'show hba_file')
-          if [ -f "$PG_HBA" ]; then
-             echo "Updating pg_hba.conf at $PG_HBA..."
-             # Add trust rule for 127.0.0.1 at the top if not present
-             if ! echo "Lak992723/" | sudo -S grep -q "host    all             all             127.0.0.1/32            trust" "$PG_HBA"; then
-                 echo "Lak992723/" | sudo -S sed -i '1s/^/host    all             all             127.0.0.1\/32            trust\n/' "$PG_HBA"
-                 echo "Lak992723/" | sudo -S systemctl reload postgresql
-             fi
-          fi
-          cd - > /dev/null
+      - name: Storage Pre-Flight Check
+        run: |
+          echo "=== Storage Health (ZFS + mdraid) ==="
+          bash scripts/zfs-health-check.sh --deploy-gate || {
+            EXIT=$?
+            if [ $EXIT -ge 2 ]; then
+              echo "::error::Storage health critical — aborting deploy"
+              exit 1
+            fi
+            # exit 1 = degraded, allow deploy with warning
+          }
 
-          # Restart services using systemd (Needs SUDO)
-          echo "Restarting services..."
-          # Ensure config directory exists
-          mkdir -p $APP_DIR/configs
-          if [ -d "configs" ]; then
-             cp -r configs $APP_DIR/
-          fi
-          
-          cd $HOME
-          echo "Lak992723/" | sudo -S systemctl restart cold-employee cold-customer cold-website
-          cd - > /dev/null
-          
-          # Wait and check
-          echo "Verifying deployment..."
-          sleep 10
-          
-          if systemctl is-active --quiet cold-employee && systemctl is-active --quiet cold-customer && systemctl is-active --quiet cold-website; then
-            echo "✅ All services started successfully"
-            echo "--- Employee Service ---"
-            systemctl status cold-employee --no-pager
-            echo "--- Customer Service ---"
-            systemctl status cold-customer --no-pager
-            echo "--- Website Service ---"
-            systemctl status cold-website --no-pager
-          else
-            echo "❌ Some services failed to start"
-            echo "Checking logs..."
-            journalctl -u cold-employee -n 20 --no-pager
-            journalctl -u cold-customer -n 20 --no-pager
-            journalctl -u cold-website -n 20 --no-pager
+          echo "=== Verifying Mount Points ==="
+          for DIR in /mass-pool/shared /mass-pool/archives /mass-pool/trash /mass-pool/backups /fast-pool/data /fast-pool/timescaledb; do
+            if [ ! -d "$DIR" ]; then
+              echo "::error::Mount point $DIR does not exist"
+              exit 1
+            fi
+            OWNER=$(stat -c '%u' "$DIR")
+            if [ "$OWNER" != "1000" ]; then
+              echo "::warning::$DIR owned by UID $OWNER, fixing to 1000..."
+              sudo chown 1000:1000 "$DIR"
+            fi
+          done
+
+          # Write test on each pool
+          touch /mass-pool/shared/.deploy-test && rm /mass-pool/shared/.deploy-test
+          touch /fast-pool/data/.deploy-test && rm /fast-pool/data/.deploy-test
+          echo "Mount points verified: all paths exist, writable, correct ownership"
+
+      - name: Build Docker Image
+        run: |
+          DOCKER_BUILDKIT=1 docker build \
+            -f Dockerfile.production \
+            -t "$IMAGE_NAME:${{ steps.tag.outputs.sha }}" \
+            -t "$IMAGE_NAME:latest" \
+            .
+
+      - name: Verify Environment File
+        run: |
+          if [ ! -f "$APP_DIR/.env.production" ]; then
+            echo "::error::.env.production not found at $APP_DIR/.env.production"
+            echo "Create it with: DB_USER, DB_PASSWORD, DB_NAME, JWT_SECRET, METRICS_DB_USER, METRICS_DB_PASSWORD, METRICS_DB_NAME"
             exit 1
           fi
+
+      - name: Configure pg_hba for Docker Bridge
+        run: |
+          # Allow Docker containers to connect to host PostgreSQL (one-time, idempotent)
+          PG_HBA=$(sudo -u postgres psql -t -P format=unaligned -c 'SHOW hba_file' 2>/dev/null || echo "")
+          if [ -n "$PG_HBA" ] && [ -f "$PG_HBA" ]; then
+            if ! sudo grep -q "172.16.0.0/12" "$PG_HBA"; then
+              echo "Adding Docker bridge subnet to pg_hba.conf..."
+              sudo sed -i '1s|^|host    all             all             172.16.0.0/12           md5\n|' "$PG_HBA"
+              sudo systemctl reload postgresql
+              echo "pg_hba.conf updated and PostgreSQL reloaded"
+            else
+              echo "Docker bridge subnet already in pg_hba.conf"
+            fi
+          else
+            echo "::warning::Could not locate pg_hba.conf — verify Docker-to-PostgreSQL connectivity manually"
+          fi
+
+      - name: Deploy with Docker Compose
+        run: |
+          # Copy production files to app directory
+          cp docker-compose.production.yml "$APP_DIR/"
+          cp Dockerfile.production "$APP_DIR/"
+          cp -r scripts "$APP_DIR/" 2>/dev/null || true
+          cp -r configs "$APP_DIR/" 2>/dev/null || true
+
+          # Deploy — only recreates containers whose image/config changed
+          # Redis and TimescaleDB stay running if unchanged (zero downtime for them)
+          cd "$APP_DIR"
+          IMAGE_TAG="${{ steps.tag.outputs.sha }}" \
+            docker compose -f docker-compose.production.yml \
+            --env-file .env.production \
+            up -d
+
+          echo "Containers launched — waiting for health checks..."
+
+      - name: Wait for Health
+        run: |
+          echo "Polling container health..."
+          MAX_WAIT=90
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            HEALTH=$(docker inspect --format='{{.State.Health.Status}}' cold-backend 2>/dev/null || echo "starting")
+            if [ "$HEALTH" = "healthy" ]; then
+              echo "Container healthy after ${ELAPSED}s"
+              break
+            fi
+            echo "  Status: $HEALTH (${ELAPSED}s/${MAX_WAIT}s)"
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+          done
+
+          if [ "$HEALTH" != "healthy" ]; then
+            echo "::error::Container did not become healthy within ${MAX_WAIT}s"
+            echo "=== Container Logs ==="
+            docker logs cold-backend --tail 50
+            exit 1
+          fi
+
+          # Verify all ports respond
+          echo "=== Port Verification ==="
+          for PORT in 8080 8081 8082; do
+            if curl -sf --max-time 5 "http://localhost:${PORT}/health" > /dev/null 2>&1; then
+              echo "  Port $PORT: OK"
+            else
+              echo "::error::Port $PORT not responding"
+              docker logs cold-backend --tail 30
+              exit 1
+            fi
+          done
+          echo "All ports healthy"
+
+      - name: Verify Cloudflare Tunnel
+        run: |
+          # Tunnel uses token-based config managed via Cloudflare dashboard
+          # Just verify the service is running
+          if systemctl is-active --quiet cloudflared 2>/dev/null; then
+            echo "Cloudflare tunnel: active"
+          else
+            echo "::warning::Cloudflare tunnel service is not running"
+            echo "Start it with: sudo systemctl start cloudflared"
+          fi
+
+      - name: Stop Legacy Systemd Services
+        run: |
+          # Idempotent: stop old bare-metal services if they still exist
+          for SVC in cold-employee cold-customer cold-website; do
+            if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+              echo "Stopping legacy service: $SVC"
+              sudo systemctl stop "$SVC"
+              sudo systemctl disable "$SVC"
+            fi
+          done
+
+      - name: Cleanup Old Images
+        run: |
+          # Keep last 3 tagged images, prune the rest
+          docker image ls "$IMAGE_NAME" --format '{{.Tag}}' | \
+            grep -vE '^latest$' | sort -r | tail -n +4 | \
+            xargs -I{} docker image rm "$IMAGE_NAME:{}" 2>/dev/null || true
+          docker image prune -f > /dev/null 2>&1 || true
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "============================================"
+          echo "  Deployment Complete"
+          echo "============================================"
+          echo "  Image:   $IMAGE_NAME:${{ steps.tag.outputs.sha }}"
+          echo "  Branch:  ${{ github.ref_name }}"
+          echo "  Commit:  ${{ github.sha }}"
+          echo ""
+          echo "=== Container Status ==="
+          docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}" | grep -E "cold-|NAME" || true
+          echo ""
+          echo "=== ZFS Pool Status ==="
+          zpool list 2>/dev/null || echo "zpool command not available"
+          echo ""
+          echo "=== Endpoints ==="
+          echo "  Employee:  https://app.gurukripacoldstore.in"
+          echo "  Customer:  https://customer.gurukripacoldstore.in"
+          echo "  Website:   https://gurukripacoldstore.in"
+          echo "============================================"

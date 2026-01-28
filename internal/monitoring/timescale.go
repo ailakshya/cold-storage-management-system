@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -149,9 +150,20 @@ func (ts *TimescaleStore) RecordAPIMetric(method, path string, status int, durat
 // Analytics Queries
 
 type APISummary struct {
+	TotalRequests   int64   `json:"total_requests"`
+	SuccessRequests int64   `json:"success_requests"`
+	AvgDurationMs   float64 `json:"avg_duration_ms"`
+	P95DurationMs   float64 `json:"p95_duration_ms"`
+	ErrorRate       float64 `json:"error_rate"`
+}
+
+type EndpointStat struct {
+	Path          string  `json:"path"`
 	TotalRequests int64   `json:"total_requests"`
-	AvgDuration   float64 `json:"avg_duration"`
-	ErrorRate     float64 `json:"error_rate"`
+	AvgDurationMs float64 `json:"avg_duration_ms"`
+	P95DurationMs float64 `json:"p95_duration_ms"`
+	MaxDurationMs float64 `json:"max_duration_ms"`
+	ErrorCount    int64   `json:"error_count"`
 }
 
 type TimePoint struct {
@@ -168,22 +180,31 @@ func (ts *TimescaleStore) GetAPISummary(duration time.Duration) (APISummary, err
 		var total int64
 		var totalDur float64
 		var errors int64
+		var durations []float64
 		threshold := time.Now().Add(-duration)
 
 		for _, l := range ts.logBuffer {
 			if l.Time.After(threshold) {
 				total++
 				totalDur += l.Duration
+				durations = append(durations, l.Duration)
 				if l.StatusCode >= 500 {
 					errors++
 				}
 			}
 		}
 
-		summary := APISummary{TotalRequests: total}
+		summary := APISummary{TotalRequests: total, SuccessRequests: total - errors}
 		if total > 0 {
-			summary.AvgDuration = totalDur / float64(total)
+			summary.AvgDurationMs = totalDur / float64(total)
 			summary.ErrorRate = float64(errors) / float64(total)
+			// P95
+			sort.Float64s(durations)
+			p95Idx := int(float64(len(durations)) * 0.95)
+			if p95Idx >= len(durations) {
+				p95Idx = len(durations) - 1
+			}
+			summary.P95DurationMs = durations[p95Idx]
 		}
 		return summary, nil
 	}
@@ -192,13 +213,15 @@ func (ts *TimescaleStore) GetAPISummary(duration time.Duration) (APISummary, err
 	var summary APISummary
 
 	err := ts.pool.QueryRow(ctx, `
-		SELECT 
+		SELECT
 			COUNT(*) as total,
-			COALESCE(AVG(duration_ms), 0) as avg_lat,
+			COUNT(*) FILTER (WHERE status_code < 500) as success,
+			COALESCE(AVG(duration_ms), 0) as avg_dur,
+			COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms), 0) as p95_dur,
 			COALESCE(SUM(CASE WHEN status_code >= 500 THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0), 0) as err_rate
 		FROM metrics_api
 		WHERE time > NOW() - $1::interval
-	`, duration.String()).Scan(&summary.TotalRequests, &summary.AvgDuration, &summary.ErrorRate)
+	`, duration.String()).Scan(&summary.TotalRequests, &summary.SuccessRequests, &summary.AvgDurationMs, &summary.P95DurationMs, &summary.ErrorRate)
 
 	return summary, err
 }
@@ -365,4 +388,138 @@ func (ts *TimescaleStore) GetAPILogs(duration time.Duration, errorsOnly bool, li
 		logs = append(logs, l)
 	}
 	return logs, nil
+}
+
+func (ts *TimescaleStore) GetTopEndpoints(duration time.Duration, limit int) ([]EndpointStat, error) {
+	if !ts.enabled || ts.pool == nil {
+		return ts.getEndpointStatsFromBuffer(duration, limit, func(a, b EndpointStat) bool {
+			return a.TotalRequests > b.TotalRequests
+		}), nil
+	}
+
+	ctx := context.Background()
+	rows, err := ts.pool.Query(ctx, `
+		SELECT path, COUNT(*) as total,
+			AVG(duration_ms) as avg_dur,
+			COUNT(*) FILTER (WHERE status_code >= 400) as errors
+		FROM metrics_api
+		WHERE time > NOW() - $1::interval
+		GROUP BY path
+		ORDER BY total DESC
+		LIMIT $2
+	`, duration.String(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []EndpointStat
+	for rows.Next() {
+		var s EndpointStat
+		if err := rows.Scan(&s.Path, &s.TotalRequests, &s.AvgDurationMs, &s.ErrorCount); err != nil {
+			continue
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
+func (ts *TimescaleStore) GetSlowestEndpoints(duration time.Duration, limit int) ([]EndpointStat, error) {
+	if !ts.enabled || ts.pool == nil {
+		return ts.getEndpointStatsFromBuffer(duration, limit, func(a, b EndpointStat) bool {
+			return a.AvgDurationMs > b.AvgDurationMs
+		}), nil
+	}
+
+	ctx := context.Background()
+	rows, err := ts.pool.Query(ctx, `
+		SELECT path, COUNT(*) as total,
+			AVG(duration_ms) as avg_dur,
+			COALESCE(percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms), 0) as p95_dur,
+			MAX(duration_ms) as max_dur
+		FROM metrics_api
+		WHERE time > NOW() - $1::interval
+		GROUP BY path
+		ORDER BY avg_dur DESC
+		LIMIT $2
+	`, duration.String(), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var stats []EndpointStat
+	for rows.Next() {
+		var s EndpointStat
+		if err := rows.Scan(&s.Path, &s.TotalRequests, &s.AvgDurationMs, &s.P95DurationMs, &s.MaxDurationMs); err != nil {
+			continue
+		}
+		stats = append(stats, s)
+	}
+	return stats, nil
+}
+
+// getEndpointStatsFromBuffer aggregates endpoint stats from the in-memory log buffer.
+func (ts *TimescaleStore) getEndpointStatsFromBuffer(duration time.Duration, limit int, less func(a, b EndpointStat) bool) []EndpointStat {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
+
+	threshold := time.Now().Add(-duration)
+	type pathAgg struct {
+		total     int64
+		errors    int64
+		totalDur  float64
+		maxDur    float64
+		durations []float64
+	}
+	agg := make(map[string]*pathAgg)
+
+	for _, l := range ts.logBuffer {
+		if l.Time.Before(threshold) {
+			continue
+		}
+		p, ok := agg[l.Path]
+		if !ok {
+			p = &pathAgg{}
+			agg[l.Path] = p
+		}
+		p.total++
+		p.totalDur += l.Duration
+		p.durations = append(p.durations, l.Duration)
+		if l.Duration > p.maxDur {
+			p.maxDur = l.Duration
+		}
+		if l.StatusCode >= 400 {
+			p.errors++
+		}
+	}
+
+	stats := make([]EndpointStat, 0, len(agg))
+	for path, p := range agg {
+		s := EndpointStat{
+			Path:          path,
+			TotalRequests: p.total,
+			ErrorCount:    p.errors,
+			MaxDurationMs: p.maxDur,
+		}
+		if p.total > 0 {
+			s.AvgDurationMs = p.totalDur / float64(p.total)
+			sort.Float64s(p.durations)
+			p95Idx := int(float64(len(p.durations)) * 0.95)
+			if p95Idx >= len(p.durations) {
+				p95Idx = len(p.durations) - 1
+			}
+			s.P95DurationMs = p.durations[p95Idx]
+		}
+		stats = append(stats, s)
+	}
+
+	sort.Slice(stats, func(i, j int) bool {
+		return less(stats[i], stats[j])
+	})
+
+	if len(stats) > limit {
+		stats = stats[:limit]
+	}
+	return stats
 }

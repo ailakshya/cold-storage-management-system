@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"cold-backend/internal/cache"
 	"cold-backend/internal/middleware"
@@ -177,4 +178,78 @@ func (h *RoomEntryHandler) UpdateRoomEntry(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(roomEntry)
+}
+
+func (h *RoomEntryHandler) ListRoomEntryMedia(w http.ResponseWriter, r *http.Request) {
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid room entry ID", http.StatusBadRequest)
+		return
+	}
+
+	media, err := h.Service.GetMediaByRoomEntryID(r.Context(), id)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(media)
+}
+
+func (h *RoomEntryHandler) ListRoomEntryMediaByThock(w http.ResponseWriter, r *http.Request) {
+	thockNumber := r.URL.Query().Get("thock_number")
+	if thockNumber == "" {
+		http.Error(w, "thock_number query parameter is required", http.StatusBadRequest)
+		return
+	}
+
+	media, err := h.Service.GetMediaByThockNumber(r.Context(), thockNumber)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if media == nil {
+		media = []models.RoomEntryMedia{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"edit_media": media,
+	})
+}
+
+func (h *RoomEntryHandler) SaveRoomEntryMedia(w http.ResponseWriter, r *http.Request) {
+	var media models.RoomEntryMedia
+	if err := json.NewDecoder(r.Body).Decode(&media); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	userID, ok := middleware.GetUserIDFromContext(r.Context())
+	if !ok {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	media.UploadedByUserID = &userID
+
+	if media.MediaType != "entry" && media.MediaType != "edit" {
+		http.Error(w, "Invalid media_type. Must be 'entry' or 'edit'", http.StatusBadRequest)
+		return
+	}
+
+	if strings.Contains(media.FilePath, "..") {
+		http.Error(w, "Invalid file path", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.Service.SaveMediaMetadata(r.Context(), &media); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(media)
 }
