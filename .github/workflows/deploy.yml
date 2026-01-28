@@ -99,6 +99,46 @@ jobs:
             echo "::warning::Could not locate pg_hba.conf — verify Docker-to-PostgreSQL connectivity manually"
           fi
 
+      - name: Stop Legacy Services (free ports for containers)
+        run: |
+          # Stop bare-metal systemd services that conflict with Docker container ports
+          for SVC in cold-employee cold-customer cold-website cold-monitoring redis redis-server; do
+            if systemctl is-active --quiet "$SVC" 2>/dev/null; then
+              echo "Stopping legacy service: $SVC"
+              sudo systemctl stop "$SVC"
+              sudo systemctl disable "$SVC" 2>/dev/null || true
+            fi
+          done
+
+          # Stop and remove any old Docker containers from previous compose setups
+          for OLD_CT in cold-customer cold-website cold-employee cold-storage-management-system-app-base-1; do
+            if docker ps -a --format '{{.Names}}' | grep -q "^${OLD_CT}$"; then
+              echo "Removing old container: $OLD_CT"
+              docker stop "$OLD_CT" 2>/dev/null || true
+              docker rm "$OLD_CT" 2>/dev/null || true
+            fi
+          done
+
+          # Remove failed containers from previous deploy attempts
+          for CT in cold-backend cold-redis cold-timescaledb; do
+            STATUS=$(docker inspect --format='{{.State.Status}}' "$CT" 2>/dev/null || echo "")
+            if [ "$STATUS" = "created" ] || [ "$STATUS" = "exited" ]; then
+              echo "Removing stale container: $CT ($STATUS)"
+              docker rm "$CT" 2>/dev/null || true
+            fi
+          done
+
+          # Kill any remaining process holding critical ports
+          for PORT in 6379 8080 8081 8082 9090; do
+            if ss -tlnp | grep -q ":${PORT} "; then
+              echo "Port $PORT still in use — killing process..."
+              sudo fuser -k ${PORT}/tcp 2>/dev/null || true
+            fi
+          done
+          sleep 2
+
+          echo "Legacy services stopped, ports freed"
+
       - name: Deploy with Docker Compose
         run: |
           # Copy production files to app directory
@@ -164,17 +204,6 @@ jobs:
             echo "::warning::Cloudflare tunnel service is not running"
             echo "Start it with: sudo systemctl start cloudflared"
           fi
-
-      - name: Stop Legacy Systemd Services
-        run: |
-          # Idempotent: stop old bare-metal services if they still exist
-          for SVC in cold-employee cold-customer cold-website; do
-            if systemctl is-active --quiet "$SVC" 2>/dev/null; then
-              echo "Stopping legacy service: $SVC"
-              sudo systemctl stop "$SVC"
-              sudo systemctl disable "$SVC"
-            fi
-          done
 
       - name: Cleanup Old Images
         run: |
