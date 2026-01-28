@@ -31,6 +31,11 @@ services:
       - DB_NAME=cold_storage
 
       # Monitoring Database (TimescaleDB)
+      - METRICS_DB_HOST=timescaledb
+      - METRICS_DB_PORT=5432
+      - METRICS_DB_USER=postgres
+      - METRICS_DB_PASSWORD=password
+      - METRICS_DB_NAME=cold_monitoring
       - G_ENABLED=true
       - G_DB_HOST=timescaledb
       - G_DB_PORT=5432

@@ -42,8 +42,11 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			}
 		}
 
+		// Check for cookie if no Authorization header
 		if token == "" {
-			token = r.URL.Query().Get("token")
+			if cookie, err := r.Cookie("auth_token"); err == nil {
+				token = cookie.Value
+			}
 		}
 
 		if token == "" {
@@ -113,8 +116,11 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) 
 				}
 			}
 
+			// Check for cookie if no Authorization header
 			if token == "" {
-				token = r.URL.Query().Get("token")
+				if cookie, err := r.Cookie("auth_token"); err == nil {
+					token = cookie.Value
+				}
 			}
 
 			if token == "" {

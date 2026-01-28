@@ -210,6 +210,10 @@
                         <i class="bi bi-folder2-open"></i>
                         <span>File Manager</span>
                     </button>
+                    <button class="page-button bg-[#FFB8B8] w-full" onclick="navigateWithAuth('/admin/deleted-entries')">
+                        <i class="bi bi-trash3"></i>
+                        <span>Deleted Entries</span>
+                    </button>
                 </div>
             </div>
 
@@ -400,9 +404,21 @@
             // Update language selector
             const lang = localStorage.getItem('lang') || 'en';
             document.getElementById('langSelector').value = lang;
+
+            // Set auth cookie for seamless navigation (token hidden from URL)
+            const token = localStorage.getItem('token');
+            if (token) {
+                document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Strict`;
+            }
         })();
 
         function navigate(path) {
+            window.location.href = path;
+        }
+
+        function navigateWithAuth(path) {
+            // Simply navigate - cookie will be sent automatically
+            // Token is stored in HTTP-only cookie, NOT in URL (secure)
             window.location.href = path;
         }
 

@@ -60,6 +60,7 @@ func NewRouter(
 	restoreHandler *handlers.RestoreHandler,
 	printerHandler *handlers.PrinterHandler,
 	fileManagerHandler *handlers.FileManagerHandler,
+	deletedEntriesHandler *handlers.DeletedEntriesHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -739,6 +740,25 @@ func NewRouter(
 		// Backup configuration
 		restoreAPI.HandleFunc("/config", restoreHandler.GetBackupConfiguration).Methods("GET")
 		restoreAPI.HandleFunc("/config", restoreHandler.UpdateBackupConfiguration).Methods("PUT")
+	}
+
+	// Protected API routes - Deleted Entries (admin only)
+	if deletedEntriesHandler != nil {
+		deletedEntriesAPI := r.PathPrefix("/api/admin/deleted-entries").Subrouter()
+		deletedEntriesAPI.Use(authMiddleware.Authenticate)
+		deletedEntriesAPI.Use(authMiddleware.RequireRole("admin"))
+		deletedEntriesAPI.HandleFunc("", deletedEntriesHandler.ListDeletedEntries).Methods("GET")
+		deletedEntriesAPI.HandleFunc("/stats", deletedEntriesHandler.GetDeletedEntriesStats).Methods("GET")
+		deletedEntriesAPI.HandleFunc("/restore-bulk", deletedEntriesHandler.BulkRestoreEntries).Methods("POST")
+		deletedEntriesAPI.HandleFunc("/bulk", deletedEntriesHandler.BulkPermanentDeleteEntries).Methods("DELETE")
+		deletedEntriesAPI.HandleFunc("/{id}/restore", deletedEntriesHandler.RestoreEntry).Methods("POST")
+		deletedEntriesAPI.HandleFunc("/{id}", deletedEntriesHandler.PermanentDeleteEntry).Methods("DELETE")
+
+		// HTML page route for deleted entries (protected by server-side auth)
+		deletedEntriesPage := r.PathPrefix("/admin/deleted-entries").Subrouter()
+		deletedEntriesPage.Use(authMiddleware.Authenticate)
+		deletedEntriesPage.Use(authMiddleware.RequireRole("admin"))
+		deletedEntriesPage.HandleFunc("", deletedEntriesHandler.ViewDeletedEntriesPage).Methods("GET")
 	}
 
 	// Protected API routes - Entry Room (optimized single-call endpoint)

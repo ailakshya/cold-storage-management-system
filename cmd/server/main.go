@@ -679,6 +679,9 @@ func main() {
 		restoreService := services.NewRestoreService(pool, connStr, cfg.BackupDir, systemSettingRepo)
 		restoreHandler := handlers.NewRestoreHandler(restoreService)
 
+		// Initialize deleted entries handler (soft delete recovery)
+		deletedEntriesHandler := handlers.NewDeletedEntriesHandler(pool)
+
 		// Always initialize monitoring handler
 		monitoringHandler := handlers.NewMonitoringHandler(timescaleStore, pool, cfg.BackupDir)
 		infraHandler := handlers.NewInfrastructureHandler(pool)
@@ -758,7 +761,7 @@ func main() {
 		// Point-in-time restore service and handler already initialized above for monitoring integration
 
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler, fileManagerHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler, fileManagerHandler, deletedEntriesHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

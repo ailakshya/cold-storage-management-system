@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192.png?v=2">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deleted Entries - Cold Storage</title>
+    <link href="/static/css/tailwind.min.css" rel="stylesheet">
+    <link href="/static/css/arbitrary.css" rel="stylesheet">
+    <link href="/static/css/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="/static/css/fonts.css" rel="stylesheet">
+    <link href="/static/css/dark-mode.css" rel="stylesheet">
+    <link href="/static/css/responsive.css" rel="stylesheet">
+    <link href="/static/css/inventory-theme.css" rel="stylesheet">
+    <style>
+        * { font-family: 'Space Grotesk', sans-serif; }
+        .neu-border {
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            border-radius: 16px;
+            transition: all 0.2s ease;
+        }
+        .neu-border:hover { box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
+        .neu-button {
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+            padding: 0.75rem 1.5rem;
+            font-weight: 600;
+            border-radius: 10px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        .neu-button:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .status-active {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-transferred {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .deleted-row {
+            background-color: #fff3cd;
+        }
+
+        .deleted-row:hover {
+            background-color: #ffe69c !important;
+        }
+
+        .restore-btn {
+            padding: 4px 12px;
+            font-size: 0.9em;
+        }
+
+        .stat-card {
+            border: 1px solid var(--border-color, #e0e6ed);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            padding: 1.5rem;
+            background: white;
+            border-radius: 12px;
+            text-align: center;
+        }
+    </style>
+    <script src="/static/js/theme.js"></script>
+</head>
+<body class="bg-[#f8fafb] min-h-screen">
+    <!-- Navigation Bar -->
+    <div class="page-nav">
+        <a href="/admin/dashboard" class="nav-btn nav-btn-back">
+            <i class="bi bi-arrow-left"></i>
+            <span>Back to Admin</span>
+        </a>
+        <div class="flex items-center gap-2">
+            <button onclick="theme.toggle()" class="nav-btn" title="Toggle Dark Mode">
+                <i class="bi bi-moon-fill theme-icon-moon"></i>
+                <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto p-4 md:p-8">
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 neu-border bg-white p-6">
+            <div>
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-trash3 text-4xl text-red-600"></i>
+                    <div>
+                        <h1 class="text-3xl font-bold">Deleted Entries</h1>
+                        <p class="text-gray-600">View and restore soft-deleted entries</p>
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-2">
+                <button class="neu-button bg-green-500 text-white" id="restoreSelectedBtn" disabled>
+                    <i class="bi bi-arrow-counterclockwise"></i> Restore Selected
+                </button>
+                <button class="neu-button bg-red-600 text-white" id="permanentDeleteSelectedBtn" disabled>
+                    <i class="bi bi-trash-fill"></i> Permanent Delete
+                </button>
+                <button class="neu-button bg-blue-500 text-white" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </header>
+
+        <!-- Statistics Card -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="stat-card">
+                <h4 id="totalDeleted" class="text-3xl font-bold text-red-600">-</h4>
+                <p class="text-gray-600 text-sm mt-2">Total Deleted</p>
+            </div>
+            <div class="stat-card">
+                <h4 id="oldestDeletion" class="text-3xl font-bold text-orange-600">-</h4>
+                <p class="text-gray-600 text-sm mt-2">Oldest Deletion</p>
+            </div>
+            <div class="stat-card">
+                <h4 id="newestDeletion" class="text-3xl font-bold text-blue-600">-</h4>
+                <p class="text-gray-600 text-sm mt-2">Newest Deletion</p>
+            </div>
+            <div class="stat-card">
+                <h4 id="selectedCount" class="text-3xl font-bold text-green-600">0</h4>
+                <p class="text-gray-600 text-sm mt-2">Selected</p>
+            </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="neu-border bg-white p-4 mb-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input type="text" id="searchInput" class="px-4 py-2 border rounded-lg" placeholder="Search by name, phone, or thock number...">
+                <select id="categoryFilter" class="px-4 py-2 border rounded-lg">
+                    <option value="">All Categories</option>
+                    <option value="seed">Seed</option>
+                    <option value="sell">Sell</option>
+                </select>
+                <select id="previousStatusFilter" class="px-4 py-2 border rounded-lg">
+                    <option value="">All Previous States</option>
+                    <option value="active">Was Active</option>
+                    <option value="transferred">Was Transferred</option>
+                </select>
+                <div class="flex items-center gap-2">
+                    <input class="w-4 h-4" type="checkbox" id="selectAllCheckbox">
+                    <label class="text-sm" for="selectAllCheckbox">Select All</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deleted Entries Table -->
+        <div class="neu-border bg-white p-4">
+            <div class="overflow-x-auto">
+                <table class="w-full" id="deletedEntriesTable">
+                    <thead>
+                        <tr class="border-b">
+                            <th class="p-2 text-left"><input type="checkbox" id="selectAllTableCheckbox"></th>
+                            <th class="p-2 text-left">ID</th>
+                            <th class="p-2 text-left">Name</th>
+                            <th class="p-2 text-left">Phone</th>
+                            <th class="p-2 text-left">Thock Number</th>
+                            <th class="p-2 text-left">Category</th>
+                            <th class="p-2 text-left">Quantity</th>
+                            <th class="p-2 text-left">Village</th>
+                            <th class="p-2 text-left">Previous Status</th>
+                            <th class="p-2 text-left">Deleted At</th>
+                            <th class="p-2 text-left">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deletedEntriesBody">
+                        <tr>
+                            <td colspan="11" class="text-center py-8">
+                                <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
+                                <p class="mt-4 text-gray-600">Loading deleted entries...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<script>
+// Get token for API calls (page already protected by server-side auth)
+const token = localStorage.getItem('token');
+
+// Set auth cookie if token exists (for seamless navigation)
+if (token) {
+    document.cookie = `auth_token=${token}; path=/; max-age=86400; SameSite=Strict`;
+}
+
+// If no token in localStorage, redirect to login
+if (!token) {
+    alert('Session expired. Please login again.');
+    window.location.href = '/login';
+}
+
+let deletedEntries = [];
+let selectedEntries = new Set();
+
+// Load statistics
+async function loadStats() {
+    try {
+        const response = await fetch('/api/admin/deleted-entries/stats', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            document.getElementById('totalDeleted').textContent = data.stats.total_deleted;
+
+            if (data.stats.oldest_deletion) {
+                const oldestDate = new Date(data.stats.oldest_deletion);
+                document.getElementById('oldestDeletion').textContent = oldestDate.toLocaleDateString();
+            } else {
+                document.getElementById('oldestDeletion').textContent = 'N/A';
+            }
+
+            if (data.stats.newest_deletion) {
+                const newestDate = new Date(data.stats.newest_deletion);
+                document.getElementById('newestDeletion').textContent = newestDate.toLocaleDateString();
+            } else {
+                document.getElementById('newestDeletion').textContent = 'N/A';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
+    }
+}
+
+// Load deleted entries
+async function loadDeletedEntries() {
+    try {
+        const response = await fetch('/api/admin/deleted-entries', {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+        const data = await response.json();
+
+        if (data.success) {
+            deletedEntries = data.entries || [];
+            renderTable();
+        }
+    } catch (error) {
+        console.error('Error loading deleted entries:', error);
+        document.getElementById('deletedEntriesBody').innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center text-red-600 py-8">
+                    <i class="bi bi-exclamation-triangle text-3xl"></i>
+                    <p class="mt-2">Error loading deleted entries</p>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Render table
+function renderTable() {
+    const tbody = document.getElementById('deletedEntriesBody');
+
+    if (deletedEntries.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="11" class="text-center text-green-600 py-8">
+                    <i class="bi bi-check-circle text-5xl"></i>
+                    <p class="mt-4 text-lg">No deleted entries found. Great!</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    // Apply filters
+    let filtered = deletedEntries;
+
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const previousStatusFilter = document.getElementById('previousStatusFilter').value;
+
+    if (searchTerm) {
+        filtered = filtered.filter(e =>
+            e.name.toLowerCase().includes(searchTerm) ||
+            e.phone.includes(searchTerm) ||
+            e.thock_number.toLowerCase().includes(searchTerm)
+        );
+    }
+
+    if (categoryFilter) {
+        filtered = filtered.filter(e => e.thock_category === categoryFilter);
+    }
+
+    if (previousStatusFilter) {
+        filtered = filtered.filter(e => e.previous_status === previousStatusFilter);
+    }
+
+    tbody.innerHTML = filtered.map(entry => `
+        <tr class="deleted-row border-b">
+            <td class="p-2">
+                <input type="checkbox" class="entry-checkbox w-4 h-4" data-id="${entry.id}"
+                    ${selectedEntries.has(entry.id) ? 'checked' : ''}>
+            </td>
+            <td class="p-2">${entry.id}</td>
+            <td class="p-2">${escapeHtml(entry.name)}</td>
+            <td class="p-2">${entry.phone}</td>
+            <td class="p-2"><strong>${escapeHtml(entry.thock_number)}</strong></td>
+            <td class="p-2">
+                <span class="px-2 py-1 rounded text-xs ${entry.thock_category === 'seed' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}">
+                    ${entry.thock_category}
+                </span>
+            </td>
+            <td class="p-2">${entry.expected_quantity}</td>
+            <td class="p-2">${escapeHtml(entry.village || '-')}</td>
+            <td class="p-2">
+                <span class="status-badge status-${entry.previous_status}">
+                    ${entry.previous_status || 'active'}
+                </span>
+            </td>
+            <td class="p-2">${entry.deleted_at ? new Date(entry.deleted_at).toLocaleString() : 'Unknown'}</td>
+            <td class="p-2">
+                <div class="flex gap-2">
+                    <button class="neu-button bg-green-500 text-white restore-btn" onclick="restoreEntry(${entry.id}, '${entry.previous_status || 'active'}')">
+                        <i class="bi bi-arrow-counterclockwise"></i> Restore
+                    </button>
+                    <button class="neu-button bg-red-600 text-white restore-btn" onclick="permanentDeleteEntry(${entry.id})">
+                        <i class="bi bi-trash-fill"></i> Delete
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    // Add event listeners to checkboxes
+    document.querySelectorAll('.entry-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', handleCheckboxChange);
+    });
+
+    updateSelectedCount();
+}
+
+// Handle checkbox change
+function handleCheckboxChange(event) {
+    const entryId = parseInt(event.target.dataset.id);
+
+    if (event.target.checked) {
+        selectedEntries.add(entryId);
+    } else {
+        selectedEntries.delete(entryId);
+    }
+
+    updateSelectedCount();
+}
+
+// Update selected count
+function updateSelectedCount() {
+    const count = selectedEntries.size;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('restoreSelectedBtn').disabled = count === 0;
+    document.getElementById('permanentDeleteSelectedBtn').disabled = count === 0;
+}
+
+// Select all
+document.getElementById('selectAllTableCheckbox').addEventListener('change', function() {
+    const isChecked = this.checked;
+    selectedEntries.clear();
+
+    if (isChecked) {
+        deletedEntries.forEach(entry => selectedEntries.add(entry.id));
+    }
+
+    renderTable();
+});
+
+document.getElementById('selectAllCheckbox').addEventListener('change', function() {
+    const tableCheckbox = document.getElementById('selectAllTableCheckbox');
+    tableCheckbox.checked = this.checked;
+    tableCheckbox.dispatchEvent(new Event('change'));
+});
+
+// Restore single entry
+async function restoreEntry(entryId, previousStatus) {
+    if (!confirm(`Restore this entry to "${previousStatus}" status?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/admin/deleted-entries/${entryId}/restore`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✓ Entry #${entryId} restored to "${data.previous_status}" status successfully!`);
+            selectedEntries.delete(entryId);
+            await loadDeletedEntries();
+            await loadStats();
+        } else {
+            alert('Failed to restore entry: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error restoring entry:', error);
+        alert('Error restoring entry. Please try again.');
+    }
+}
+
+// Bulk restore
+document.getElementById('restoreSelectedBtn').addEventListener('click', async function() {
+    const count = selectedEntries.size;
+
+    if (!confirm(`Restore ${count} selected ${count === 1 ? 'entry' : 'entries'} to their previous state?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/admin/deleted-entries/restore-bulk', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                entry_ids: Array.from(selectedEntries),
+            }),
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✓ Successfully restored ${data.restored_count} of ${data.total_requested} entries!`);
+            selectedEntries.clear();
+            await loadDeletedEntries();
+            await loadStats();
+        } else {
+            alert('Failed to restore entries: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error bulk restoring:', error);
+        alert('Error restoring entries. Please try again.');
+    }
+});
+
+// Search and filter
+document.getElementById('searchInput').addEventListener('input', renderTable);
+document.getElementById('categoryFilter').addEventListener('change', renderTable);
+document.getElementById('previousStatusFilter').addEventListener('change', renderTable);
+
+// Permanent delete single entry
+async function permanentDeleteEntry(entryId) {
+    if (!confirm(`⚠️ WARNING: This will PERMANENTLY delete this entry from the database.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure you want to permanently delete entry #${entryId}?`)) {
+        return;
+    }
+
+    // Double confirmation for safety
+    if (!confirm('Final confirmation: Click OK to permanently delete this entry. Click Cancel to keep it.')) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`/api/admin/deleted-entries/${entryId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        // Check response status
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error:', response.status, errorText);
+            alert(`Server error (${response.status}): ${errorText}`);
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✓ Entry #${entryId} permanently deleted from the database.`);
+            selectedEntries.delete(entryId);
+            await loadDeletedEntries();
+            await loadStats();
+        } else {
+            alert('Failed to permanently delete entry: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error permanently deleting entry:', error);
+        alert(`Error permanently deleting entry: ${error.message}. Please try again.`);
+    }
+}
+
+// Bulk permanent delete
+document.getElementById('permanentDeleteSelectedBtn').addEventListener('click', async function() {
+    const count = selectedEntries.size;
+
+    if (!confirm(`⚠️ WARNING: This will PERMANENTLY delete ${count} ${count === 1 ? 'entry' : 'entries'} from the database.\n\nThis action CANNOT be undone!\n\nAre you absolutely sure?`)) {
+        return;
+    }
+
+    // Double confirmation for safety
+    if (!confirm(`Final confirmation: Click OK to permanently delete ${count} ${count === 1 ? 'entry' : 'entries'}. Click Cancel to keep them.`)) {
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/admin/deleted-entries/bulk', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                entry_ids: Array.from(selectedEntries),
+            }),
+        });
+
+        // Check response status
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Server error:', response.status, errorText);
+            alert(`Server error (${response.status}): ${errorText}`);
+            return;
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+            alert(`✓ Successfully permanently deleted ${data.deleted_count} of ${data.total_requested} entries from the database.`);
+            selectedEntries.clear();
+            await loadDeletedEntries();
+            await loadStats();
+        } else {
+            alert('Failed to permanently delete entries: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error bulk permanently deleting:', error);
+        alert(`Error permanently deleting entries: ${error.message}. Please try again.`);
+    }
+});
+
+// Utility function
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Initial load
+loadStats();
+loadDeletedEntries();
+</script>
+</body>
+</html>

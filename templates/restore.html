@@ -202,8 +202,8 @@
             <div class="stat-card bg-orange-100">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm text-gray-600">Backup Frequency</p>
-                        <p class="text-3xl font-bold text-orange-600" id="statR2Freq">-</p>
+                        <p class="text-sm text-gray-600" id="statFreqLabel">Cloud Backup Frequency</p>
+                        <p class="text-3xl font-bold text-orange-600" id="statFreq">-</p>
                     </div>
                     <i class="bi bi-clock text-4xl text-orange-600"></i>
                 </div>
@@ -341,6 +341,11 @@
                     </div>
                     <p class="text-xs text-gray-500 mt-1">Backups older than this will be deleted. Set to 0 to keep forever.</p>
                 </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Restore Rate Limit (Minutes)</label>
+                    <input type="number" name="restore_rate_limit" id="settingRestoreRateLimit" class="w-full p-2 border border-gray-300 rounded-md" min="1" required>
+                    <p class="text-xs text-gray-500 mt-1">Minimum time between database restore operations (prevents accidental multiple restores).</p>
+                </div>
 
                 <div class="flex gap-4 pt-4">
                     <button type="button" onclick="closeSettings()" class="neu-button bg-gray-200 flex-1">Cancel</button>
@@ -381,7 +386,8 @@
                 
                 document.getElementById('settingR2Interval').value = data.r2_interval_minutes;
                 document.getElementById('settingLocalInterval').value = data.local_interval_minutes;
-                
+                document.getElementById('settingRestoreRateLimit').value = data.restore_rate_limit_minutes || 5;
+
                 // Convert retention minutes to appropriate unit
                 const minutes = data.local_retention_minutes;
                 let val = minutes;
@@ -441,7 +447,8 @@
             const config = {
                 r2_interval_minutes: parseInt(document.getElementById('settingR2Interval').value),
                 local_interval_minutes: parseInt(document.getElementById('settingLocalInterval').value),
-                local_retention_minutes: retentionMinutes
+                local_retention_minutes: retentionMinutes,
+                restore_rate_limit_minutes: parseInt(document.getElementById('settingRestoreRateLimit').value)
             };
 
             try {
@@ -514,14 +521,18 @@
             loadData();
         }
 
+        let backupConfig = null;
+
         function loadData(refreshStats = false) {
              if (currentTab === 'cloud') {
                 loadCloudBackups();
             } else {
                 loadLocalBackups();
             }
-            if (refreshStats || document.getElementById('statR2Freq').innerText === '-') {
+            if (refreshStats || !backupConfig) {
                 loadStats();
+            } else {
+                updateFrequencyDisplay();
             }
         }
 
@@ -531,11 +542,24 @@
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 const data = await response.json();
-                if (data.r2_interval_minutes) {
-                    document.getElementById('statR2Freq').textContent = data.r2_interval_minutes + " min";
-                }
+                backupConfig = data;
+                updateFrequencyDisplay();
             } catch (e) {
                 console.log("Failed to load stats", e);
+            }
+        }
+
+        function updateFrequencyDisplay() {
+            if (!backupConfig) return;
+            const element = document.getElementById('statFreq');
+            const label = document.getElementById('statFreqLabel');
+            
+            if (currentTab === 'cloud') {
+                element.textContent = backupConfig.r2_interval_minutes + " min";
+                label.textContent = "Cloud Backup Frequency";
+            } else {
+                element.textContent = backupConfig.local_interval_minutes + " min";
+                label.textContent = "Local Backup Frequency";
             }
         }
 

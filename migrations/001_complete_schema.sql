@@ -2445,12 +2445,22 @@ EXCEPTION WHEN OTHERS THEN NULL;
 END $$;
 
 
--- Grant permissions to cold_user for disaster recovery restore
+-- Grant permissions to cold_user for disaster recovery restore (if role exists)
 -- This allows R2 backup restore to work when running as cold_user
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO cold_user;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO cold_user;
-GRANT USAGE ON SCHEMA public TO cold_user;
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'cold_user') THEN
+        GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO cold_user;
+        GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO cold_user;
+        GRANT USAGE ON SCHEMA public TO cold_user;
+    END IF;
+END $$;
 
--- Also grant default privileges for any future tables
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO cold_user;
-ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO cold_user;
+-- Also grant default privileges for any future tables (if role exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT FROM pg_roles WHERE rolname = 'cold_user') THEN
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO cold_user;
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO cold_user;
+    END IF;
+END $$;

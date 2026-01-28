@@ -113,16 +113,57 @@ func NewRestoreService(pool *pgxpool.Pool, connStr, backupDir string, settingsRe
 		os.MkdirAll(backupDir, 0755)
 	}
 
-	return &RestoreService{
+	service := &RestoreService{
 		pool:              pool,
 		connStr:           connStr,
 		backupDir:         backupDir,
 		pendingTokens:     make(map[string]*RestoreToken),
 		tokenMu:           sync.RWMutex{},
-		restoreCooldown:   5 * time.Minute,
+		restoreCooldown:   5 * time.Minute, // Default 5 minutes
 		systemSettingRepo: settingsRepo,
 		stopScheduler:     make(chan bool),
 	}
+
+	// Load restore rate limit from settings
+	service.loadRestoreRateLimit()
+
+	return service
+}
+
+// loadRestoreRateLimit loads the restore rate limit from system settings
+func (s *RestoreService) loadRestoreRateLimit() {
+	ctx := context.Background()
+	setting, err := s.systemSettingRepo.Get(ctx, "restore_rate_limit_minutes")
+	if err == nil && setting != nil {
+		if minutes, err := strconv.Atoi(setting.SettingValue); err == nil && minutes > 0 {
+			s.restoreCooldown = time.Duration(minutes) * time.Minute
+			log.Printf("[RestoreService] Restore rate limit set to %d minutes from settings", minutes)
+		}
+	} else {
+		// Setting doesn't exist, use default and create it
+		log.Printf("[RestoreService] Using default restore rate limit: 5 minutes")
+		// Insert default setting
+		_, err = s.pool.Exec(ctx, `
+			INSERT INTO system_settings (setting_key, setting_value, description)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (setting_key) DO NOTHING
+		`, "restore_rate_limit_minutes", "5", "Minimum time (in minutes) between database restore operations")
+	}
+}
+
+// GetRestoreRateLimitMinutes returns the current restore rate limit in minutes
+func (s *RestoreService) GetRestoreRateLimitMinutes() int {
+	return int(s.restoreCooldown.Minutes())
+}
+
+// UpdateRestoreRateLimit updates the restore rate limit
+func (s *RestoreService) UpdateRestoreRateLimit(minutes int) error {
+	if minutes < 1 {
+		return fmt.Errorf("rate limit must be at least 1 minute")
+	}
+	s.restoreCooldown = time.Duration(minutes) * time.Minute
+	log.Printf("[RestoreService] Restore rate limit updated to %d minutes", minutes)
+	return nil
 }
 
 // getS3Client creates an S3 client configured for R2
@@ -641,8 +682,25 @@ func (s *RestoreService) ExecuteLocalRestore(ctx context.Context, filename, conf
 
 	// No temp file copy needed now
 
-	// Step 3: Clean database (drop all tables)
-	log.Println("[Restore] Cleaning database...")
+	// Step 3: Terminate active connections and clean database
+	log.Println("[Restore] Terminating active connections and cleaning database...")
+
+	// First, terminate all other connections to the database
+	terminateSQL := `
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pg_stat_activity.datname = current_database()
+  AND pid <> pg_backend_pid();
+`
+	terminateCmd := exec.Command("psql", s.connStr, "-c", terminateSQL)
+	terminateOutput, terminateErr := terminateCmd.CombinedOutput()
+	if terminateErr != nil {
+		log.Printf("[Restore] Warning: connection termination had issues: %v - %s", terminateErr, string(terminateOutput))
+	} else {
+		log.Printf("[Restore] Active connections terminated")
+	}
+
+	// Now drop all tables with CASCADE
 	cleanupSQL := `
 DO $$
 DECLARE
@@ -843,8 +901,25 @@ func (s *RestoreService) ExecuteRestore(ctx context.Context, snapshotKey, confir
 	log.Printf("[Restore] Downloaded snapshot: %.2f KB", float64(bytesWritten)/1024)
 	defer os.Remove(tmpFile)
 
-	// Step 3: Clean database (drop all tables)
-	log.Println("[Restore] Cleaning database...")
+	// Step 3: Terminate active connections and clean database
+	log.Println("[Restore] Terminating active connections and cleaning database...")
+
+	// First, terminate all other connections to the database
+	terminateSQL := `
+SELECT pg_terminate_backend(pg_stat_activity.pid)
+FROM pg_stat_activity
+WHERE pg_stat_activity.datname = current_database()
+  AND pid <> pg_backend_pid();
+`
+	terminateCmd := exec.Command("psql", s.connStr, "-c", terminateSQL)
+	terminateOutput, terminateErr := terminateCmd.CombinedOutput()
+	if terminateErr != nil {
+		log.Printf("[Restore] Warning: connection termination had issues: %v - %s", terminateErr, string(terminateOutput))
+	} else {
+		log.Printf("[Restore] Active connections terminated")
+	}
+
+	// Now drop all tables with CASCADE
 	cleanupSQL := `
 DO $$
 DECLARE
@@ -916,10 +991,11 @@ func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string,
 	filename := fmt.Sprintf("cold_db_%s.sql", timestamp)
 	tmpFile := filepath.Join(os.TempDir(), filename)
 
-	// Try pg_dump first
+	// Try pg_dump first with --clean and --if-exists flags for safer restores
+	// Note: Not using --create flag because we restore to the same database (can't drop while connected)
 	// Log the command for debugging (without exposing sensitive info if possible, but connStr is needed)
 	log.Printf("[Backup] Attempting pg_dump to %s", tmpFile)
-	cmd := exec.Command("pg_dump", s.connStr, "-f", tmpFile)
+	cmd := exec.Command("pg_dump", s.connStr, "--clean", "--if-exists", "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
 
 	var data []byte
@@ -1042,11 +1118,12 @@ func (s *RestoreService) CreateBackup(ctx context.Context) (string, error) {
 
 // createPreRestoreBackup creates a backup of current state before restore
 func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, error) {
-	// Create backup using pg_dump
+	// Create backup using pg_dump with --clean and --if-exists flags
+	// Note: Not using --create flag because we restore to the same database (can't drop while connected)
 	timestamp := time.Now().Format("20060102_150405")
 	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("cold_prerestore_%s.sql", timestamp))
 
-	cmd := exec.Command("pg_dump", s.connStr, "-f", tmpFile)
+	cmd := exec.Command("pg_dump", s.connStr, "--clean", "--if-exists", "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("pg_dump failed: %w\nOutput: %s", err, string(output))
@@ -1316,17 +1393,19 @@ func (s *RestoreService) CleanupLocalBackups(ctx context.Context) {
 
 // BackupConfig holds the dynamic backup settings
 type BackupConfig struct {
-	R2IntervalMinutes     int `json:"r2_interval_minutes"`
-	LocalIntervalMinutes  int `json:"local_interval_minutes"`
-	LocalRetentionMinutes int `json:"local_retention_minutes"`
+	R2IntervalMinutes      int `json:"r2_interval_minutes"`
+	LocalIntervalMinutes   int `json:"local_interval_minutes"`
+	LocalRetentionMinutes  int `json:"local_retention_minutes"`
+	RestoreRateLimitMinutes int `json:"restore_rate_limit_minutes"`
 }
 
 // GetBackupConfiguration retrieves current backup settings
 func (s *RestoreService) GetBackupConfiguration(ctx context.Context) (*BackupConfig, error) {
 	return &BackupConfig{
-		R2IntervalMinutes:     s.getSettingInt(ctx, "backup_r2_interval_minutes", 60),
-		LocalIntervalMinutes:  s.getSettingInt(ctx, "backup_local_interval_minutes", 15),
-		LocalRetentionMinutes: s.getSettingInt(ctx, "backup_local_retention_minutes", 0),
+		R2IntervalMinutes:       s.getSettingInt(ctx, "backup_r2_interval_minutes", 60),
+		LocalIntervalMinutes:    s.getSettingInt(ctx, "backup_local_interval_minutes", 15),
+		LocalRetentionMinutes:   s.getSettingInt(ctx, "backup_local_retention_minutes", 0),
+		RestoreRateLimitMinutes: s.getSettingInt(ctx, "restore_rate_limit_minutes", 5),
 	}, nil
 }
 
@@ -1344,6 +1423,14 @@ func (s *RestoreService) UpdateBackupConfiguration(ctx context.Context, config B
 	}
 	if err := s.systemSettingRepo.Upsert(ctx, "backup_local_retention_minutes", strconv.Itoa(config.LocalRetentionMinutes), "Retention period for local backups in minutes (0 = keep forever)", userID); err != nil {
 		return err
+	}
+	if err := s.systemSettingRepo.Upsert(ctx, "restore_rate_limit_minutes", strconv.Itoa(config.RestoreRateLimitMinutes), "Minimum time (in minutes) between database restore operations", userID); err != nil {
+		return err
+	}
+
+	// Update the in-memory rate limit
+	if config.RestoreRateLimitMinutes > 0 {
+		s.UpdateRestoreRateLimit(config.RestoreRateLimitMinutes)
 	}
 
 	return nil
