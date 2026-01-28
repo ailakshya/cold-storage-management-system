@@ -49,7 +49,8 @@ jobs:
           }
 
           echo "=== Verifying Mount Points ==="
-          for DIR in /mass-pool/shared /mass-pool/archives /mass-pool/trash /mass-pool/backups /fast-pool/data /fast-pool/timescaledb; do
+          # App volumes — must be owned by UID 1000 (appuser)
+          for DIR in /mass-pool/shared /mass-pool/archives /mass-pool/trash /mass-pool/backups /fast-pool/data; do
             if [ ! -d "$DIR" ]; then
               echo "::error::Mount point $DIR does not exist"
               exit 1
@@ -60,6 +61,15 @@ jobs:
               sudo chown 1000:1000 "$DIR"
             fi
           done
+
+          # TimescaleDB volume — must be owned by UID 70 (postgres inside container)
+          if [ -d "/fast-pool/timescaledb" ]; then
+            OWNER=$(stat -c '%u' "/fast-pool/timescaledb")
+            if [ "$OWNER" != "70" ]; then
+              echo "::warning::/fast-pool/timescaledb owned by UID $OWNER, fixing to 70 (postgres)..."
+              sudo chown -R 70:70 /fast-pool/timescaledb
+            fi
+          fi
 
           # Write test on each pool
           touch /mass-pool/shared/.deploy-test && rm /mass-pool/shared/.deploy-test
