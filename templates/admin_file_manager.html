@@ -278,6 +278,49 @@
         let selectedFiles = new Set();
         let currentFileList = [];
 
+        // Smart upload endpoint detection - tries fastest route first
+        // Priority: 1) LAN (fastest) → 2) Direct static IP → 3) Cloudflare tunnel (fallback)
+        // Only tries LAN when on production domain (avoids 1.5s delay during local testing)
+        let UPLOAD_BASE = '';  // empty = use relative URLs (Cloudflare tunnel)
+        const LAN_HOST = 'http://192.168.1.134:8080';  // Local network - fastest
+        const DIRECT_HOST = 'https://direct.gurukripacoldstore.in';  // Static IP - bypasses CF tunnel
+
+        (async function detectBestUploadRoute() {
+            const host = window.location.hostname;
+            const isProduction = host.includes('gurukripacoldstore.in');
+            const isOnLanSubnet = host.startsWith('192.168.1.');
+
+            // Only try LAN if on production domain or already on the LAN subnet
+            if (isProduction || isOnLanSubnet) {
+                try {
+                    const ctrl1 = new AbortController();
+                    setTimeout(() => ctrl1.abort(), 1500);
+                    const resp = await fetch(LAN_HOST + '/health', { signal: ctrl1.signal });
+                    if (resp.ok) {
+                        UPLOAD_BASE = LAN_HOST;
+                        console.log('LAN upload enabled:', LAN_HOST);
+                        return;
+                    }
+                } catch (e) {}
+            }
+
+            // Try direct static IP (only on production - not localhost)
+            if (isProduction) {
+                try {
+                    const ctrl2 = new AbortController();
+                    setTimeout(() => ctrl2.abort(), 2000);
+                    const resp = await fetch(DIRECT_HOST + '/health', { signal: ctrl2.signal, mode: 'cors' });
+                    if (resp.ok) {
+                        UPLOAD_BASE = DIRECT_HOST;
+                        console.log('Direct upload enabled:', DIRECT_HOST);
+                        return;
+                    }
+                } catch (e) {}
+            }
+
+            console.log('Using relative URLs' + (isProduction ? ' (CF tunnel fallback)' : ' (local dev)'));
+        })();
+
         document.addEventListener('DOMContentLoaded', () => {
             if (!token) {
                 window.location.href = '/login';
@@ -469,21 +512,16 @@
         async function uploadFile(file, relativePath = '') {
             const id = ++uploadCounter;
             const controller = new AbortController();
-            
+
             uploads[id] = { controller, file };
-            
-            const displayName = relativePath ? relativePath + '/' + file.name : file.name;
-            // Correction: relativePath passed from handleFolderUpload *excludes* filename. 
-            // If relativePath is passed, display "path/to/file.name"
-            // Actually relativePath argument in uploadFile is "dirPath".
-            // See handleFolderUpload: uploadFile(file, dirPath);
+
             const displayStr = relativePath ? `${relativePath}/${file.name}` : file.name;
-            
             addUploadItem(id, displayStr);
 
-            const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB
+            const CHUNK_SIZE = 20 * 1024 * 1024; // 20MB chunks (increased from 5MB)
+            const MAX_CONCURRENT = 3; // Parallel upload workers
 
-            // Case 1: Small file (<= 5MB), use standard upload
+            // Case 1: Small file (<= 20MB), use standard upload
             if (file.size <= CHUNK_SIZE) {
                 const formData = new FormData();
                 formData.append('file', file);
@@ -493,8 +531,9 @@
 
                 try {
                     const xhr = new XMLHttpRequest();
-                    xhr.open('POST', '/api/files/upload');
+                    xhr.open('POST', UPLOAD_BASE + '/api/files/upload');
                     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                    xhr.timeout = 600000; // 10 minute timeout
 
                     xhr.upload.addEventListener('progress', (e) => {
                         if (e.lengthComputable) {
@@ -537,14 +576,19 @@
                 return;
             }
 
-            // Case 2: Large file, use Chunked Upload
+            // Case 2: Large file, use Parallel Chunked Upload
             const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
             const uploadId = generateUUID();
             const targetPath = relativePath ? (currentPath ? `${currentPath}/${relativePath}` : relativePath) : currentPath;
+            const chunkProgress = new Array(totalChunks).fill(0); // Track per-chunk progress
 
-            try {
-                for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-                    if (controller.signal.aborted) throw new Error('Cancelled');
+            // Upload a single chunk
+            function uploadOneChunk(chunkIndex) {
+                return new Promise((resolve, reject) => {
+                    if (controller.signal.aborted) {
+                        reject(new Error('Cancelled'));
+                        return;
+                    }
 
                     const start = chunkIndex * CHUNK_SIZE;
                     const end = Math.min(start + CHUNK_SIZE, file.size);
@@ -553,39 +597,62 @@
                     const formData = new FormData();
                     formData.append('chunk', chunk);
                     formData.append('uploadId', uploadId);
-                    formData.append('chunkIndex', chunkIndex);
-                    formData.append('totalChunks', totalChunks);
+                    formData.append('chunkIndex', chunkIndex.toString());
+                    formData.append('totalChunks', totalChunks.toString());
                     formData.append('filename', file.name);
                     formData.append('root', currentRoot);
                     formData.append('path', targetPath);
 
-                    await new Promise((resolve, reject) => {
-                        const xhr = new XMLHttpRequest();
-                        xhr.open('POST', '/api/files/upload-chunk');
-                        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                    const xhr = new XMLHttpRequest();
+                    xhr.timeout = 600000; // 10 minute timeout per chunk
 
-                        xhr.upload.addEventListener('progress', (e) => {
-                            if (e.lengthComputable) {
-                                // Calculate total progress for the file
-                                const totalLoaded = (chunkIndex * CHUNK_SIZE) + e.loaded;
-                                const percent = Math.round((totalLoaded / file.size) * 100);
-                                updateUploadProgress(id, percent, `${percent}%`);
-                            }
-                        });
+                    xhr.upload.onprogress = (e) => {
+                        if (e.lengthComputable) {
+                            chunkProgress[chunkIndex] = e.loaded;
+                            const totalLoaded = chunkProgress.reduce((a, b) => a + b, 0);
+                            const percent = Math.round((totalLoaded / file.size) * 100);
+                            updateUploadProgress(id, percent, `${percent}%`);
+                        }
+                    };
 
-                        xhr.onload = () => {
-                            if (xhr.status === 200) resolve();
-                            else reject(new Error('Chunk upgrade failed'));
-                        };
+                    xhr.onload = () => {
+                        if (xhr.status === 200) {
+                            chunkProgress[chunkIndex] = end - start; // Mark chunk as fully uploaded
+                            resolve(JSON.parse(xhr.responseText));
+                        } else {
+                            reject(new Error(`Chunk ${chunkIndex} failed: ${xhr.status}`));
+                        }
+                    };
 
-                        xhr.onerror = () => reject(new Error('Network error'));
-                        xhr.onabort = () => reject(new Error('Cancelled'));
+                    xhr.onerror = () => reject(new Error('Network error'));
+                    xhr.ontimeout = () => reject(new Error('Timeout'));
+                    xhr.onabort = () => reject(new Error('Cancelled'));
 
-                        controller.signal.addEventListener('abort', () => xhr.abort());
+                    controller.signal.addEventListener('abort', () => xhr.abort());
 
-                        xhr.send(formData);
-                    });
+                    xhr.open('POST', UPLOAD_BASE + '/api/files/upload-chunk');
+                    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+                    xhr.send(formData);
+                });
+            }
+
+            try {
+                // Parallel worker pool
+                const queue = Array.from({length: totalChunks}, (_, i) => i);
+
+                async function worker() {
+                    while (queue.length > 0) {
+                        if (controller.signal.aborted) throw new Error('Cancelled');
+                        const idx = queue.shift();
+                        if (idx !== undefined) {
+                            await uploadOneChunk(idx);
+                        }
+                    }
                 }
+
+                // Start up to MAX_CONCURRENT workers
+                const workerCount = Math.min(MAX_CONCURRENT, totalChunks);
+                await Promise.all(Array.from({length: workerCount}, () => worker()));
 
                 // All chunks sent successfully
                 updateUploadProgress(id, 100, '✓ Complete');
@@ -595,12 +662,12 @@
                 loadStorageStats();
 
             } catch (err) {
-                 if (err.message === 'Cancelled') {
-                     updateUploadProgress(id, 0, 'Cancelled');
-                 } else {
-                     console.error(err);
-                     updateUploadProgress(id, 0, '✗ Failed');
-                 }
+                if (err.message === 'Cancelled') {
+                    updateUploadProgress(id, 0, 'Cancelled');
+                } else {
+                    console.error(err);
+                    updateUploadProgress(id, 0, '✗ Failed');
+                }
                 removeUploadItem(id);
                 delete uploads[id];
             }
