@@ -111,6 +111,7 @@
     </style>
     <script src="/static/js/prefetch.js?v=5"></script>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="bg-[#f8fafb] min-h-screen p-4 md:p-8">
     <!-- Loading Screen -->
@@ -138,6 +139,9 @@
                 <button onclick="theme.toggle()" class="neu-button bg-gray-100" title="Toggle Dark Mode">
                     <i class="bi bi-moon-fill theme-icon-moon"></i>
                     <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
+                </button>
+                <button onclick="goHome()" class="neu-button bg-emerald-100 text-emerald-700">
+                    <i class="bi bi-house"></i> <span class="hidden sm:inline">Home</span>
                 </button>
                 <button class="neu-button bg-gray-100" onclick="history.back()">
                     <span>Back</span> <i class="bi bi-arrow-right"></i>

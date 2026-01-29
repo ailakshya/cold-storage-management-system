@@ -16,6 +16,7 @@
             border-radius: 20px;
         }
     </style>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
     <div class="flex h-screen overflow-hidden">
@@ -55,6 +56,12 @@
                     </select>
                     <button onclick="fetchData()" class="neu-card px-4 py-2 hover:bg-gray-50 text-blue-600">
                         <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                    <button onclick="goHome()" class="neu-card px-4 py-2 hover:bg-gray-50 text-emerald-600">
+                        <i class="bi bi-house"></i> Home
+                    </button>
+                    <button onclick="history.back()" class="neu-card px-4 py-2 hover:bg-gray-50 text-gray-600">
+                        <i class="bi bi-arrow-left"></i> Back
                     </button>
                 </div>
             </header>

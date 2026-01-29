@@ -127,6 +127,7 @@
         }
     </style>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
     <script src="/static/js/direct-connect.js"></script>
 </head>
 <body class="bg-[#f8fafb] min-h-screen p-4 md:p-8">
@@ -151,7 +152,7 @@
                         <i class="bi bi-moon-fill theme-icon-moon"></i>
                         <i class="bi bi-sun-fill theme-icon-sun hidden"></i>
                     </button>
-                    <button class="neu-button bg-emerald-100 text-emerald-700 px-4 py-2" onclick="window.location.href='/dashboard'">
+                    <button class="neu-button bg-emerald-100 text-emerald-700 px-4 py-2" onclick="goHome()">
                         <i class="bi bi-house"></i> <span data-i18n="dashboard" class="hidden md:inline">Dashboard</span>
                     </button>
                     <button id="viewToggle" class="neu-button bg-amber-100 text-amber-700 px-4 py-2" onclick="toggleView()">

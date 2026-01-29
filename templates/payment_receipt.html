@@ -61,17 +61,23 @@
         }
     </style>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="bg-gray-100 p-4">
     <div class="max-w-2xl mx-auto bg-white receipt-border p-6">
         <!-- Print Button -->
         <div class="no-print mb-4 flex justify-between">
-            <button onclick="window.close()" class="bg-gray-500 text-white px-4 py-2 font-bold border-2 border-black shadow-[4px_4px_0_0_#000] hover:shadow-none transition-all">
-                ✕ बंद करें
-            </button>
             <button onclick="window.print()" class="bg-blue-600 text-white px-4 py-2 font-bold border-2 border-black shadow-[4px_4px_0_0_#000] hover:shadow-none transition-all">
                 🖨️ प्रिंट करें
             </button>
+            <div class="flex gap-2">
+                <button onclick="goHome()" class="bg-emerald-500 text-white px-4 py-2 font-bold border-2 border-black shadow-[4px_4px_0_0_#000] hover:shadow-none transition-all">
+                    🏠 होम
+                </button>
+                <button onclick="history.back()" class="bg-gray-500 text-white px-4 py-2 font-bold border-2 border-black shadow-[4px_4px_0_0_#000] hover:shadow-none transition-all">
+                    ← वापस
+                </button>
+            </div>
         </div>
 
         <!-- Header -->

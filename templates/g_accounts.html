@@ -103,23 +103,24 @@
     <div class="max-w-7xl mx-auto">
         <!-- Header -->
         <header class="flex justify-between items-center mb-6 neu-border bg-white p-4">
-            <div class="flex items-center gap-4">
-                <a href="/g/" class="neu-button bg-gray-200 py-2 px-4">
-                    <i class="bi bi-arrow-left"></i>
-                </a>
+            <div class="flex items-center gap-2">
+                <i class="bi bi-wallet2 text-4xl text-green-600"></i>
                 <div>
-                    <div class="flex items-center gap-2">
-                        <i class="bi bi-wallet2 text-4xl text-green-600"></i>
-                        <div>
-                            <h1 class="text-2xl font-bold">Account Management</h1>
-                            <p class="text-gray-600">Financial tracking and P/L analysis</p>
-                        </div>
-                    </div>
+                    <h1 class="text-2xl font-bold">Account Management</h1>
+                    <p class="text-gray-600">Financial tracking and P/L analysis</p>
                 </div>
             </div>
-            <button onclick="logout()" class="neu-button bg-red-500 text-white">
-                <i class="bi bi-box-arrow-right"></i> Exit
-            </button>
+            <div class="flex gap-3">
+                <a href="/g/" class="neu-button bg-emerald-100 text-emerald-700">
+                    <i class="bi bi-house"></i> Home
+                </a>
+                <button onclick="history.back()" class="neu-button bg-gray-200">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+                <button onclick="logout()" class="neu-button bg-red-500 text-white">
+                    <i class="bi bi-box-arrow-right"></i> Exit
+                </button>
+            </div>
         </header>
 
         <!-- Summary Cards -->

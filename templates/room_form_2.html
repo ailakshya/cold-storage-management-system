@@ -59,6 +59,7 @@
         }
     </style>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="p-4 md:p-8">
     <nav class="flex justify-between items-center mb-8 p-4 bg-white neu-brutal">
@@ -67,6 +68,12 @@
             <button class="px-4 py-2 bg-white neu-brutal-sm">main room</button>
             <button class="px-4 py-2 bg-white neu-brutal-sm">room Entry</button>
             <button class="px-4 py-2 bg-white neu-brutal-sm">dashboard</button>
+            <button onclick="goHome()" class="px-4 py-2 bg-emerald-100 text-emerald-700 neu-brutal-sm">
+                <i class="bi bi-house"></i> Home
+            </button>
+            <button onclick="history.back()" class="px-4 py-2 bg-gray-200 neu-brutal-sm">
+                <i class="bi bi-arrow-left"></i> Back
+            </button>
         </div>
     </nav>
 

@@ -122,11 +122,12 @@
     </style>
     <script src="/static/js/theme.js"></script>
     <script src="/static/js/direct-connect.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="bg-[#f8fafb] min-h-screen">
     <!-- Navigation Bar -->
     <div class="page-nav">
-        <a href="{{.DashboardURL}}" class="nav-btn nav-btn-dashboard">
+        <a href="#" onclick="goHome(); return false;" class="nav-btn nav-btn-dashboard">
             <i class="bi bi-house"></i>
             <span data-i18n="dashboard">Dashboard</span>
         </a>

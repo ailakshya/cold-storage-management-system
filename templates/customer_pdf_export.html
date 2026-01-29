@@ -77,18 +77,22 @@
     </style>
 <script src="/static/js/prefetch.js?v=5"></script>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
     <script src="/static/js/direct-connect.js"></script>
 </head>
 <body class="bg-[#FFF9E6] min-h-screen p-4 md:p-8">
     <div class="max-w-5xl mx-auto">
         <!-- Print Controls - Hidden in print -->
         <div class="no-print mb-6 flex gap-4 justify-between items-center flex-wrap">
-            <button onclick="window.history.back()" class="neu-button bg-gray-200">
-                <i class="bi bi-arrow-left"></i> Back
+            <button onclick="window.print()" class="neu-button bg-blue-500 text-white">
+                <i class="bi bi-printer"></i> Print / Save PDF
             </button>
             <div class="flex gap-4 flex-wrap">
-                <button onclick="window.print()" class="neu-button bg-blue-500 text-white">
-                    <i class="bi bi-printer"></i> Print / Save PDF
+                <button onclick="goHome()" class="neu-button bg-emerald-100 text-emerald-700">
+                    <i class="bi bi-house"></i> Home
+                </button>
+                <button onclick="window.history.back()" class="neu-button bg-gray-200">
+                    <i class="bi bi-arrow-left"></i> Back
                 </button>
             </div>
         </div>

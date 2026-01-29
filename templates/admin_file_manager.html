@@ -27,12 +27,12 @@
             to { transform: translateX(0); opacity: 1; }
         }
     </style>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="bg-gray-50 h-screen flex flex-col">
     <!-- Header -->
     <header class="bg-white border-b px-6 py-4 flex justify-between items-center">
         <div class="flex items-center gap-4">
-            <a href="/admin/dashboard" class="text-gray-500 hover:text-gray-900"><i class="bi bi-arrow-left"></i> Back</a>
             <h1 class="text-2xl font-bold flex items-center gap-2">
                 <i class="bi bi-hdd-network text-blue-600"></i> Storage Manager
             </h1>
@@ -47,6 +47,12 @@
             </select>
             <button onclick="refreshFiles()" class="text-gray-600 hover:text-blue-600" title="Refresh">
                 <i class="bi bi-arrow-clockwise text-xl"></i>
+            </button>
+            <button onclick="goHome()" class="bg-emerald-100 text-emerald-700 px-3 py-2 rounded-lg font-semibold hover:bg-emerald-200">
+                <i class="bi bi-house"></i> Home
+            </button>
+            <button onclick="history.back()" class="bg-gray-200 px-3 py-2 rounded-lg font-semibold hover:bg-gray-300">
+                <i class="bi bi-arrow-left"></i> Back
             </button>
         </div>
     </header>

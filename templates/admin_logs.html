@@ -91,6 +91,7 @@
     </style>
 <script src="/static/js/prefetch.js?v=5"></script>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
     <script src="/static/js/direct-connect.js"></script>
 </head>
 <body class="bg-[#f8fafb] min-h-screen p-4 md:p-8">
@@ -112,7 +113,10 @@
                 <button onclick="refreshAllData()" class="neu-button bg-blue-500 text-white">
                     <i class="bi bi-arrow-clockwise"></i> Refresh
                 </button>
-                <button onclick="window.location.href='/admin/dashboard'" class="neu-button bg-gray-200">
+                <button onclick="goHome()" class="neu-button bg-emerald-100 text-emerald-700">
+                    <i class="bi bi-house"></i> Home
+                </button>
+                <button onclick="history.back()" class="neu-button bg-gray-200">
                     <i class="bi bi-arrow-left"></i> Back
                 </button>
             </div>

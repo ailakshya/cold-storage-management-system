@@ -28,13 +28,24 @@
         }
     </style>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/nav-utils.js"></script>
 </head>
 <body class="bg-[#f8fafb]">
     <!-- Header -->
     <div class="bg-gradient-to-r from-[#4a90a4] to-[#3d7a8c] text-white py-4 mb-6 rounded-b-2xl">
-        <div class="container mx-auto px-4">
-            <h1 class="text-2xl font-bold flex items-center gap-2"><i class="bi bi-shield-check"></i> Receipt Verification</h1>
-            <p class="text-sm opacity-90">Check the authenticity of payment receipts</p>
+        <div class="container mx-auto px-4 flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2"><i class="bi bi-shield-check"></i> Receipt Verification</h1>
+                <p class="text-sm opacity-90">Check the authenticity of payment receipts</p>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="goHome()" class="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg font-semibold">
+                    <i class="bi bi-house"></i> Home
+                </button>
+                <button onclick="history.back()" class="bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-lg font-semibold">
+                    <i class="bi bi-arrow-left"></i> Back
+                </button>
+            </div>
         </div>
     </div>
 
