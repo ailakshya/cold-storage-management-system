@@ -360,17 +360,14 @@ func (h *FileManagerHandler) UploadFile(w http.ResponseWriter, r *http.Request) 
 	}
 	dst.Close()
 
-	// Convert video using helper
-	finalPath, err := convertVideoIfNeeded(destPath)
-	if err != nil {
-		fmt.Printf("Video conversion failed for %s: %v\n", header.Filename, err)
-	}
-
 	// Set permissions
-	os.Chmod(finalPath, 0666)
+	os.Chmod(destPath, 0666)
+
+	// Start async video conversion (returns immediately)
+	convertVideoInBackground(destPath)
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "success", "file": filepath.Base(finalPath)})
+	json.NewEncoder(w).Encode(map[string]string{"status": "success", "file": header.Filename})
 }
 
 // UploadChunk handles chunked file uploads
@@ -436,57 +433,92 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Failed to save chunk: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
+	dst.Close()
 
-	// Check if all chunks are uploaded
-	// Simple check: count files in tempDir
+	// Race-safe chunk assembly: count only chunk files, use lock file to prevent multiple assemblers
 	entries, err := os.ReadDir(tempDir)
-	if err == nil && len(entries) == totalChunks {
-		// All chunks received, assemble file
+	if err != nil {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "chunk_uploaded"})
+		return
+	}
+
+	// Count chunk files (exclude lock file and other metadata)
+	chunkCount := 0
+	for _, e := range entries {
+		if strings.HasPrefix(e.Name(), "chunk_") {
+			chunkCount++
+		}
+	}
+
+	if chunkCount >= totalChunks {
+		// All chunks received - try to acquire assembly lock
+		lockPath := filepath.Join(tempDir, ".assembling")
+		lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_EXCL, 0666)
+		if err != nil {
+			// Another request is already assembling - just return success
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]string{"status": "chunk_uploaded"})
+			return
+		}
+		lockFile.Close()
+
+		// We have the lock - assemble the file
+		// Ensure destination directory exists
+		if err := os.MkdirAll(fullPath, 0777); err != nil {
+			os.RemoveAll(tempDir)
+			http.Error(w, "Failed to create destination directory: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
 		finalDestPath := filepath.Join(fullPath, filepath.Base(filename))
 
 		// Create final file
 		finalFile, err := os.Create(finalDestPath)
 		if err != nil {
+			os.RemoveAll(tempDir)
 			http.Error(w, "Failed to create final file: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
-		defer finalFile.Close()
 
 		// Append chunks in order
+		assemblyFailed := false
 		for i := 0; i < totalChunks; i++ {
 			chunkPartPath := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", i))
 			chunkData, err := os.ReadFile(chunkPartPath)
 			if err != nil {
-				// Cleanup and fail
-				finalFile.Close()
-				os.Remove(finalDestPath)
-				http.Error(w, "Failed to read chunk "+strconv.Itoa(i), http.StatusInternalServerError)
-				return
+				log.Printf("[UploadChunk] Failed to read chunk %d: %v", i, err)
+				assemblyFailed = true
+				break
 			}
 			if _, err := finalFile.Write(chunkData); err != nil {
-				finalFile.Close()
-				os.Remove(finalDestPath)
-				http.Error(w, "Failed to write to final file", http.StatusInternalServerError)
-				return
+				log.Printf("[UploadChunk] Failed to write chunk %d: %v", i, err)
+				assemblyFailed = true
+				break
 			}
-			os.Remove(chunkPartPath) // Delete chunk after append
 		}
-		finalFile.Close()     // Explicit close before removal/conversion
-		os.RemoveAll(tempDir) // Cleanup temp dir
+		finalFile.Close()
 
-		// Helper function call for video conversion
-		convertedPath, err := convertVideoIfNeeded(finalDestPath)
-		if err != nil {
-			fmt.Printf("Video conversion failed: %v\n", err)
+		if assemblyFailed {
+			os.Remove(finalDestPath)
+			os.RemoveAll(tempDir)
+			http.Error(w, "Failed to assemble chunks", http.StatusInternalServerError)
+			return
 		}
 
-		// Perms
-		os.Chmod(convertedPath, 0666)
+		// Cleanup temp dir
+		os.RemoveAll(tempDir)
+
+		// Set permissions
+		os.Chmod(finalDestPath, 0666)
+
+		// Start async video conversion (returns immediately)
+		convertVideoInBackground(finalDestPath)
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
 			"status": "completed",
-			"file":   filepath.Base(convertedPath),
+			"file":   filepath.Base(filename),
 		})
 		return
 	}
@@ -495,21 +527,79 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]string{"status": "chunk_uploaded"})
 }
 
-// convertVideoIfNeeded checks if file is video and converts to MOV, removing original
+// convertVideoInBackground converts non-MP4 videos to MP4 asynchronously.
+// Uses fast remux (-c copy) first, falls back to re-encode if codec is incompatible.
+// Returns immediately - conversion happens in background goroutine.
+func convertVideoInBackground(path string) {
+	ext := strings.ToLower(filepath.Ext(path))
+
+	// MP4 is already browser-playable - skip conversion
+	if ext == ".mp4" {
+		return
+	}
+
+	// Convert MOV/M4V (often HEVC from iPhones) and other video formats to MP4
+	videoExts := map[string]bool{".mov": true, ".m4v": true, ".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
+	if !videoExts[ext] {
+		return
+	}
+
+	go func() {
+		mp4Path := strings.TrimSuffix(path, ext) + ".mp4"
+
+		// Try fast remux first (-c copy = no re-encoding, completes in seconds)
+		cmd := exec.Command("ffmpeg", "-i", path, "-c", "copy", "-movflags", "+faststart", "-y", mp4Path)
+		if err := cmd.Run(); err != nil {
+			// Fallback: re-encode if codec is incompatible with MP4 container
+			log.Printf("[VideoConvert] Fast remux failed for %s, falling back to re-encode: %v", filepath.Base(path), err)
+			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac",
+				"-preset", "fast", "-crf", "23", "-movflags", "+faststart", "-threads", "0", "-y", mp4Path)
+			if err := cmd.Run(); err != nil {
+				log.Printf("[VideoConvert] Re-encode also failed for %s: %v", filepath.Base(path), err)
+				return // Keep original file
+			}
+		}
+
+		// Success - remove original
+		if err := os.Remove(path); err != nil {
+			log.Printf("[VideoConvert] Failed to remove original %s: %v", filepath.Base(path), err)
+		} else {
+			log.Printf("[VideoConvert] Converted %s → %s", filepath.Base(path), filepath.Base(mp4Path))
+		}
+	}()
+}
+
+// convertVideoIfNeeded is the synchronous version for backward compatibility.
+// Used when we need to wait for conversion (e.g., immediate playback).
 func convertVideoIfNeeded(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if ext == ".mp4" || ext == ".mkv" || ext == ".avi" || ext == ".webm" || ext == ".flv" || ext == ".wmv" {
-		movPath := strings.TrimSuffix(path, ext) + ".mov"
-		// -threads 0 uses all available cores
-		cmd := exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac", "-threads", "0", "-y", movPath)
+
+	// MP4 is already browser-playable - return as-is
+	if ext == ".mp4" {
+		return path, nil
+	}
+
+	// Convert MOV/M4V (often HEVC from iPhones) and other video formats
+	videoExts := map[string]bool{".mov": true, ".m4v": true, ".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
+	if !videoExts[ext] {
+		return path, nil
+	}
+
+	mp4Path := strings.TrimSuffix(path, ext) + ".mp4"
+
+	// Try fast remux first
+	cmd := exec.Command("ffmpeg", "-i", path, "-c", "copy", "-movflags", "+faststart", "-y", mp4Path)
+	if err := cmd.Run(); err != nil {
+		// Fallback to re-encode
+		cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac",
+			"-preset", "fast", "-crf", "23", "-movflags", "+faststart", "-threads", "0", "-y", mp4Path)
 		if err := cmd.Run(); err != nil {
 			return path, err
 		}
-		// Success
-		os.Remove(path)
-		return movPath, nil
 	}
-	return path, nil
+
+	os.Remove(path)
+	return mp4Path, nil
 }
 
 // RenameFile renames a file or directory
@@ -608,6 +698,35 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 	// Enable range requests for video streaming (Safari requirement)
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, filepath.Base(fullPath)))
+
+	// For MOV files, convert to MP4 on-demand for browser playback (HEVC not supported)
+	if ext == ".mov" && mode == "inline" {
+		mp4Path := strings.TrimSuffix(fullPath, ext) + ".mp4"
+
+		// Check if MP4 version already exists
+		if mp4Info, err := os.Stat(mp4Path); err == nil && mp4Info.Size() > 0 {
+			// Use existing MP4 version
+			fullPath = mp4Path
+			w.Header().Set("Content-Type", "video/mp4")
+		} else {
+			// Convert MOV to MP4 (try fast remux first, fallback to re-encode)
+			log.Printf("[VideoConvert] On-demand converting %s to MP4", filepath.Base(fullPath))
+			cmd := exec.Command("ffmpeg", "-i", fullPath, "-c", "copy", "-movflags", "+faststart", "-y", mp4Path)
+			if err := cmd.Run(); err != nil {
+				// Fallback to re-encode for HEVC content
+				cmd = exec.Command("ffmpeg", "-i", fullPath, "-c:v", "libx264", "-c:a", "aac",
+					"-preset", "fast", "-crf", "23", "-movflags", "+faststart", "-threads", "0", "-y", mp4Path)
+				if err := cmd.Run(); err == nil {
+					fullPath = mp4Path
+					w.Header().Set("Content-Type", "video/mp4")
+				}
+				// If conversion fails, serve original MOV
+			} else {
+				fullPath = mp4Path
+				w.Header().Set("Content-Type", "video/mp4")
+			}
+		}
+	}
 
 	// For MP4 files, optimize for Safari streaming if needed
 	if ext == ".mp4" && mode == "inline" {
