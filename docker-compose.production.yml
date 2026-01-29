@@ -114,17 +114,22 @@ services:
       retries: 5
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
 
-  # Caddy reverse proxy for direct HTTPS uploads (bypasses Cloudflare)
-  # Requires: Cloudflare Origin Certificate in ./certs/origin.pem and ./certs/origin-key.pem
+  # Caddy reverse proxy for direct HTTPS uploads (bypasses Cloudflare completely)
+  # Uses Let's Encrypt with Cloudflare DNS challenge - requires CF_API_TOKEN
+  # DNS record must be set to "DNS only" (grey cloud, not proxied)
   caddy:
-    image: caddy:2-alpine
+    build:
+      context: .
+      dockerfile: Dockerfile.caddy
+    image: cold-caddy:latest
     container_name: cold-caddy
     restart: unless-stopped
     ports:
       - "443:443"
+    environment:
+      - CF_API_TOKEN=${CF_API_TOKEN}
     volumes:
       - ./configs/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./certs:/etc/caddy/certs:ro
       - caddy_data:/data
     networks:
       - cold-net
