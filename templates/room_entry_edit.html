@@ -484,6 +484,13 @@
         let roomEntryData = null;
         let quantityValues = [];
 
+        // Helper to append token to media URLs (video/img elements can't send headers)
+        function withToken(url) {
+            if (!url || !token) return url;
+            const sep = url.includes('?') ? '&' : '?';
+            return url + sep + 'token=' + encodeURIComponent(token);
+        }
+
         // Smart upload endpoint detection - tries fastest route first
         // Priority: 1) LAN (fastest) → 2) Direct static IP → 3) Cloudflare tunnel (fallback)
         // Only tries LAN when on production domain (avoids 1.5s delay during local testing)
@@ -1662,13 +1669,19 @@
                     gpPickupMedia = gpData.pickup_media || [];
                 }
 
+                // Add token to all download_urls (video/img elements can't send headers)
+                const addTokenToMedia = (arr) => arr.map(m => ({...m, download_url: withToken(m.download_url)}));
+                gpEntryMedia = addTokenToMedia(gpEntryMedia);
+                gpPickupMedia = addTokenToMedia(gpPickupMedia);
+                const editMedia = addTokenToMedia(reData.edit_media || []);
+
                 // Cache combined data
                 window.cachedREMediaData = {
                     entry_media: gpEntryMedia,
                     pickup_media: gpPickupMedia,
-                    edit_media: reData.edit_media || []
+                    edit_media: editMedia
                 };
-                displayREMediaPreview(gpEntryMedia, gpPickupMedia, reData.edit_media || []);
+                displayREMediaPreview(gpEntryMedia, gpPickupMedia, editMedia);
             } catch (error) {
                 console.error('Error loading media:', error);
                 document.getElementById('reMediaPreview').innerHTML =
@@ -2122,6 +2135,11 @@
                         pickupMedia = gpData.pickup_media || [];
                     }
                     editMedia = reData.edit_media || [];
+                    // Add token to all download_urls
+                    const addTokenToMedia = (arr) => arr.map(m => ({...m, download_url: withToken(m.download_url)}));
+                    entryMedia = addTokenToMedia(entryMedia);
+                    pickupMedia = addTokenToMedia(pickupMedia);
+                    editMedia = addTokenToMedia(editMedia);
                     window.cachedREMediaData = { entry_media: entryMedia, pickup_media: pickupMedia, edit_media: editMedia };
                 }
 

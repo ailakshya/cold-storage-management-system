@@ -701,7 +701,8 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 
 	// For MOV files, convert to MP4 on-demand for browser playback (HEVC not supported)
 	if ext == ".mov" && mode == "inline" {
-		mp4Path := strings.TrimSuffix(fullPath, ext) + ".mp4"
+		actualExt := filepath.Ext(fullPath) // Preserve original case for TrimSuffix
+		mp4Path := strings.TrimSuffix(fullPath, actualExt) + ".mp4"
 
 		// Check if MP4 version already exists
 		if mp4Info, err := os.Stat(mp4Path); err == nil && mp4Info.Size() > 0 {

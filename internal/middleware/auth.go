@@ -49,6 +49,11 @@ func (m *AuthMiddleware) Authenticate(next http.Handler) http.Handler {
 			}
 		}
 
+		// Check for query param token (for <video>/<img> elements that can't send headers)
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+
 		if token == "" {
 			http.Error(w, "Authorization header required", http.StatusUnauthorized)
 			return
@@ -121,6 +126,11 @@ func (m *AuthMiddleware) RequireRole(allowedRoles ...string) func(http.Handler) 
 				if cookie, err := r.Cookie("auth_token"); err == nil {
 					token = cookie.Value
 				}
+			}
+
+			// Check for query param token (for <video>/<img> elements that can't send headers)
+			if token == "" {
+				token = r.URL.Query().Get("token")
 			}
 
 			if token == "" {
