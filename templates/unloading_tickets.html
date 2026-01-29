@@ -657,24 +657,26 @@
             const host = window.location.hostname;
             const isProduction = host.includes('gurukripacoldstore.in');
             const isOnLanSubnet = host.startsWith('192.168.1.');
+            console.log('[Upload Route] Detecting... host=' + host + ', isProduction=' + isProduction);
 
             if (isProduction || isOnLanSubnet) {
                 try {
                     const ctrl1 = new AbortController();
                     setTimeout(() => ctrl1.abort(), 1500);
                     const resp = await fetch(LAN_HOST + '/health', { signal: ctrl1.signal });
-                    if (resp.ok) { UPLOAD_BASE = LAN_HOST; console.log('LAN upload:', LAN_HOST); return; }
-                } catch (e) {}
+                    if (resp.ok) { UPLOAD_BASE = LAN_HOST; console.log('[Upload Route] Using LAN:', LAN_HOST); return; }
+                } catch (e) { console.log('[Upload Route] LAN failed:', e.message); }
             }
             if (isProduction) {
                 try {
                     const ctrl2 = new AbortController();
-                    setTimeout(() => ctrl2.abort(), 2000);
-                    const resp = await fetch(DIRECT_HOST + '/health', { signal: ctrl2.signal, mode: 'cors' });
-                    if (resp.ok) { UPLOAD_BASE = DIRECT_HOST; console.log('Direct upload:', DIRECT_HOST); return; }
-                } catch (e) {}
+                    setTimeout(() => ctrl2.abort(), 3000);
+                    const resp = await fetch(DIRECT_HOST + '/health', { signal: ctrl2.signal, mode: 'cors', credentials: 'omit' });
+                    if (resp.ok) { UPLOAD_BASE = DIRECT_HOST; console.log('[Upload Route] Using Direct HTTPS:', DIRECT_HOST); return; }
+                    console.log('[Upload Route] Direct returned status:', resp.status);
+                } catch (e) { console.log('[Upload Route] Direct failed:', e.message); }
             }
-            console.log('Using relative URLs' + (isProduction ? ' (CF tunnel fallback)' : ' (local dev)'));
+            console.log('[Upload Route] Using Cloudflare tunnel (fallback)');
         })();
 
         async function loadPendingGatePasses() {
