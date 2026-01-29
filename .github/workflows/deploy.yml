@@ -225,6 +225,19 @@ jobs:
             echo "Start it with: sudo systemctl start cloudflared"
           fi
 
+      - name: Verify Direct Endpoint TLS
+        run: |
+          # Cert renewal mitigation: verify TLS cert is valid
+          if curl -sf --max-time 10 "https://direct.gurukripacoldstore.in/health" > /dev/null 2>&1; then
+            echo "Direct HTTPS endpoint: OK"
+            EXPIRY=$(echo | openssl s_client -servername direct.gurukripacoldstore.in -connect 103.55.63.238:443 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null || echo "")
+            if [ -n "$EXPIRY" ]; then
+              echo "  TLS cert: $EXPIRY"
+            fi
+          else
+            echo "::warning::Direct HTTPS endpoint not responding — check Caddy container and Let's Encrypt cert"
+          fi
+
       - name: Cleanup Old Images
         run: |
           # Keep last 3 tagged images, prune the rest
@@ -253,4 +266,5 @@ jobs:
           echo "  Employee:  https://app.gurukripacoldstore.in"
           echo "  Customer:  https://customer.gurukripacoldstore.in"
           echo "  Website:   https://gurukripacoldstore.in"
+          echo "  Direct:    https://direct.gurukripacoldstore.in (API only)"
           echo "============================================"

@@ -82,6 +82,7 @@
         }
     </style>
     <script src="/static/js/theme.js"></script>
+    <script src="/static/js/direct-connect.js"></script>
 </head>
 <body class="bg-[#f8fafb] min-h-screen">
     <!-- Navigation Bar -->
@@ -647,37 +648,7 @@
         let allGatePasses = [];
         let pickupRoomEntries = []; // Store room entries for pickup gatar selection
 
-        // Smart upload endpoint detection - tries fastest route first
-        // Priority: 1) LAN (fastest) → 2) Direct static IP → 3) Cloudflare tunnel (fallback)
-        let UPLOAD_BASE = '';
-        const LAN_HOST = 'http://192.168.1.134:8080';
-        const DIRECT_HOST = 'https://direct.gurukripacoldstore.in';  // Direct HTTPS upload (bypasses Cloudflare)
-
-        (async function detectBestUploadRoute() {
-            const host = window.location.hostname;
-            const isProduction = host.includes('gurukripacoldstore.in');
-            const isOnLanSubnet = host.startsWith('192.168.1.');
-            console.log('[Upload Route] Detecting... host=' + host + ', isProduction=' + isProduction);
-
-            if (isProduction || isOnLanSubnet) {
-                try {
-                    const ctrl1 = new AbortController();
-                    setTimeout(() => ctrl1.abort(), 1500);
-                    const resp = await fetch(LAN_HOST + '/health', { signal: ctrl1.signal });
-                    if (resp.ok) { UPLOAD_BASE = LAN_HOST; console.log('[Upload Route] Using LAN:', LAN_HOST); return; }
-                } catch (e) { console.log('[Upload Route] LAN failed:', e.message); }
-            }
-            if (isProduction) {
-                try {
-                    const ctrl2 = new AbortController();
-                    setTimeout(() => ctrl2.abort(), 3000);
-                    const resp = await fetch(DIRECT_HOST + '/health', { signal: ctrl2.signal, mode: 'cors', credentials: 'omit' });
-                    if (resp.ok) { UPLOAD_BASE = DIRECT_HOST; console.log('[Upload Route] Using Direct HTTPS:', DIRECT_HOST); return; }
-                    console.log('[Upload Route] Direct returned status:', resp.status);
-                } catch (e) { console.log('[Upload Route] Direct failed:', e.message); }
-            }
-            console.log('[Upload Route] Using Cloudflare tunnel (fallback)');
-        })();
+        // Upload routing handled by /static/js/direct-connect.js (DIRECT_BASE)
 
         async function loadPendingGatePasses() {
             try {
@@ -1240,7 +1211,9 @@
 
         function displayMediaPreview(entryMedia, pickupMedia, editMedia = []) {
             const preview = document.getElementById('mediaPreview');
-            const allMedia = [...entryMedia, ...pickupMedia, ...editMedia];
+            const allMedia = [...entryMedia, ...pickupMedia, ...editMedia].map(m => ({
+                ...m, download_url: directUrl(m.download_url)
+            }));
 
             if (allMedia.length === 0) {
                 preview.innerHTML = '<p class="text-xs text-gray-400 col-span-4">No media available</p>';
@@ -1864,8 +1837,10 @@
                     return;
                 }
 
-                // Combine all media for navigation
-                const allMedia = [...entryMedia, ...pickupMedia, ...editMedia];
+                // Combine all media for navigation (prefix with direct URL)
+                const allMedia = [...entryMedia, ...pickupMedia, ...editMedia].map(m => ({
+                    ...m, download_url: directUrl(m.download_url)
+                }));
                 window.currentModalMedia = allMedia;
 
                 // Function to render media grid
@@ -2534,7 +2509,7 @@
                 xhr.addEventListener('error', () => reject(new Error('Network Error')));
                 xhr.addEventListener('timeout', () => reject(new Error('Upload timed out')));
 
-                xhr.open('POST', UPLOAD_BASE + '/api/files/upload');
+                xhr.open('POST', DIRECT_BASE + '/api/files/upload');
                 xhr.timeout = 120000; // 2 minute timeout for large videos
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 xhr.send(formData);

@@ -1,7 +1,7 @@
-# Caddyfile for direct uploads (bypassing Cloudflare proxy completely)
+# Caddyfile for direct API data transfer (bypassing Cloudflare proxy)
 #
 # Uses Let's Encrypt with Cloudflare DNS challenge for HTTPS
-# This allows DNS-only mode (no Cloudflare proxy) for true direct connection
+# Only proxies /api/* and /health — all other paths return 404
 #
 # Prerequisites:
 # 1. CF_API_TOKEN in .env.production with Zone:DNS:Edit permission
@@ -13,20 +13,43 @@ direct.gurukripacoldstore.in {
         dns cloudflare {env.CF_API_TOKEN}
     }
 
-    # CORS for cross-origin uploads from the main domain
-    @cors_preflight method OPTIONS
-    handle @cors_preflight {
-        header Access-Control-Allow-Origin "https://app.gurukripacoldstore.in"
-        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Authorization, Content-Type"
-        header Access-Control-Max-Age "86400"
-        respond "" 204
+    # Rate limiting: 100 requests/sec per IP (DDoS mitigation)
+    rate_limit {
+        zone direct_api {
+            key    {remote_host}
+            events 100
+            window 1s
+        }
     }
 
-    # Add CORS headers to all responses
-    header Access-Control-Allow-Origin "https://app.gurukripacoldstore.in"
-    header Access-Control-Allow-Credentials "true"
+    # Only allow /api/* and /health paths
+    @api_paths path /api/* /health
 
-    # Proxy to backend container
-    reverse_proxy cold-backend:8080
+    handle @api_paths {
+        # Dynamic CORS: allow both employee and customer portals
+        @cors_origin header_regexp origin Origin ^https://(app|customer)\.gurukripacoldstore\.in$
+
+        @cors_preflight {
+            method OPTIONS
+            header_regexp origin2 Origin ^https://(app|customer)\.gurukripacoldstore\.in$
+        }
+
+        handle @cors_preflight {
+            header Access-Control-Allow-Origin "{http.request.header.Origin}"
+            header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+            header Access-Control-Allow-Headers "Authorization, Content-Type"
+            header Access-Control-Max-Age "86400"
+            respond "" 204
+        }
+
+        header @cors_origin Access-Control-Allow-Origin "{http.request.header.Origin}"
+        header @cors_origin Access-Control-Allow-Credentials "true"
+
+        reverse_proxy cold-backend:8080
+    }
+
+    # Block everything else — no pages, no login forms, no static files
+    handle {
+        respond "Not Found" 404
+    }
 }
