@@ -650,6 +650,14 @@
 
         // Upload routing handled by /static/js/direct-connect.js (DIRECT_BASE)
 
+        // Helper to append token to media URLs and route via direct connection
+        // (video/img elements can't send Authorization headers)
+        function withToken(url) {
+            if (!url || !token) return directUrl(url);
+            const sep = url.includes('?') ? '&' : '?';
+            return directUrl(url + sep + 'token=' + encodeURIComponent(token));
+        }
+
         async function loadPendingGatePasses() {
             try {
                 const response = await fetch('/api/gate-passes/pending', {
@@ -1212,7 +1220,7 @@
         function displayMediaPreview(entryMedia, pickupMedia, editMedia = []) {
             const preview = document.getElementById('mediaPreview');
             const allMedia = [...entryMedia, ...pickupMedia, ...editMedia].map(m => ({
-                ...m, download_url: directUrl(m.download_url)
+                ...m, download_url: withToken(m.download_url)
             }));
 
             if (allMedia.length === 0) {
@@ -1476,7 +1484,6 @@
                 <div class="relative w-full h-full max-h-[calc(100vh-5rem)] flex flex-col items-center justify-center bg-black overflow-hidden" id="videoPlayerContainer">
                     <video id="mediaViewerVideo" playsinline webkit-playsinline class="w-full h-full object-contain bg-black cursor-pointer">
                         <source src="${url}" type="video/mp4">
-                        <source src="${url}" type="video/mov">
                         <source src="${url}">
                         Your browser does not support the video tag.
                     </video>
@@ -1839,7 +1846,7 @@
 
                 // Combine all media for navigation (prefix with direct URL)
                 const allMedia = [...entryMedia, ...pickupMedia, ...editMedia].map(m => ({
-                    ...m, download_url: directUrl(m.download_url)
+                    ...m, download_url: withToken(m.download_url)
                 }));
                 window.currentModalMedia = allMedia;
 

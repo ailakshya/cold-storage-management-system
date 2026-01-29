@@ -566,6 +566,7 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 // - Returns the new MP4 path
 func convertVideoToH264(inputPath string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(inputPath))
+	originalExt := filepath.Ext(inputPath) // Preserve original case for TrimSuffix (case-sensitive)
 
 	// Supported input formats (including MP4 which may have HEVC codec)
 	videoExts := map[string]bool{
@@ -577,14 +578,14 @@ func convertVideoToH264(inputPath string) (string, error) {
 		return inputPath, nil // Not a video, return as-is
 	}
 
-	// Output path (always .mp4)
-	mp4Path := strings.TrimSuffix(inputPath, ext) + ".mp4"
+	// Output path (always .mp4) — use originalExt for TrimSuffix since it's case-sensitive
+	mp4Path := strings.TrimSuffix(inputPath, originalExt) + ".mp4"
 
 	// If input is already .mp4, use temp output to avoid overwriting during conversion
 	tempPath := mp4Path
 	needsRename := false
 	if ext == ".mp4" {
-		tempPath = strings.TrimSuffix(inputPath, ext) + "_h264_temp.mp4"
+		tempPath = strings.TrimSuffix(inputPath, originalExt) + "_h264_temp.mp4"
 		needsRename = true
 	}
 
@@ -658,6 +659,15 @@ func convertVideoToH264(inputPath string) (string, error) {
 	return mp4Path, nil
 }
 
+// isVideoExt returns true if the lowercased extension is a known video format.
+func isVideoExt(lowExt string) bool {
+	switch lowExt {
+	case ".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm", ".flv", ".wmv", ".3gp", ".mts":
+		return true
+	}
+	return false
+}
+
 // convertVideoInBackground is kept for backward compatibility but now uses the new H.264 conversion.
 // Runs conversion in background goroutine.
 func convertVideoInBackground(path string) {
@@ -727,8 +737,29 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 
 	info, err := os.Stat(fullPath)
 	if err != nil {
-		http.Error(w, "File not found", http.StatusNotFound)
-		return
+		// For video files, check if a converted MP4 version exists
+		// Background conversion may have replaced the original (e.g., .MOV → .mp4)
+		lowExt := strings.ToLower(filepath.Ext(fullPath))
+		if lowExt != ".mp4" && isVideoExt(lowExt) {
+			origExt := filepath.Ext(fullPath)
+			// Try correct conversion name: file.mp4
+			mp4Try := strings.TrimSuffix(fullPath, origExt) + ".mp4"
+			if fi, e := os.Stat(mp4Try); e == nil {
+				fullPath = mp4Try
+				info = fi
+			} else {
+				// Try legacy buggy conversion name: file.MOV.mp4
+				mp4Try2 := fullPath + ".mp4"
+				if fi, e := os.Stat(mp4Try2); e == nil {
+					fullPath = mp4Try2
+					info = fi
+				}
+			}
+		}
+		if info == nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
 	}
 
 	if info.IsDir() {
@@ -756,11 +787,8 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 		w.Header().Set("Content-Type", "video/x-matroska")
 	}
 
-	// CORS headers for Safari video playback
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Range")
-	w.Header().Set("Access-Control-Expose-Headers", "Accept-Ranges, Content-Range, Content-Length, Content-Type")
+	// CORS is handled by Caddy (direct connection) or same-origin (Cloudflare tunnel).
+	// Do NOT set CORS headers here — duplicate headers conflict with Caddy's and cause browsers to block responses.
 
 	// Enable range requests for video streaming (Safari requirement)
 	w.Header().Set("Accept-Ranges", "bytes")
@@ -796,30 +824,8 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	// For MP4 files, optimize for Safari streaming if needed
-	if ext == ".mp4" && mode == "inline" {
-		optimizedPath := fullPath + ".optimized.mp4"
-
-		// Check if optimized version exists and is newer than original
-		optimizedInfo, err := os.Stat(optimizedPath)
-		needsOptimization := true
-
-		if err == nil && optimizedInfo.ModTime().After(info.ModTime()) {
-			// Use cached optimized version
-			fullPath = optimizedPath
-			needsOptimization = false
-		}
-
-		if needsOptimization {
-			// Optimize MP4 with faststart for Safari
-			cmd := exec.Command("ffmpeg", "-i", fullPath, "-c", "copy", "-movflags", "+faststart", "-y", optimizedPath)
-			if err := cmd.Run(); err == nil {
-				// Successfully optimized, use the new file
-				fullPath = optimizedPath
-			}
-			// If optimization fails, serve original file
-		}
-	}
+	// Note: MP4 faststart optimization is applied during upload-time conversion.
+	// No need for on-demand optimization here — it would block the response for large files.
 
 	http.ServeFile(w, r, fullPath)
 }
