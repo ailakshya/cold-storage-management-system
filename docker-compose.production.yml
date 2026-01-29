@@ -114,10 +114,30 @@ services:
       retries: 5
     command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
 
+  # Caddy reverse proxy for direct uploads (TLS with Cloudflare Origin cert)
+  # Setup: Set DNS A record direct.gurukripacoldstore.in → your static IP (Proxied OFF)
+  # Requires: router port-forward 443 → server, origin cert in ./certs/
+  caddy:
+    image: caddy:2-alpine
+    container_name: cold-caddy
+    restart: unless-stopped
+    ports:
+      - "443:443"
+    volumes:
+      - ./configs/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./certs:/etc/caddy/certs:ro
+      - caddy_data:/data
+    networks:
+      - cold-net
+    depends_on:
+      - app
+
 networks:
   cold-net:
     driver: bridge
 
 volumes:
   redis_data:
+    driver: local
+  caddy_data:
     driver: local

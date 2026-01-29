@@ -1,0 +1,31 @@
+# Caddyfile for direct uploads (bypassing Cloudflare tunnel)
+#
+# Prerequisites:
+# 1. Cloudflare Origin Certificate in ./certs/origin.pem and ./certs/origin-key.pem
+#    - Dashboard → SSL/TLS → Origin Server → Create Certificate
+#    - Hostnames: *.gurukripacoldstore.in, gurukripacoldstore.in
+#    - Validity: 15 years
+# 2. DNS A record: direct.gurukripacoldstore.in (Proxied = OFF, orange cloud off)
+# 3. Router port forward: external 443 → server:443
+# 4. CF_API_TOKEN in .env.production (for DDNS container)
+
+direct.gurukripacoldstore.in {
+    tls /etc/caddy/certs/origin.pem /etc/caddy/certs/origin-key.pem
+
+    # CORS for cross-origin uploads from the main domain
+    @cors_preflight method OPTIONS
+    handle @cors_preflight {
+        header Access-Control-Allow-Origin "https://app.gurukripacoldstore.in"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Authorization, Content-Type"
+        header Access-Control-Max-Age "86400"
+        respond "" 204
+    }
+
+    # Add CORS headers to all responses
+    header Access-Control-Allow-Origin "https://app.gurukripacoldstore.in"
+    header Access-Control-Allow-Credentials "true"
+
+    # Proxy to backend container
+    reverse_proxy cold-backend:8080
+}
