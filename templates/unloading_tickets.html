@@ -651,7 +651,7 @@
         // Priority: 1) LAN (fastest) → 2) Direct static IP → 3) Cloudflare tunnel (fallback)
         let UPLOAD_BASE = '';
         const LAN_HOST = 'http://192.168.1.134:8080';
-        const DIRECT_HOST = 'http://103.55.63.238:8080';  // Static IP direct upload
+        const DIRECT_HOST = 'https://direct.gurukripacoldstore.in';  // Direct HTTPS upload (bypasses Cloudflare)
 
         (async function detectBestUploadRoute() {
             const host = window.location.hostname;
