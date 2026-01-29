@@ -1966,7 +1966,7 @@
                          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                          const newFileName = `Thok_${safeThok}_${safeCustomer}_entry_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
                          
-                         await uploadSingleFile(file, targetPath, (pct) => {
+                         const finalFileName = await uploadSingleFile(file, targetPath, (pct) => {
                               const totalPct = ((i + (pct/100)) / files.length) * 100;
                               progressBar.style.width = `${totalPct}%`;
                               const pctEl = document.getElementById('integratedUploadPercent');
@@ -1974,15 +1974,15 @@
                          }, newFileName);
                          uploadedCount++;
 
-                         // Save media metadata to database
+                         // Save media metadata to database (use converted filename for videos)
                          try {
                              await saveEntryMediaMetadata({
                                  gate_pass_id: null,
                                  gate_pass_pickup_id: null,
                                  thock_number: thokNo,
                                  media_type: 'entry',
-                                 file_name: newFileName,
-                                 file_path: `Room Config/${newFileName}`,
+                                 file_name: finalFileName,
+                                 file_path: `Room Config/${finalFileName}`,
                                  file_type: file.type.startsWith('image/') ? 'image' : 'video',
                                  file_size: file.size
                              });
@@ -2458,20 +2458,20 @@
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                     const newFileName = `Thok_${safeThok}_${safeCustomer}_entry_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
 
-                    await uploadSingleFile(file, targetPath, (pct) => {
+                    const finalFileName = await uploadSingleFile(file, targetPath, (pct) => {
                         const totalPct = ((i + (pct/100)) / files.length) * 100;
                         progressBar.style.width = `${totalPct}%`;
                         percentText.textContent = `${Math.round(totalPct)}%`;
                     }, newFileName);
 
-                    // Save metadata to database
+                    // Save metadata to database (use converted filename for videos)
                     await saveEntryMediaMetadata({
                         gate_pass_id: null,
                         gate_pass_pickup_id: null,
                         thock_number: thockNo,
                         media_type: 'entry',
-                        file_name: newFileName,
-                        file_path: `Room Config/${newFileName}`,
+                        file_name: finalFileName,
+                        file_path: `Room Config/${finalFileName}`,
                         file_type: file.type.startsWith('image/') ? 'image' : 'video',
                         file_size: file.size
                     });
@@ -2507,7 +2507,7 @@
                 formData.append('path', path);
 
                 const xhr = new XMLHttpRequest();
-                
+
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
                         const percent = Math.round((e.loaded / e.total) * 100);
@@ -2517,14 +2517,20 @@
 
                 xhr.addEventListener('load', () => {
                     if (xhr.status === 200) {
-                        resolve();
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            // Return converted_to filename (for videos converted to MP4)
+                            resolve(response.converted_to || response.file || customName);
+                        } catch (e) {
+                            resolve(customName); // Fallback to original name
+                        }
                     } else {
                         reject(new Error(xhr.statusText));
                     }
                 });
 
                 xhr.addEventListener('error', () => reject(new Error('Network Error')));
-                
+
                 xhr.open('POST', '/api/files/upload');
                 // Assuming token is globally available (it is in line 519)
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);

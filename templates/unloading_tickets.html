@@ -909,7 +909,31 @@
 
         function updateGatarQty(idx) {
             const qtyInput = document.getElementById(`qty-${idx}`);
-            const qty = parseInt(qtyInput.value) || 0;
+            let qty = parseInt(qtyInput.value) || 0;
+
+            // Get approved quantity limit
+            const approvedQty = parseInt(document.getElementById('approvedQuantity').value) || 0;
+
+            // Calculate current total (excluding this gatar)
+            let currentTotal = 0;
+            Object.keys(selectedPickupGatars).forEach(i => {
+                if (parseInt(i) !== idx) {
+                    currentTotal += selectedPickupGatars[i];
+                }
+            });
+
+            // Cap quantity to not exceed approved quantity
+            const maxAllowed = approvedQty - currentTotal;
+            if (qty > maxAllowed && maxAllowed > 0) {
+                qty = maxAllowed;
+                qtyInput.value = qty;
+                alert(`Quantity capped to ${qty}. Total cannot exceed approved quantity (${approvedQty}).`);
+            } else if (qty > 0 && maxAllowed <= 0) {
+                qty = 0;
+                qtyInput.value = '';
+                alert(`Cannot add more items. Approved quantity (${approvedQty}) already reached.`);
+            }
+
             if (qty > 0) {
                 selectedPickupGatars[idx] = qty;
             } else {
@@ -934,7 +958,24 @@
                 }
             });
 
-            document.getElementById('selectedGatarCount').textContent = totalItems + ' items';
+            const approvedQty = parseInt(document.getElementById('approvedQuantity').value) || 0;
+            const countElement = document.getElementById('selectedGatarCount');
+
+            // Show total with color-coded feedback
+            if (totalItems === approvedQty && approvedQty > 0) {
+                countElement.textContent = totalItems + ' items ✓';
+                countElement.classList.remove('text-red-600', 'text-gray-700');
+                countElement.classList.add('text-green-600', 'font-bold');
+            } else if (totalItems > approvedQty && approvedQty > 0) {
+                countElement.textContent = totalItems + ' items (exceeds ' + approvedQty + '!)';
+                countElement.classList.remove('text-green-600', 'text-gray-700');
+                countElement.classList.add('text-red-600', 'font-bold');
+            } else {
+                countElement.textContent = totalItems + ' items';
+                countElement.classList.remove('text-green-600', 'text-red-600', 'font-bold');
+                countElement.classList.add('text-gray-700');
+            }
+
             document.getElementById('gateNo').value = gatarDetails.join(',');
 
             const summaryDiv = document.getElementById('pickupSelectionSummary');
@@ -1969,6 +2010,12 @@
                     alert(i18n.t('approved_exceeds_selected', `Approved quantity (${approvedQty}) exceeds selected gatar quantity (${selectedQty} items). Please increase gatar quantities or reduce approved quantity.`));
                     return;
                 }
+
+                // Also check if selected exceeds approved
+                if (selectedQty > approvedQty) {
+                    alert(i18n.t('selected_exceeds_approved', `Selected gatar quantity (${selectedQty} items) exceeds approved quantity (${approvedQty}). Please reduce gatar quantities or increase approved quantity.`));
+                    return;
+                }
             }
 
             const gatePassId = parseInt(document.getElementById('gatePassId').value);
@@ -2367,9 +2414,10 @@
 
                 statusText.textContent = `Uploading file ${i + 1} of ${files.length}...`;
 
-                // Step 1: Upload file
+                // Step 1: Upload file (returns converted filename for videos)
+                let finalFileName = newFileName;
                 try {
-                    await uploadSingleFile(file, targetPath, (pct) => {
+                    finalFileName = await uploadSingleFile(file, targetPath, (pct) => {
                         const totalPct = ((i + (pct/100)) / files.length) * 100;
                         progressBar.style.width = `${totalPct}%`;
                         percentText.textContent = `${Math.round(totalPct)}%`;
@@ -2382,21 +2430,21 @@
                     continue; // Skip metadata save — file didn't upload
                 }
 
-                // Step 2: Save metadata (only if file upload succeeded)
+                // Step 2: Save metadata (use converted filename for videos)
                 try {
                     await saveMediaMetadata({
                         gate_pass_id: gatePass.id,
                         gate_pass_pickup_id: pickupId,
                         thock_number: thockNo,
                         media_type: 'pickup',
-                        file_name: newFileName,
-                        file_path: `Room Config/${newFileName}`,
+                        file_name: finalFileName,
+                        file_path: `Room Config/${finalFileName}`,
                         file_type: file.type.startsWith('image/') ? 'image' : 'video',
                         file_size: file.size
                     });
                     successCount++;
                 } catch (metaErr) {
-                    console.error(`Metadata save failed for ${newFileName}:`, metaErr);
+                    console.error(`Metadata save failed for ${finalFileName}:`, metaErr);
                     failCount++;
                     statusText.textContent = `File ${i + 1} metadata save failed`;
                     statusText.className = 'text-xs font-bold text-red-700';
@@ -2421,6 +2469,7 @@
         }
 
         // Upload a single file with progress tracking
+        // Returns the final filename (may be different for videos converted to MP4)
         function uploadSingleFile(file, path, onProgress, customName = null) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
@@ -2438,7 +2487,13 @@
 
                 xhr.addEventListener('load', () => {
                     if (xhr.status >= 200 && xhr.status < 300) {
-                        resolve();
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            // Return converted_to filename (for videos converted to MP4)
+                            resolve(response.converted_to || response.file || customName);
+                        } catch (e) {
+                            resolve(customName); // Fallback to original name
+                        }
                     } else {
                         reject(new Error(`Upload failed: ${xhr.status} ${xhr.statusText}`));
                     }

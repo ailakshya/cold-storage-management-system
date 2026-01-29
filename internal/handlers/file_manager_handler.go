@@ -363,11 +363,31 @@ func (h *FileManagerHandler) UploadFile(w http.ResponseWriter, r *http.Request) 
 	// Set permissions
 	os.Chmod(destPath, 0666)
 
-	// Start async video conversion (returns immediately)
-	convertVideoInBackground(destPath)
+	// Synchronous video conversion - convert before returning to ensure file is ready
+	finalPath := destPath
+	ext := strings.ToLower(filepath.Ext(destPath))
+	videoExts := map[string]bool{
+		".mp4": true, ".mov": true, ".m4v": true, ".mkv": true,
+		".avi": true, ".webm": true, ".flv": true, ".wmv": true,
+		".3gp": true, ".mts": true,
+	}
+
+	if videoExts[ext] {
+		convertedPath, err := convertVideoToH264(destPath)
+		if err != nil {
+			log.Printf("[Upload] Video conversion failed, keeping original: %v", err)
+			// Still return success - original file is saved
+		} else {
+			finalPath = convertedPath
+		}
+	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "success", "file": header.Filename})
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":       "success",
+		"file":         header.Filename,
+		"converted_to": filepath.Base(finalPath),
+	})
 }
 
 // UploadChunk handles chunked file uploads
@@ -512,13 +532,29 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 		// Set permissions
 		os.Chmod(finalDestPath, 0666)
 
-		// Start async video conversion (returns immediately)
-		convertVideoInBackground(finalDestPath)
+		// Synchronous video conversion - convert before returning to ensure file is ready
+		finalPath := finalDestPath
+		ext := strings.ToLower(filepath.Ext(finalDestPath))
+		videoExts := map[string]bool{
+			".mp4": true, ".mov": true, ".m4v": true, ".mkv": true,
+			".avi": true, ".webm": true, ".flv": true, ".wmv": true,
+			".3gp": true, ".mts": true,
+		}
+
+		if videoExts[ext] {
+			convertedPath, err := convertVideoToH264(finalDestPath)
+			if err != nil {
+				log.Printf("[UploadChunk] Video conversion failed, keeping original: %v", err)
+			} else {
+				finalPath = convertedPath
+			}
+		}
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "completed",
-			"file":   filepath.Base(filename),
+			"status":       "completed",
+			"file":         filepath.Base(filename),
+			"converted_to": filepath.Base(finalPath),
 		})
 		return
 	}
@@ -527,79 +563,117 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]string{"status": "chunk_uploaded"})
 }
 
-// convertVideoInBackground converts non-MP4 videos to MP4 asynchronously.
-// Uses fast remux (-c copy) first, falls back to re-encode if codec is incompatible.
-// Returns immediately - conversion happens in background goroutine.
-func convertVideoInBackground(path string) {
-	ext := strings.ToLower(filepath.Ext(path))
+// convertVideoToH264 converts any video to browser-compatible H.264 MP4.
+// Instagram/Facebook-style processing: always transcode for consistency.
+// Features:
+// - Always transcodes (no remux) for guaranteed H.264 output
+// - Caps resolution at 1080p (max width 1920, height scales proportionally)
+// - Uses CRF 24 for good quality/size balance
+// - Adds faststart for web streaming
+// - Returns the new MP4 path
+func convertVideoToH264(inputPath string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(inputPath))
 
-	// MP4 is already browser-playable - skip conversion
-	if ext == ".mp4" {
-		return
+	// Supported input formats (including MP4 which may have HEVC codec)
+	videoExts := map[string]bool{
+		".mp4": true, ".mov": true, ".m4v": true, ".mkv": true,
+		".avi": true, ".webm": true, ".flv": true, ".wmv": true,
+		".3gp": true, ".mts": true,
 	}
-
-	// Convert MOV/M4V (often HEVC from iPhones) and other video formats to MP4
-	videoExts := map[string]bool{".mov": true, ".m4v": true, ".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
 	if !videoExts[ext] {
-		return
+		return inputPath, nil // Not a video, return as-is
 	}
 
-	go func() {
-		mp4Path := strings.TrimSuffix(path, ext) + ".mp4"
+	// Output path (always .mp4)
+	mp4Path := strings.TrimSuffix(inputPath, ext) + ".mp4"
 
-		// Try fast remux first (-c copy = no re-encoding, completes in seconds)
-		cmd := exec.Command("ffmpeg", "-i", path, "-c", "copy", "-movflags", "+faststart", "-y", mp4Path)
-		if err := cmd.Run(); err != nil {
-			// Fallback: re-encode if codec is incompatible with MP4 container
-			log.Printf("[VideoConvert] Fast remux failed for %s, falling back to re-encode: %v", filepath.Base(path), err)
-			cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac",
-				"-preset", "fast", "-crf", "23", "-movflags", "+faststart", "-threads", "0", "-y", mp4Path)
-			if err := cmd.Run(); err != nil {
-				log.Printf("[VideoConvert] Re-encode also failed for %s: %v", filepath.Base(path), err)
-				return // Keep original file
+	// If input is already .mp4, use temp output to avoid overwriting during conversion
+	tempPath := mp4Path
+	needsRename := false
+	if ext == ".mp4" {
+		tempPath = strings.TrimSuffix(inputPath, ext) + "_h264_temp.mp4"
+		needsRename = true
+	}
+
+	log.Printf("[VideoConvert] Converting %s to H.264 MP4 (max 1080p, CRF 24)...", filepath.Base(inputPath))
+
+	// FFmpeg command with Instagram-like settings:
+	// - Scale to max 1080p width, maintaining aspect ratio (-2 ensures height is divisible by 2)
+	// - H.264 video codec (libx264) for universal browser support
+	// - AAC audio at 128k
+	// - CRF 24 for good quality/compression balance (Instagram uses 23-26)
+	// - Medium preset (better compression than 'fast')
+	// - faststart for progressive web playback
+	// - yuv420p pixel format for Safari/browser compatibility
+	cmd := exec.Command("ffmpeg",
+		"-i", inputPath,
+		"-c:v", "libx264",
+		"-c:a", "aac",
+		"-b:a", "128k",
+		"-preset", "medium",
+		"-crf", "24",
+		"-vf", "scale='min(1920,iw)':-2", // Max width 1920, height auto (divisible by 2)
+		"-movflags", "+faststart",
+		"-pix_fmt", "yuv420p", // Required for Safari/older browsers
+		"-threads", "0",
+		"-y", // Overwrite output
+		tempPath,
+	)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("[VideoConvert] FFmpeg failed for %s: %v\nOutput: %s",
+			filepath.Base(inputPath), err, string(output))
+		return inputPath, fmt.Errorf("conversion failed: %w", err)
+	}
+
+	// If we used a temp path (for MP4 input), rename to final path
+	if needsRename {
+		// Remove original first
+		os.Remove(inputPath)
+		if err := os.Rename(tempPath, mp4Path); err != nil {
+			// If rename fails, keep temp file with different name
+			log.Printf("[VideoConvert] Warning: rename failed, keeping temp file: %v", err)
+			return tempPath, nil
+		}
+	} else {
+		// Remove original (if different from output)
+		if inputPath != mp4Path {
+			if err := os.Remove(inputPath); err != nil {
+				log.Printf("[VideoConvert] Warning: failed to remove original %s: %v",
+					filepath.Base(inputPath), err)
 			}
 		}
+	}
 
-		// Success - remove original
-		if err := os.Remove(path); err != nil {
-			log.Printf("[VideoConvert] Failed to remove original %s: %v", filepath.Base(path), err)
-		} else {
-			log.Printf("[VideoConvert] Converted %s → %s", filepath.Base(path), filepath.Base(mp4Path))
-		}
-	}()
+	// Get file sizes for logging
+	inputInfo, _ := os.Stat(inputPath)
+	outputInfo, _ := os.Stat(mp4Path)
+	inputSize := int64(0)
+	outputSize := int64(0)
+	if inputInfo != nil {
+		inputSize = inputInfo.Size()
+	}
+	if outputInfo != nil {
+		outputSize = outputInfo.Size()
+	}
+
+	log.Printf("[VideoConvert] Success: %s → %s (%.1fMB → %.1fMB)",
+		filepath.Base(inputPath), filepath.Base(mp4Path),
+		float64(inputSize)/1024/1024, float64(outputSize)/1024/1024)
+
+	return mp4Path, nil
 }
 
-// convertVideoIfNeeded is the synchronous version for backward compatibility.
-// Used when we need to wait for conversion (e.g., immediate playback).
-func convertVideoIfNeeded(path string) (string, error) {
-	ext := strings.ToLower(filepath.Ext(path))
-
-	// MP4 is already browser-playable - return as-is
-	if ext == ".mp4" {
-		return path, nil
-	}
-
-	// Convert MOV/M4V (often HEVC from iPhones) and other video formats
-	videoExts := map[string]bool{".mov": true, ".m4v": true, ".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
-	if !videoExts[ext] {
-		return path, nil
-	}
-
-	mp4Path := strings.TrimSuffix(path, ext) + ".mp4"
-
-	// Try fast remux first
-	cmd := exec.Command("ffmpeg", "-i", path, "-c", "copy", "-movflags", "+faststart", "-y", mp4Path)
-	if err := cmd.Run(); err != nil {
-		// Fallback to re-encode
-		cmd = exec.Command("ffmpeg", "-i", path, "-c:v", "libx264", "-c:a", "aac",
-			"-preset", "fast", "-crf", "23", "-movflags", "+faststart", "-threads", "0", "-y", mp4Path)
-		if err := cmd.Run(); err != nil {
-			return path, err
+// convertVideoInBackground is kept for backward compatibility but now uses the new H.264 conversion.
+// Runs conversion in background goroutine.
+func convertVideoInBackground(path string) {
+	go func() {
+		_, err := convertVideoToH264(path)
+		if err != nil {
+			log.Printf("[VideoConvert] Background conversion failed: %v", err)
 		}
-	}
-
-	os.Remove(path)
-	return mp4Path, nil
+	}()
 }
 
 // RenameFile renames a file or directory

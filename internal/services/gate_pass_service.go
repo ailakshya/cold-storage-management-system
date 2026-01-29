@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"time"
 
@@ -307,10 +308,14 @@ func (s *GatePassService) RecordPickup(ctx context.Context, req *models.RecordPi
 		return 0, errors.New("gate pass has expired - pickup window closed")
 	}
 
-	// Validate pickup quantity
-	remainingQty := gatePass.RequestedQuantity - gatePass.TotalPickedUp
+	// Validate pickup quantity against APPROVED quantity (not requested)
+	maxAllowed := gatePass.RequestedQuantity
+	if gatePass.ApprovedQuantity != nil {
+		maxAllowed = *gatePass.ApprovedQuantity
+	}
+	remainingQty := maxAllowed - gatePass.TotalPickedUp
 	if req.PickupQuantity > remainingQty {
-		return 0, errors.New("pickup quantity exceeds remaining quantity")
+		return 0, fmt.Errorf("pickup quantity (%d) exceeds remaining approved quantity (%d)", req.PickupQuantity, remainingQty)
 	}
 
 	if req.PickupQuantity <= 0 {
