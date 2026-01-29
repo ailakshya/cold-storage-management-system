@@ -154,6 +154,7 @@ jobs:
           # Copy production files to app directory
           cp docker-compose.production.yml "$APP_DIR/"
           cp Dockerfile.production "$APP_DIR/"
+          cp Dockerfile.caddy "$APP_DIR/" 2>/dev/null || true
           cp -r scripts "$APP_DIR/" 2>/dev/null || true
           cp -r configs "$APP_DIR/" 2>/dev/null || true
 
