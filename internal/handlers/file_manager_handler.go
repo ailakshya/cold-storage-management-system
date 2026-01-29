@@ -594,8 +594,8 @@ func convertVideoToH264(inputPath string) (string, error) {
 	// - Scale to max 1080p width, maintaining aspect ratio (-2 ensures height is divisible by 2)
 	// - H.264 video codec (libx264) for universal browser support
 	// - AAC audio at 128k
-	// - CRF 24 for good quality/compression balance (Instagram uses 23-26)
-	// - Medium preset (better compression than 'fast')
+	// - CRF 23 for good quality (Instagram uses 23-26)
+	// - Fast preset for quick encoding (2-3x faster than medium, slightly larger files)
 	// - faststart for progressive web playback
 	// - yuv420p pixel format for Safari/browser compatibility
 	cmd := exec.Command("ffmpeg",
@@ -603,12 +603,12 @@ func convertVideoToH264(inputPath string) (string, error) {
 		"-c:v", "libx264",
 		"-c:a", "aac",
 		"-b:a", "128k",
-		"-preset", "medium",
-		"-crf", "24",
+		"-preset", "fast",
+		"-crf", "23",
 		"-vf", "scale='min(1920,iw)':-2", // Max width 1920, height auto (divisible by 2)
 		"-movflags", "+faststart",
 		"-pix_fmt", "yuv420p", // Required for Safari/older browsers
-		"-threads", "0",
+		"-threads", "0", // Use all CPU cores
 		"-y", // Overwrite output
 		tempPath,
 	)
