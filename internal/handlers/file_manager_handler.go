@@ -533,13 +533,13 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 func convertVideoInBackground(path string) {
 	ext := strings.ToLower(filepath.Ext(path))
 
-	// MP4/MOV/M4V are already browser-playable - skip conversion
-	if ext == ".mp4" || ext == ".mov" || ext == ".m4v" {
+	// MP4 is already browser-playable - skip conversion
+	if ext == ".mp4" {
 		return
 	}
 
-	// Only convert known video formats
-	videoExts := map[string]bool{".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
+	// Convert MOV/M4V (often HEVC from iPhones) and other video formats to MP4
+	videoExts := map[string]bool{".mov": true, ".m4v": true, ".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
 	if !videoExts[ext] {
 		return
 	}
@@ -574,13 +574,13 @@ func convertVideoInBackground(path string) {
 func convertVideoIfNeeded(path string) (string, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 
-	// Already playable formats - return as-is
-	if ext == ".mp4" || ext == ".mov" || ext == ".m4v" {
+	// MP4 is already browser-playable - return as-is
+	if ext == ".mp4" {
 		return path, nil
 	}
 
-	// Only convert known video formats
-	videoExts := map[string]bool{".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
+	// Convert MOV/M4V (often HEVC from iPhones) and other video formats
+	videoExts := map[string]bool{".mov": true, ".m4v": true, ".mkv": true, ".avi": true, ".webm": true, ".flv": true, ".wmv": true}
 	if !videoExts[ext] {
 		return path, nil
 	}
@@ -698,6 +698,35 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 	// Enable range requests for video streaming (Safari requirement)
 	w.Header().Set("Accept-Ranges", "bytes")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, filepath.Base(fullPath)))
+
+	// For MOV files, convert to MP4 on-demand for browser playback (HEVC not supported)
+	if ext == ".mov" && mode == "inline" {
+		mp4Path := strings.TrimSuffix(fullPath, ext) + ".mp4"
+
+		// Check if MP4 version already exists
+		if mp4Info, err := os.Stat(mp4Path); err == nil && mp4Info.Size() > 0 {
+			// Use existing MP4 version
+			fullPath = mp4Path
+			w.Header().Set("Content-Type", "video/mp4")
+		} else {
+			// Convert MOV to MP4 (try fast remux first, fallback to re-encode)
+			log.Printf("[VideoConvert] On-demand converting %s to MP4", filepath.Base(fullPath))
+			cmd := exec.Command("ffmpeg", "-i", fullPath, "-c", "copy", "-movflags", "+faststart", "-y", mp4Path)
+			if err := cmd.Run(); err != nil {
+				// Fallback to re-encode for HEVC content
+				cmd = exec.Command("ffmpeg", "-i", fullPath, "-c:v", "libx264", "-c:a", "aac",
+					"-preset", "fast", "-crf", "23", "-movflags", "+faststart", "-threads", "0", "-y", mp4Path)
+				if err := cmd.Run(); err == nil {
+					fullPath = mp4Path
+					w.Header().Set("Content-Type", "video/mp4")
+				}
+				// If conversion fails, serve original MOV
+			} else {
+				fullPath = mp4Path
+				w.Header().Set("Content-Type", "video/mp4")
+			}
+		}
+	}
 
 	// For MP4 files, optimize for Safari streaming if needed
 	if ext == ".mp4" && mode == "inline" {
