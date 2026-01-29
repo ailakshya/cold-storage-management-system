@@ -373,13 +373,9 @@ func (h *FileManagerHandler) UploadFile(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if videoExts[ext] {
-		convertedPath, err := convertVideoToH264(destPath)
-		if err != nil {
-			log.Printf("[Upload] Video conversion failed, keeping original: %v", err)
-			// Still return success - original file is saved
-		} else {
-			finalPath = convertedPath
-		}
+		// Convert video in background - don't block upload response
+		convertVideoInBackground(destPath)
+		log.Printf("[Upload] Video conversion queued for background processing: %s", filepath.Base(destPath))
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -542,12 +538,9 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 		}
 
 		if videoExts[ext] {
-			convertedPath, err := convertVideoToH264(finalDestPath)
-			if err != nil {
-				log.Printf("[UploadChunk] Video conversion failed, keeping original: %v", err)
-			} else {
-				finalPath = convertedPath
-			}
+			// Convert video in background - don't block upload response
+			convertVideoInBackground(finalDestPath)
+			log.Printf("[UploadChunk] Video conversion queued for background processing: %s", filepath.Base(finalDestPath))
 		}
 
 		w.WriteHeader(http.StatusOK)
