@@ -2325,7 +2325,7 @@
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+                const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : 'jpg';
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                 const newFileName = `RE_${safeThok}_edit_RE${roomEntryId}_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
 

@@ -1201,15 +1201,20 @@
 
                 const gpData = await gpResponse.json();
                 let editMedia = [];
+                let reEntryMedia = [];
                 if (reResponse.ok) {
                     const reData = await reResponse.json();
+                    reEntryMedia = reData.entry_media || [];
                     editMedia = reData.edit_media || [];
                 }
 
+                // Merge room entry media into entry_media
+                const allEntryMedia = [...(gpData.entry_media || []), ...reEntryMedia];
+
                 // Cache for reuse by viewAllMedia modal
                 window.cachedMediaThock = thockNumber;
-                window.cachedMediaData = { ...gpData, edit_media: editMedia };
-                displayMediaPreview(gpData.entry_media || [], gpData.pickup_media || [], editMedia);
+                window.cachedMediaData = { entry_media: allEntryMedia, pickup_media: gpData.pickup_media || [], edit_media: editMedia };
+                displayMediaPreview(allEntryMedia, gpData.pickup_media || [], editMedia);
             } catch (error) {
                 console.error('Error loading media:', error);
                 document.getElementById('mediaPreview').innerHTML =
@@ -1781,16 +1786,18 @@
                     if (!gpResponse.ok) throw new Error('Failed to load media');
 
                     const gpData = await gpResponse.json();
-                    entryMedia = gpData.entry_media || [];
+                    let reEntryMedia = [];
                     pickupMedia = gpData.pickup_media || [];
                     editMedia = [];
                     if (reResponse.ok) {
                         const reData = await reResponse.json();
+                        reEntryMedia = reData.entry_media || [];
                         editMedia = reData.edit_media || [];
                     }
+                    entryMedia = [...(gpData.entry_media || []), ...reEntryMedia];
                     // Cache for reuse
                     window.cachedMediaThock = thockNumber;
-                    window.cachedMediaData = { ...gpData, edit_media: editMedia };
+                    window.cachedMediaData = { entry_media: entryMedia, pickup_media: pickupMedia, edit_media: editMedia };
                 }
                 const totalMedia = entryMedia.length + pickupMedia.length + editMedia.length;
 
@@ -2423,7 +2430,7 @@
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+                const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : 'jpg';
                 const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                 const newFileName = `Thok_${safeThok}_${safeCustomer}_pickup_GP${gatePass.id}_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
 

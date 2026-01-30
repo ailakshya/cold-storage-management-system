@@ -1974,7 +1974,7 @@
                      for (let i = 0; i < files.length; i++) {
                          const file = files[i];
                          // Get file extension
-                         const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+                         const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : 'jpg';
                          // Generate timestamp for uniqueness
                          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                          const newFileName = `Thok_${safeThok}_${safeCustomer}_entry_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
@@ -2475,7 +2475,7 @@
             try {
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
-                    const extension = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+                    const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : 'jpg';
                     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                     const newFileName = `Thok_${safeThok}_${safeCustomer}_entry_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
 
