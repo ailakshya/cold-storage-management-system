@@ -1650,17 +1650,21 @@
 
                 // Add token to all download_urls (video/img elements can't send headers)
                 const addTokenToMedia = (arr) => arr.map(m => ({...m, download_url: withToken(m.download_url)}));
+                const reEntryMedia = addTokenToMedia(reData.entry_media || []);
                 gpEntryMedia = addTokenToMedia(gpEntryMedia);
                 gpPickupMedia = addTokenToMedia(gpPickupMedia);
                 const editMedia = addTokenToMedia(reData.edit_media || []);
 
+                // Merge room entry media with gate pass entry media
+                const allEntryMedia = [...reEntryMedia, ...gpEntryMedia];
+
                 // Cache combined data
                 window.cachedREMediaData = {
-                    entry_media: gpEntryMedia,
+                    entry_media: allEntryMedia,
                     pickup_media: gpPickupMedia,
                     edit_media: editMedia
                 };
-                displayREMediaPreview(gpEntryMedia, gpPickupMedia, editMedia);
+                displayREMediaPreview(allEntryMedia, gpPickupMedia, editMedia);
             } catch (error) {
                 console.error('Error loading media:', error);
                 document.getElementById('reMediaPreview').innerHTML =
@@ -2105,17 +2109,18 @@
                     const [reResponse, gpResponse] = await Promise.all(fetches);
                     if (!reResponse.ok) throw new Error('Failed to load media');
                     const reData = await reResponse.json();
-                    entryMedia = [];
+                    let gpEntryMedia = [];
                     pickupMedia = [];
                     if (gpResponse && gpResponse.ok) {
                         const gpData = await gpResponse.json();
-                        entryMedia = gpData.entry_media || [];
+                        gpEntryMedia = gpData.entry_media || [];
                         pickupMedia = gpData.pickup_media || [];
                     }
                     editMedia = reData.edit_media || [];
                     // Add token to all download_urls
                     const addTokenToMedia = (arr) => arr.map(m => ({...m, download_url: withToken(m.download_url)}));
-                    entryMedia = addTokenToMedia(entryMedia);
+                    const reEntryMedia = addTokenToMedia(reData.entry_media || []);
+                    entryMedia = [...reEntryMedia, ...addTokenToMedia(gpEntryMedia)];
                     pickupMedia = addTokenToMedia(pickupMedia);
                     editMedia = addTokenToMedia(editMedia);
                     window.cachedREMediaData = { entry_media: entryMedia, pickup_media: pickupMedia, edit_media: editMedia };
