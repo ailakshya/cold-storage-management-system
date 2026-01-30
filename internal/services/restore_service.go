@@ -41,6 +41,7 @@ type RestoreService struct {
 	pool              *pgxpool.Pool
 	connStr           string
 	backupDir         string
+	envTag            string // "pd" or "test" — used in backup filenames
 	pendingTokens     map[string]*RestoreToken
 	tokenMu           sync.RWMutex
 	lastRestoreTime   time.Time
@@ -107,7 +108,7 @@ type RestoreResult struct {
 }
 
 // NewRestoreService creates a new restore service
-func NewRestoreService(pool *pgxpool.Pool, connStr, backupDir string, settingsRepo *repositories.SystemSettingRepository) *RestoreService {
+func NewRestoreService(pool *pgxpool.Pool, connStr, backupDir, envTag string, settingsRepo *repositories.SystemSettingRepository) *RestoreService {
 	// Ensure backup directory exists
 	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
 		os.MkdirAll(backupDir, 0755)
@@ -117,6 +118,7 @@ func NewRestoreService(pool *pgxpool.Pool, connStr, backupDir string, settingsRe
 		pool:              pool,
 		connStr:           connStr,
 		backupDir:         backupDir,
+		envTag:            envTag,
 		pendingTokens:     make(map[string]*RestoreToken),
 		tokenMu:           sync.RWMutex{},
 		restoreCooldown:   5 * time.Minute, // Default 5 minutes
@@ -298,7 +300,7 @@ func (s *RestoreService) ListAvailableDates(ctx context.Context) ([]RestoreDate,
 
 	// Parse filename format: cold_db_YYYYMMDD_HHMMSS.sql
 	// We rely on the filename for date/time, ignoring the directory structure to be more robust
-	keyRegex := regexp.MustCompile(`cold_db_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.sql`)
+	keyRegex := regexp.MustCompile(`cold_db_(?:\w+_)?(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})\.sql`)
 
 	for _, obj := range allObjects {
 		// Only consider files in "base/" directory to ignore pre-restore backups
@@ -453,7 +455,7 @@ func (s *RestoreService) ListSnapshotsForDate(ctx context.Context, date string) 
 		}
 
 		// Parse key format to extract time
-		keyRegex := regexp.MustCompile(`cold_db_\d{8}_(\d{2})(\d{2})(\d{2})\.sql`)
+		keyRegex := regexp.MustCompile(`cold_db_(?:\w+_)?\d{8}_(\d{2})(\d{2})(\d{2})\.sql`)
 
 		for _, obj := range result.Contents {
 			if obj.Key == nil || obj.Size == nil || obj.LastModified == nil {
@@ -495,12 +497,12 @@ func (s *RestoreService) ListSnapshotsForDate(ctx context.Context, date string) 
 		for _, f := range localFiles {
 			// Filename format: cold_db_YYYYMMDD_HHMMSS.sql
 			name := f.Filename
-			if !strings.HasPrefix(name, "cold_db_"+targetDate) {
+			if !strings.HasPrefix(name, "cold_db_") || !strings.Contains(name, targetDate) {
 				continue
 			}
 
 			// Extract time
-			matches := regexp.MustCompile(`cold_db_\d{8}_(\d{2})(\d{2})(\d{2})\.sql`).FindStringSubmatch(name)
+			matches := regexp.MustCompile(`cold_db_(?:\w+_)?\d{8}_(\d{2})(\d{2})(\d{2})\.sql`).FindStringSubmatch(name)
 			if matches == nil {
 				continue
 			}
@@ -988,7 +990,7 @@ END $$;
 func (s *RestoreService) CreateLocalBackup(ctx context.Context) (string, string, string, error) {
 	// Create backup
 	timestamp := time.Now().Format("20060102_150405")
-	filename := fmt.Sprintf("cold_db_%s.sql", timestamp)
+	filename := fmt.Sprintf("cold_db_%s_%s.sql", s.envTag, timestamp)
 	tmpFile := filepath.Join(os.TempDir(), filename)
 
 	// Try pg_dump first with --clean and --if-exists flags for safer restores
@@ -1121,7 +1123,7 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 	// Create backup using pg_dump with --clean and --if-exists flags
 	// Note: Not using --create flag because we restore to the same database (can't drop while connected)
 	timestamp := time.Now().Format("20060102_150405")
-	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("cold_prerestore_%s.sql", timestamp))
+	tmpFile := filepath.Join(os.TempDir(), fmt.Sprintf("cold_prerestore_%s_%s.sql", s.envTag, timestamp))
 
 	cmd := exec.Command("pg_dump", s.connStr, "--clean", "--if-exists", "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
@@ -1137,7 +1139,7 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 	}
 
 	// Save to local backup directory (Old Pattern: Direct Write)
-	localFilename := fmt.Sprintf("cold_prerestore_%s.sql", timestamp)
+	localFilename := fmt.Sprintf("cold_prerestore_%s_%s.sql", s.envTag, timestamp)
 	localPath := filepath.Join(s.backupDir, localFilename)
 	if err := os.WriteFile(localPath, data, 0644); err != nil {
 		log.Printf("[Restore] Warning: failed to save local pre-restore backup: %v", err)
@@ -1154,8 +1156,9 @@ func (s *RestoreService) createPreRestoreBackup(ctx context.Context) (string, er
 	}
 
 	now := time.Now()
-	key := fmt.Sprintf("pre-restore/%s/cold_prerestore_%s.sql",
+	key := fmt.Sprintf("pre-restore/%s/cold_prerestore_%s_%s.sql",
 		now.Format("2006/01/02"),
+		s.envTag,
 		timestamp)
 
 	_, err = client.PutObject(ctx, &s3.PutObjectInput{

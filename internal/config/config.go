@@ -56,7 +56,16 @@ type Config struct {
 		WebhookSecret string `mapstructure:"webhook_secret"`
 	} `mapstructure:"razorpay"`
 
-	BackupDir string // Local backup directory
+	BackupDir   string // Local backup directory
+	Environment string // "production" or "test" (from APP_ENV or auto-detected)
+}
+
+// EnvTag returns the short environment tag for backup filenames ("pd" or "test")
+func (c *Config) EnvTag() string {
+	if c.Environment == "production" {
+		return "pd"
+	}
+	return "test"
 }
 
 func Load() *Config {
@@ -107,6 +116,16 @@ func Load() *Config {
 			cfg.BackupDir = "./backups"
 		}
 	}
+
+	// Detect environment: explicit APP_ENV takes priority, otherwise infer from backup path
+	if env := os.Getenv("APP_ENV"); env != "" {
+		cfg.Environment = env
+	} else if cfg.BackupDir == "/mass-pool/backups" {
+		cfg.Environment = "production"
+	} else {
+		cfg.Environment = "test"
+	}
+	log.Printf("[Config] Environment: %s (tag: %s)", cfg.Environment, cfg.EnvTag())
 
 	// Override database settings from DB_* environment variables
 	if host := os.Getenv("DB_HOST"); host != "" {

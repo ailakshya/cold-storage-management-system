@@ -44,6 +44,7 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       # App config
+      - APP_ENV=production
       - MODE=all
       - BACKUP_DIR=/mass-pool/backups
       - JWT_SECRET=${JWT_SECRET}
@@ -135,6 +136,39 @@ services:
       - cold-net
     depends_on:
       - app
+
+  # YOLOv8 detection service — counts potato bags from RTSP camera streams
+  # Requires NVIDIA GPU (T1000/A2000/T4) + nvidia-container-toolkit on host
+  cold-detection:
+    build:
+      context: ./detection/service
+      dockerfile: Dockerfile
+    image: cold-detection:latest
+    container_name: cold-detection
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Kolkata
+      - MODEL_PATH=/models/best.onnx
+      - CONFIDENCE_THRESHOLD=0.4
+      - INFERENCE_FPS=10
+      - CAMERA_URLS=${DETECTION_CAMERA_URLS:-}
+      - BACKEND_URL=http://cold-backend:8080
+      - BACKEND_API_KEY=${DETECTION_API_KEY:-}
+      - MIN_BAG_COUNT=3
+    volumes:
+      - ./detection/models:/models:ro
+    networks:
+      - cold-net
+    depends_on:
+      app:
+        condition: service_healthy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
 networks:
   cold-net:

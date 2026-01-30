@@ -24,7 +24,7 @@ FROM alpine:latest
 WORKDIR /app
 
 # Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata curl postgresql-client su-exec ffmpeg
+RUN apk add --no-cache ca-certificates tzdata curl postgresql17-client su-exec ffmpeg
 
 # Create non-root user
 RUN addgroup -g 1000 appuser && \
