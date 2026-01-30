@@ -61,6 +61,7 @@ func NewRouter(
 	printerHandler *handlers.PrinterHandler,
 	fileManagerHandler *handlers.FileManagerHandler,
 	deletedEntriesHandler *handlers.DeletedEntriesHandler,
+	detectionHandler *handlers.DetectionHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -809,6 +810,21 @@ func NewRouter(
 		stockAPI.Use(authMiddleware.Authenticate)
 		stockAPI.HandleFunc("", itemsInStockHandler.GetItemsInStock).Methods("GET")
 		stockAPI.HandleFunc("/summary", itemsInStockHandler.GetSummary).Methods("GET")
+	}
+
+	// Protected API routes - Detection (YOLOv8 bag counting)
+	if detectionHandler != nil {
+		detectionAPI := r.PathPrefix("/api/detections").Subrouter()
+		// POST from Python service — uses API key auth (checked in handler), no JWT
+		detectionAPI.HandleFunc("", detectionHandler.CreateSession).Methods("POST")
+		// All other endpoints require JWT authentication
+		detectionAPI.HandleFunc("", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.ListSessions)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/summary", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetDailySummary)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/gate/{gate_id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetRecentByGate)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/{id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetSession)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/{id}", authMiddleware.Authenticate(
+			authMiddleware.RequireRole("admin")(http.HandlerFunc(detectionHandler.UpdateSession)),
+		).ServeHTTP).Methods("PUT")
 	}
 
 	// Health endpoints (no auth - for monitoring)
