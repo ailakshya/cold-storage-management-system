@@ -1865,8 +1865,14 @@
             const gateNo = document.getElementById('gateNo').value.trim();
             const quantity = parseInt(document.getElementById('quantity').value);
 
-            // Check if quantity is less than expected and remark is required
+            // Block submission if quantity exceeds expected
             const expectedQty = selectedEntry.expectedQty;
+            if (quantity > expectedQty) {
+                alert(i18n.t('quantity_exceeds', `Quantity (${quantity}) cannot be more than expected (${expectedQty}).`));
+                return;
+            }
+
+            // Check if quantity is less than expected and remark is required
             if (quantity > 0 && quantity < expectedQty) {
                 const hasRemark = document.querySelectorAll('input[name="remarkType"]:checked').length > 0;
                 if (!hasRemark && !noRemarkConfirmed) {
