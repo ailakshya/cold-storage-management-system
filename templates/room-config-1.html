@@ -1940,14 +1940,16 @@
 
             // Integrated Media Upload
             const fileInput = document.getElementById('integratedUploadFiles');
+            // Collect uploaded file info to save metadata AFTER room entry is created (when we have room_entry_id)
+            const pendingMediaMetadata = [];
             if (fileInput && fileInput.files.length > 0) {
                  const progressDiv = document.getElementById('integratedUploadProgress');
                  const progressBar = document.getElementById('integratedUploadBar');
                  const statusText = document.getElementById('integratedUploadStatus');
-                 
+
                  progressDiv.classList.remove('hidden');
                  statusText.textContent = 'Uploading files...';
-                 
+
                  const files = fileInput.files;
                  const customerName = selectedEntry.name;
                  const thokNo = selectedEntry.thockNumber;
@@ -1969,7 +1971,7 @@
                          // Generate timestamp for uniqueness
                          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                          const newFileName = `Thok_${safeThok}_${safeCustomer}_entry_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
-                         
+
                          const finalFileName = await uploadSingleFile(file, targetPath, (pct) => {
                               const totalPct = ((i + (pct/100)) / files.length) * 100;
                               progressBar.style.width = `${totalPct}%`;
@@ -1978,22 +1980,15 @@
                          }, newFileName);
                          uploadedCount++;
 
-                         // Save media metadata to database (use converted filename for videos)
-                         try {
-                             await saveEntryMediaMetadata({
-                                 gate_pass_id: null,
-                                 gate_pass_pickup_id: null,
-                                 thock_number: thokNo,
-                                 media_type: 'entry',
-                                 file_name: finalFileName,
-                                 file_path: `Room Config/${finalFileName}`,
-                                 file_type: file.type.startsWith('image/') ? 'image' : 'video',
-                                 file_size: file.size
-                             });
-                         } catch (metaErr) {
-                             console.error('Error saving media metadata:', metaErr);
-                             // Continue even if metadata fails
-                         }
+                         // Collect metadata to save after room entry creation (when we have room_entry_id)
+                         pendingMediaMetadata.push({
+                             thock_number: thokNo,
+                             media_type: 'entry',
+                             file_name: finalFileName,
+                             file_path: `Room Config/${finalFileName}`,
+                             file_type: file.type.startsWith('image/') ? 'image' : 'video',
+                             file_size: file.size
+                         });
                      }
                      statusText.textContent = 'Upload Complete';
                      statusText.classList.remove('text-purple-700');
@@ -2035,6 +2030,21 @@
                 }
 
                 const result = await response.json();
+
+                // Save media metadata now that we have the room_entry_id
+                if (pendingMediaMetadata && pendingMediaMetadata.length > 0) {
+                    for (const meta of pendingMediaMetadata) {
+                        try {
+                            await saveEntryMediaMetadata({
+                                room_entry_id: result.id,
+                                ...meta
+                            });
+                        } catch (metaErr) {
+                            console.error('Error saving media metadata:', metaErr);
+                        }
+                    }
+                }
+
                 const successMsg = i18n.t('room_entry_success', 'Room entry created successfully!');
                 const thokLabel = i18n.t('thok', 'Thok');
                 const locationLabel = i18n.t('location', 'Location');
@@ -2289,20 +2299,20 @@
 
         // Save media metadata to database
         async function saveEntryMediaMetadata(mediaData) {
-            try {
-                const token = localStorage.getItem('token');
-                await fetch('/api/gate-passes/media', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(mediaData)
-                });
-            } catch (error) {
-                console.error('Error saving media metadata:', error);
-                throw error;
+            const token = localStorage.getItem('token');
+            const resp = await fetch('/api/room-entries/media', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(mediaData)
+            });
+            if (!resp.ok) {
+                const errText = await resp.text();
+                throw new Error(`Failed to save media metadata: ${errText}`);
             }
+            return await resp.json();
         }
 
         // Add Media Modal functions
@@ -2470,8 +2480,7 @@
 
                     // Save metadata to database (use converted filename for videos)
                     await saveEntryMediaMetadata({
-                        gate_pass_id: null,
-                        gate_pass_pickup_id: null,
+                        room_entry_id: currentMediaEntry.id,
                         thock_number: thockNo,
                         media_type: 'entry',
                         file_name: finalFileName,
