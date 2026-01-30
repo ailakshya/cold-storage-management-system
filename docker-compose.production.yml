@@ -118,7 +118,9 @@ services:
   # Caddy reverse proxy for direct HTTPS uploads (bypasses Cloudflare completely)
   # Uses Let's Encrypt with Cloudflare DNS challenge - requires CF_API_TOKEN
   # DNS record must be set to "DNS only" (grey cloud, not proxied)
+  # Start with: docker compose --profile caddy up -d
   caddy:
+    profiles: ["caddy"]
     build:
       context: .
       dockerfile: Dockerfile.caddy
@@ -139,7 +141,9 @@ services:
 
   # YOLOv8 detection service — counts potato bags from RTSP camera streams
   # Requires NVIDIA GPU (T1000/A2000/T4) + nvidia-container-toolkit on host
+  # Start with: docker compose --profile detection up -d
   cold-detection:
+    profiles: ["detection"]
     build:
       context: ./detection/service
       dockerfile: Dockerfile
