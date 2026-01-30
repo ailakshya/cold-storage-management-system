@@ -376,10 +376,9 @@ func (h *FileManagerHandler) UploadFile(w http.ResponseWriter, r *http.Request) 
 		// Convert video in background - don't block upload response
 		convertVideoInBackground(destPath)
 		log.Printf("[Upload] Video conversion queued for background processing: %s", filepath.Base(destPath))
-		// Predict the converted filename so frontend stores the .mp4 path in DB
-		if ext != ".mp4" {
-			finalPath = strings.TrimSuffix(destPath, filepath.Ext(destPath)) + ".mp4"
-		}
+		// Always predict lowercase .mp4 - the converter always outputs lowercase
+		// This handles .MP4/.MOV etc. from phones where ext is lowered but destPath keeps original case
+		finalPath = strings.TrimSuffix(destPath, filepath.Ext(destPath)) + ".mp4"
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -545,10 +544,8 @@ func (h *FileManagerHandler) UploadChunk(w http.ResponseWriter, r *http.Request)
 			// Convert video in background - don't block upload response
 			convertVideoInBackground(finalDestPath)
 			log.Printf("[UploadChunk] Video conversion queued for background processing: %s", filepath.Base(finalDestPath))
-			// Predict the converted filename so frontend stores the .mp4 path in DB
-			if ext != ".mp4" {
-				finalPath = strings.TrimSuffix(finalDestPath, filepath.Ext(finalDestPath)) + ".mp4"
-			}
+			// Always predict lowercase .mp4 - the converter always outputs lowercase
+			finalPath = strings.TrimSuffix(finalDestPath, filepath.Ext(finalDestPath)) + ".mp4"
 		}
 
 		w.WriteHeader(http.StatusOK)
