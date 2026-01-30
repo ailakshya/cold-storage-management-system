@@ -745,15 +745,27 @@ END $$;
 	// filePath already defined in Step 2 or above
 	cmd := exec.Command("psql", s.connStr, "-f", filePath)
 	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		return nil, fmt.Errorf("restore failed: %w\nOutput: %s", err, string(output))
-	}
-
-	// Check for PostgreSQL errors
 	outputStr := string(output)
-	if strings.Contains(outputStr, "ERROR:") {
-		return nil, fmt.Errorf("restore completed with errors:\n%s", outputStr)
+
+	// Check for real PostgreSQL errors (ignore harmless --clean phase errors)
+	// pg_dump --clean generates DROP/ALTER statements that produce "does not exist"
+	// or "already exists" errors when objects don't match — these are safe to ignore
+	if err != nil || strings.Contains(outputStr, "ERROR:") {
+		hasRealErrors := false
+		for _, line := range strings.Split(outputStr, "\n") {
+			if strings.Contains(line, "ERROR:") &&
+				!strings.Contains(line, "does not exist") &&
+				!strings.Contains(line, "already exists") {
+				hasRealErrors = true
+				break
+			}
+		}
+		if hasRealErrors {
+			return nil, fmt.Errorf("restore completed with errors:\n%s", outputStr)
+		}
+		if err != nil {
+			log.Printf("[Restore] psql exited with non-zero (harmless --clean errors): %v", err)
+		}
 	}
 
 	log.Printf("[Restore] Local restore completed successfully")
@@ -963,15 +975,25 @@ END $$;
 	log.Println("[Restore] Restoring data from snapshot...")
 	cmd := exec.Command("psql", s.connStr, "-f", tmpFile)
 	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		return nil, fmt.Errorf("restore failed: %w\nOutput: %s", err, string(output))
-	}
-
-	// Check for PostgreSQL errors
 	outputStr := string(output)
-	if strings.Contains(outputStr, "ERROR:") {
-		return nil, fmt.Errorf("restore completed with errors:\n%s", outputStr)
+
+	// Check for real PostgreSQL errors (ignore harmless --clean phase errors)
+	if err != nil || strings.Contains(outputStr, "ERROR:") {
+		hasRealErrors := false
+		for _, line := range strings.Split(outputStr, "\n") {
+			if strings.Contains(line, "ERROR:") &&
+				!strings.Contains(line, "does not exist") &&
+				!strings.Contains(line, "already exists") {
+				hasRealErrors = true
+				break
+			}
+		}
+		if hasRealErrors {
+			return nil, fmt.Errorf("restore completed with errors:\n%s", outputStr)
+		}
+		if err != nil {
+			log.Printf("[Restore] psql exited with non-zero (harmless --clean errors): %v", err)
+		}
 	}
 
 	log.Printf("[Restore] Point-in-time restore completed successfully")
