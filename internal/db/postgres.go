@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"time"
 
@@ -15,8 +16,8 @@ import (
 func Connect(cfg *config.Config) *pgxpool.Pool {
 	dsn := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s",
-		cfg.Database.User,
-		cfg.Database.Password,
+		url.PathEscape(cfg.Database.User),
+		url.PathEscape(cfg.Database.Password),
 		cfg.Database.Host,
 		cfg.Database.Port,
 		cfg.Database.Name,
@@ -222,8 +223,8 @@ func ConnectG(cfg *config.Config) *pgxpool.Pool {
 
 	dsn := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s",
-		cfg.G.DB.User,
-		cfg.G.DB.Password,
+		url.PathEscape(cfg.G.DB.User),
+		url.PathEscape(cfg.G.DB.Password),
 		cfg.G.DB.Host,
 		cfg.G.DB.Port,
 		cfg.G.DB.Name,

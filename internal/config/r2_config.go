@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 // R2 Cloudflare configuration for disaster recovery
 // These credentials are hardcoded for offline recovery scenarios
@@ -95,5 +98,5 @@ func (d DatabaseConfig) ConnectionURI(password string) string {
 			d.Database, d.Host, d.User)
 	}
 	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable",
-		d.User, password, d.Host, d.Port, d.Database)
+		url.PathEscape(d.User), url.PathEscape(password), d.Host, d.Port, d.Database)
 }
