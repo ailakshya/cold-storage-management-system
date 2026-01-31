@@ -80,9 +80,9 @@ func (s *MediaSyncService) EnqueueMedia(ctx context.Context, source string, medi
 		return nil // no targets configured, skip silently
 	}
 
-	// Construct R2 key: room-entry/{thock_number}/{media_type}/{file_name}
-	sourceKey := strings.ReplaceAll(source, "_", "-") // room_entry -> room-entry
-	r2Key := fmt.Sprintf("%s/%s/%s/%s", sourceKey, thockNumber, mediaType, fileName)
+	// Construct R2 key: {thock_number}/{media_type}_{file_name}
+	// All files for one thock in a single folder, prefixed by media_type
+	r2Key := fmt.Sprintf("%s/%s_%s", thockNumber, mediaType, fileName)
 
 	// Construct absolute local path
 	localPath := filepath.Join(s.localBaseDir, filePath)
