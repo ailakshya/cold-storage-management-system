@@ -23,14 +23,24 @@ PGUSER="${PGUSER:-cold_user}"
 PGDATABASE="${PGDATABASE:-cold_db}"
 PGHOST="${PGHOST:-localhost}"
 
-# Check we're in the right directory
-if [[ ! -d "shared" ]]; then
-    error "Must run from ~/cold-storage directory"
+# Determine base directory for Room Config files
+if [[ -d "shared/Room Config" ]]; then
+    ROOM_CONFIG_BASE="shared/Room Config"
+elif [[ -d "/mass-pool/shared/Room Config" ]]; then
+    ROOM_CONFIG_BASE="/mass-pool/shared/Room Config"
+elif [[ -d "$HOME/cold-storage/shared/Room Config" ]]; then
+    ROOM_CONFIG_BASE="$HOME/cold-storage/shared/Room Config"
+else
+    warn "Room Config directory not found, will create it if needed"
+    ROOM_CONFIG_BASE="shared/Room Config"
 fi
+
+log "Using Room Config base: $ROOM_CONFIG_BASE"
 
 # Step 1: Create directories
 log "Step 1: Creating directories..."
 mkdir -p migrations scripts backups
+mkdir -p "$ROOM_CONFIG_BASE"
 success "Directories created"
 
 # Step 2: Create SQL migration file
@@ -144,7 +154,18 @@ cat > scripts/migrate-media-files.sh << 'SCRIPT_EOF'
 #!/bin/bash
 set -euo pipefail
 
-BASE_DIR="$HOME/cold-storage/shared/Room Config"
+# Detect Room Config directory
+if [[ -d "$HOME/cold-storage/shared/Room Config" ]]; then
+    BASE_DIR="$HOME/cold-storage/shared/Room Config"
+elif [[ -d "/mass-pool/shared/Room Config" ]]; then
+    BASE_DIR="/mass-pool/shared/Room Config"
+elif [[ -d "shared/Room Config" ]]; then
+    BASE_DIR="shared/Room Config"
+else
+    echo "Error: Room Config directory not found"
+    exit 1
+fi
+
 LOG_FILE="/tmp/media-migration-$(date +%Y%m%d_%H%M%S).log"
 DRY_RUN="${DRY_RUN:-true}"
 
@@ -238,6 +259,7 @@ main() {
     log "========================================"
     log "Media File Migration Script"
     log "========================================"
+    log "Using directory: $BASE_DIR"
     if [[ ! -d "$BASE_DIR" ]]; then
         error "Base directory not found: $BASE_DIR"
         exit 1
@@ -256,13 +278,13 @@ log "Step 4: Creating database backup..."
 pg_dump -U "$PGUSER" -h "$PGHOST" "$PGDATABASE" > backups/pre-migration-$(date +%Y%m%d_%H%M%S).sql
 success "Database backup created: $(ls -lh backups/pre-migration-*.sql | tail -1 | awk '{print $9, $5}')"
 
-# Step 5: Create file system backup
+# Step 5: Create file system backup (only if Room Config exists and has files)
 log "Step 5: Creating file system backup..."
-if [[ -d "shared/Room Config" ]]; then
-    tar -czf backups/room-config-backup-$(date +%Y%m%d).tar.gz "shared/Room Config"
+if [[ -d "$ROOM_CONFIG_BASE" ]] && [[ $(find "$ROOM_CONFIG_BASE" -maxdepth 1 -type f | wc -l) -gt 0 ]]; then
+    tar -czf backups/room-config-backup-$(date +%Y%m%d).tar.gz "$ROOM_CONFIG_BASE"
     success "File backup created: $(ls -lh backups/room-config-backup-*.tar.gz | tail -1 | awk '{print $9, $5}')"
 else
-    warn "Room Config directory not found, skipping file backup"
+    warn "Room Config directory empty or not found, skipping file backup"
 fi
 
 # Step 6: Run database migration
@@ -279,8 +301,18 @@ psql -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -c \
     (SELECT COUNT(*) FROM room_entry_media WHERE file_path ~ '^Room Config/[^/]+\.') as room_flat,
     (SELECT COUNT(*) FROM gate_pass_media WHERE file_path ~ '^Room Config/[^/]+\.') as gate_flat;"
 
-# Step 8: Dry run file migration
-log "Step 8: Running file migration DRY RUN..."
+# Step 8: Check if there are files to migrate
+file_count=$(find "$ROOM_CONFIG_BASE" -maxdepth 1 -type f 2>/dev/null | wc -l)
+if [[ $file_count -eq 0 ]]; then
+    warn "No files found in $ROOM_CONFIG_BASE to migrate"
+    echo ""
+    success "Database migration completed successfully!"
+    echo "No file migration needed - directory is empty or already organized."
+    exit 0
+fi
+
+# Step 9: Dry run file migration
+log "Step 8: Running file migration DRY RUN (found $file_count files)..."
 DRY_RUN=true bash scripts/migrate-media-files.sh | tail -20
 echo ""
 warn "DRY RUN completed. Check the log file above for details."
@@ -293,18 +325,18 @@ if [[ "$confirm" != "yes" ]]; then
     exit 0
 fi
 
-# Step 9: Actual file migration
+# Step 10: Actual file migration
 log "Step 9: Running ACTUAL file migration..."
 DRY_RUN=false bash scripts/migrate-media-files.sh
 success "File migration completed"
 
-# Step 10: Verify file structure
+# Step 11: Verify file structure
 log "Step 10: Verifying file structure..."
-if [[ -d "shared/Room Config" ]]; then
+if [[ -d "$ROOM_CONFIG_BASE" ]]; then
     echo "Year folders created:"
-    ls -la "shared/Room Config" | grep "^d" | grep -E "[0-9]{4}" || echo "  (checking for year folders...)"
+    ls -la "$ROOM_CONFIG_BASE" | grep "^d" | grep -E "[0-9]{4}" || echo "  (checking for year folders...)"
 
-    flat_count=$(find "shared/Room Config" -maxdepth 1 -type f 2>/dev/null | wc -l)
+    flat_count=$(find "$ROOM_CONFIG_BASE" -maxdepth 1 -type f 2>/dev/null | wc -l)
     if [[ $flat_count -eq 0 ]]; then
         success "No flat files remaining"
     else
