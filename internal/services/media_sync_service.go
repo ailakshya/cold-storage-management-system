@@ -73,6 +73,20 @@ func (s *MediaSyncService) Stop() {
 // Enqueue — called by handlers after saving media metadata
 // ---------------------------------------------------------------------------
 
+// extractYearFromThock extracts year from thock number (e.g., "TH-2026-0042" -> "2026")
+// Falls back to current year if parsing fails.
+func extractYearFromThock(thockNumber string) string {
+	parts := strings.Split(thockNumber, "-")
+	if len(parts) >= 2 {
+		// TH-2026-0042 -> parts[1] = "2026"
+		if len(parts[1]) == 4 {
+			return parts[1]
+		}
+	}
+	// Fallback to current year
+	return time.Now().Format("2006")
+}
+
 // EnqueueMedia creates a sync queue record for a newly uploaded media file.
 // source is "room_entry" or "gate_pass".
 func (s *MediaSyncService) EnqueueMedia(ctx context.Context, source string, mediaID int, filePath, fileName string, fileSize int64, thockNumber, mediaType string) error {
@@ -82,7 +96,7 @@ func (s *MediaSyncService) EnqueueMedia(ctx context.Context, source string, medi
 
 	// Construct R2 key: {year}/{thock_number}/{media_type}_{file_name}
 	// Year-based organization with all files for one thock in a single folder
-	year := time.Now().Format("2006") // Extract year from current time
+	year := extractYearFromThock(thockNumber)
 	r2Key := fmt.Sprintf("%s/%s/%s_%s", year, thockNumber, mediaType, fileName)
 
 	// Construct absolute local path
@@ -274,7 +288,9 @@ func (s *MediaSyncService) RunInitialSync(ctx context.Context) (int, error) {
 				fileSize = *item.FileSize
 			}
 
-			r2Key := fmt.Sprintf("room-entry/%s/%s/%s", item.ThockNumber, item.MediaType, item.FileName)
+			// Extract year from thock number for organization
+			year := extractYearFromThock(item.ThockNumber)
+			r2Key := fmt.Sprintf("%s/%s/%s_%s", year, item.ThockNumber, item.MediaType, item.FileName)
 			localPath := filepath.Join(s.localBaseDir, item.FilePath)
 
 			record := &models.MediaSyncRecord{
@@ -311,7 +327,9 @@ func (s *MediaSyncService) RunInitialSync(ctx context.Context) (int, error) {
 				fileSize = *item.FileSize
 			}
 
-			r2Key := fmt.Sprintf("gate-pass/%s/%s/%s", item.ThockNumber, item.MediaType, item.FileName)
+			// Extract year from thock number for organization
+			year := extractYearFromThock(item.ThockNumber)
+			r2Key := fmt.Sprintf("%s/%s/%s_%s", year, item.ThockNumber, item.MediaType, item.FileName)
 			localPath := filepath.Join(s.localBaseDir, item.FilePath)
 
 			record := &models.MediaSyncRecord{
