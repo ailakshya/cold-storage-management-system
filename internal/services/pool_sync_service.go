@@ -322,7 +322,14 @@ func (s *PoolSyncService) processOne(ctx context.Context, workerID int) {
 		return
 	}
 
-	err = s.nasBackend.Upload(ctx, record.S3Key, f, info.Size())
+	// Timeout: 2 min base + 1 min per 50 MB (prevents hanging on slow/stuck uploads)
+	timeout := 2*time.Minute + time.Duration(info.Size()/(50*1024*1024))*time.Minute
+	uploadCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	log.Printf("[PoolSync] Worker %d: uploading %s (%.1f MB, timeout %s)", workerID, record.S3Key, float64(info.Size())/1024/1024, timeout)
+
+	err = s.nasBackend.Upload(uploadCtx, record.S3Key, f, info.Size())
 	if err != nil {
 		log.Printf("[PoolSync] Worker %d: upload failed %s: %v", workerID, record.S3Key, err)
 		s.repo.MarkFailed(ctx, record.ID, "upload: "+err.Error())
