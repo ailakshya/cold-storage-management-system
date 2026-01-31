@@ -22,6 +22,28 @@ warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
 PGUSER="${PGUSER:-cold_user}"
 PGDATABASE="${PGDATABASE:-cold_db}"
 PGHOST="${PGHOST:-localhost}"
+PGPASSWORD="${PGPASSWORD:-}"
+
+# PostgreSQL command wrapper - tries sudo if direct access fails
+psql_cmd() {
+    if [[ -n "$PGPASSWORD" ]]; then
+        PGPASSWORD="$PGPASSWORD" psql "$@"
+    elif sudo -u postgres psql -l >/dev/null 2>&1; then
+        sudo -u postgres psql "$@"
+    else
+        psql "$@"
+    fi
+}
+
+pg_dump_cmd() {
+    if [[ -n "$PGPASSWORD" ]]; then
+        PGPASSWORD="$PGPASSWORD" pg_dump "$@"
+    elif sudo -u postgres pg_dump --version >/dev/null 2>&1; then
+        sudo -u postgres pg_dump "$@"
+    else
+        pg_dump "$@"
+    fi
+}
 
 # Determine base directory for Room Config files
 if [[ -d "shared/Room Config" ]]; then
@@ -36,6 +58,14 @@ else
 fi
 
 log "Using Room Config base: $ROOM_CONFIG_BASE"
+
+# Test PostgreSQL connection
+log "Testing PostgreSQL connection..."
+if psql_cmd -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -c "SELECT 1;" >/dev/null 2>&1; then
+    success "PostgreSQL connection successful"
+else
+    error "Cannot connect to PostgreSQL. Please set PGPASSWORD environment variable or configure pg_hba.conf for peer authentication."
+fi
 
 # Step 1: Create directories
 log "Step 1: Creating directories..."
@@ -275,8 +305,12 @@ success "File migration script created and made executable"
 
 # Step 4: Create database backup
 log "Step 4: Creating database backup..."
-pg_dump -U "$PGUSER" -h "$PGHOST" "$PGDATABASE" > backups/pre-migration-$(date +%Y%m%d_%H%M%S).sql
-success "Database backup created: $(ls -lh backups/pre-migration-*.sql | tail -1 | awk '{print $9, $5}')"
+BACKUP_FILE="backups/pre-migration-$(date +%Y%m%d_%H%M%S).sql"
+if pg_dump_cmd -U "$PGUSER" -h "$PGHOST" "$PGDATABASE" > "$BACKUP_FILE" 2>&1; then
+    success "Database backup created: $(ls -lh "$BACKUP_FILE" | awk '{print $9, $5}')"
+else
+    error "Failed to create database backup. Please check PostgreSQL credentials and permissions."
+fi
 
 # Step 5: Create file system backup (only if Room Config exists and has files)
 log "Step 5: Creating file system backup..."
@@ -289,12 +323,15 @@ fi
 
 # Step 6: Run database migration
 log "Step 6: Running database migration..."
-psql -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -f migrations/030_migrate_media_paths.sql
-success "Database migration completed"
+if psql_cmd -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -f migrations/030_migrate_media_paths.sql; then
+    success "Database migration completed"
+else
+    error "Database migration failed. Check permissions and SQL syntax."
+fi
 
 # Step 7: Verify database update
 log "Step 7: Verifying database update..."
-psql -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -c \
+psql_cmd -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -c \
   "SELECT
     (SELECT COUNT(*) FROM room_entry_media WHERE file_path LIKE 'Room Config/%/%/%') as room_migrated,
     (SELECT COUNT(*) FROM gate_pass_media WHERE file_path LIKE 'Room Config/%/%/%') as gate_migrated,
