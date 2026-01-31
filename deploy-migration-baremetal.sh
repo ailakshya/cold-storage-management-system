@@ -323,8 +323,11 @@ fi
 
 # Step 6: Run database migration
 log "Step 6: Running database migration..."
-if psql_cmd -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -f migrations/030_migrate_media_paths.sql; then
+# Copy migration file to /tmp for postgres user access
+cp migrations/030_migrate_media_paths.sql /tmp/030_migrate_media_paths.sql 2>/dev/null || true
+if psql_cmd -U "$PGUSER" -h "$PGHOST" -d "$PGDATABASE" -f /tmp/030_migrate_media_paths.sql; then
     success "Database migration completed"
+    rm -f /tmp/030_migrate_media_paths.sql
 else
     error "Database migration failed. Check permissions and SQL syntax."
 fi
