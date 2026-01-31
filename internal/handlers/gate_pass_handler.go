@@ -20,6 +20,7 @@ import (
 type GatePassHandler struct {
 	Service         *services.GatePassService
 	AdminActionRepo *repositories.AdminActionLogRepository
+	SyncService     *services.MediaSyncService
 }
 
 func NewGatePassHandler(service *services.GatePassService, adminActionRepo *repositories.AdminActionLogRepository) *GatePassHandler {
@@ -27,6 +28,10 @@ func NewGatePassHandler(service *services.GatePassService, adminActionRepo *repo
 		Service:         service,
 		AdminActionRepo: adminActionRepo,
 	}
+}
+
+func (h *GatePassHandler) SetSyncService(s *services.MediaSyncService) {
+	h.SyncService = s
 }
 
 // CreateGatePass issues a new gate pass
@@ -387,6 +392,15 @@ func (h *GatePassHandler) SaveMediaMetadata(w http.ResponseWriter, r *http.Reque
 	if err := h.Service.SaveMediaMetadata(r.Context(), &media); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Enqueue async cloud sync (non-blocking, best-effort)
+	if h.SyncService != nil {
+		var fileSize int64
+		if media.FileSize != nil {
+			fileSize = *media.FileSize
+		}
+		go h.SyncService.EnqueueMedia(context.Background(), "gate_pass", media.ID, media.FilePath, media.FileName, fileSize, media.ThockNumber, media.MediaType)
 	}
 
 	w.WriteHeader(http.StatusCreated)

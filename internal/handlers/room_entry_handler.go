@@ -19,6 +19,7 @@ import (
 type RoomEntryHandler struct {
 	Service     *services.RoomEntryService
 	EditLogRepo *repositories.RoomEntryEditLogRepository
+	SyncService *services.MediaSyncService
 }
 
 func NewRoomEntryHandler(s *services.RoomEntryService, editLogRepo *repositories.RoomEntryEditLogRepository) *RoomEntryHandler {
@@ -26,6 +27,10 @@ func NewRoomEntryHandler(s *services.RoomEntryService, editLogRepo *repositories
 		Service:     s,
 		EditLogRepo: editLogRepo,
 	}
+}
+
+func (h *RoomEntryHandler) SetSyncService(s *services.MediaSyncService) {
+	h.SyncService = s
 }
 
 func (h *RoomEntryHandler) CreateRoomEntry(w http.ResponseWriter, r *http.Request) {
@@ -247,6 +252,15 @@ func (h *RoomEntryHandler) SaveRoomEntryMedia(w http.ResponseWriter, r *http.Req
 	if err := h.Service.SaveMediaMetadata(r.Context(), &media); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Enqueue async cloud sync (non-blocking, best-effort)
+	if h.SyncService != nil {
+		var fileSize int64
+		if media.FileSize != nil {
+			fileSize = *media.FileSize
+		}
+		go h.SyncService.EnqueueMedia(context.Background(), "room_entry", media.ID, media.FilePath, media.FileName, fileSize, media.ThockNumber, media.MediaType)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
