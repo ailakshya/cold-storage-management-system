@@ -61,6 +61,7 @@ func NewRouter(
 	printerHandler *handlers.PrinterHandler,
 	fileManagerHandler *handlers.FileManagerHandler,
 	deletedEntriesHandler *handlers.DeletedEntriesHandler,
+	mediaSyncHandler *handlers.MediaSyncHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -528,6 +529,17 @@ func NewRouter(
 	sharedFileAPI.HandleFunc("/download", fileManagerHandler.DownloadFile).Methods("GET")
 	sharedFileAPI.HandleFunc("/thumbnail", fileManagerHandler.GenerateThumbnail).Methods("GET")
 	sharedFileAPI.HandleFunc("/rename", fileManagerHandler.RenameFile).Methods("PUT")
+
+	// Protected API routes - Media Sync (admin only, 3-2-1 backup)
+	if mediaSyncHandler != nil {
+		mediaSyncAPI := r.PathPrefix("/api/admin/media-sync").Subrouter()
+		mediaSyncAPI.Use(authMiddleware.Authenticate)
+		mediaSyncAPI.Use(authMiddleware.RequireRole("admin"))
+		mediaSyncAPI.HandleFunc("/status", mediaSyncHandler.GetStatus).Methods("GET")
+		mediaSyncAPI.HandleFunc("/initial-sync", mediaSyncHandler.TriggerInitialSync).Methods("POST")
+		mediaSyncAPI.HandleFunc("/retry-failed", mediaSyncHandler.RetryFailed).Methods("POST")
+		mediaSyncAPI.HandleFunc("/restore", mediaSyncHandler.BulkRestore).Methods("POST")
+	}
 
 	// Protected API routes - Node Provisioning (admin only)
 	if nodeProvisioningHandler != nil {

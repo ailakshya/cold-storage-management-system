@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -629,6 +630,45 @@ func main() {
 		adminActionLogHandler := handlers.NewAdminActionLogHandler(adminActionLogRepo)
 		gatePassHandler := handlers.NewGatePassHandler(gatePassService, adminActionLogRepo)
 
+		// Initialize media sync service (3-2-1 backup: Local + NAS + R2)
+		mediaSyncRepo := repositories.NewMediaSyncRepository(pool)
+		var r2MediaBackend, nasMediaBackend *services.S3Backend
+
+		// Determine bulk storage root (same logic as file manager)
+		bulkRoot := "/mass-pool/shared"
+		if _, err := os.Stat("/mass-pool"); os.IsNotExist(err) {
+			home, _ := os.UserHomeDir()
+			bulkRoot = filepath.Join(home, "cold-storage", "shared")
+		}
+
+		// Initialize R2 media backend
+		if backend, err := services.NewR2MediaBackend(context.Background()); err != nil {
+			log.Printf("[MediaSync] R2 backend unavailable: %v", err)
+		} else {
+			r2MediaBackend = backend
+			log.Println("[MediaSync] R2 media backend initialized")
+		}
+
+		// Initialize NAS backend (MinIO on TrueNAS)
+		nasCfg := config.LoadNASConfig()
+		if nasCfg.Enabled {
+			if backend, err := services.NewNASBackend(context.Background(), nasCfg); err != nil {
+				log.Printf("[MediaSync] NAS backend unavailable: %v", err)
+			} else {
+				nasMediaBackend = backend
+				log.Println("[MediaSync] NAS media backend initialized")
+			}
+		} else {
+			log.Println("[MediaSync] NAS not configured (set NAS_S3_ENDPOINT to enable)")
+		}
+
+		mediaSyncService := services.NewMediaSyncService(mediaSyncRepo, r2MediaBackend, nasMediaBackend, bulkRoot)
+		mediaSyncService.Start()
+
+		// Wire sync service into media handlers
+		roomEntryHandler.SetSyncService(mediaSyncService)
+		gatePassHandler.SetSyncService(mediaSyncService)
+
 		// Initialize guard entry service and handler
 		guardEntryService := services.NewGuardEntryService(guardEntryRepo)
 		guardEntryHandler := handlers.NewGuardEntryHandler(guardEntryService, adminActionLogRepo)
@@ -676,6 +716,14 @@ func main() {
 
 		// Initialize file manager handler
 		fileManagerHandler := handlers.NewFileManagerHandler(userService, totpService, cfg.BackupDir)
+
+		// Wire S3 backends into file manager for R2/NAS browsing
+		if r2MediaBackend != nil {
+			fileManagerHandler.SetR2Backend(r2MediaBackend)
+		}
+		if nasMediaBackend != nil {
+			fileManagerHandler.SetNASBackend(nasMediaBackend)
+		}
 
 		// Initialize point-in-time restore service (also used for backups)
 		// Reverted to Old Pattern: Direct file access
@@ -763,8 +811,11 @@ func main() {
 
 		// Point-in-time restore service and handler already initialized above for monitoring integration
 
+		// Initialize media sync admin handler (3-2-1 backup dashboard)
+		mediaSyncHandler := handlers.NewMediaSyncHandler(mediaSyncService)
+
 		// Create employee router
-		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler, fileManagerHandler, deletedEntriesHandler)
+		router := h.NewRouter(userHandler, authHandler, customerHandler, entryHandler, roomEntryHandler, entryEventHandler, systemSettingHandler, rentPaymentHandler, invoiceHandler, loginLogHandler, roomEntryEditLogHandler, entryEditLogHandler, entryManagementLogHandler, adminActionLogHandler, gatePassHandler, seasonHandler, guardEntryHandler, tokenColorHandler, pageHandler, healthHandler, authMiddleware, operationModeMiddleware, monitoringHandler, infraHandler, apiLoggingMiddleware, nodeProvisioningHandler, deploymentHandler, reportHandler, accountHandler, entryRoomHandler, roomVisualizationHandler, itemsInStockHandler, setupHandler, ledgerHandler, debtHandler, mergeHistoryHandler, customerActivityLogHandler, smsHandler, familyMemberHandler, razorpayHandler, pendingSettingHandler, totpHandler, restoreHandler, printerHandler, fileManagerHandler, deletedEntriesHandler, mediaSyncHandler)
 
 		// Add gallery routes if enabled
 		if cfg.G.Enabled {

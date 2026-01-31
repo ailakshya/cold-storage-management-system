@@ -39,11 +39,7 @@
         </div>
         <div class="flex items-center gap-4">
             <select id="rootSelect" onchange="changeRoot()" class="border rounded-lg px-3 py-2 bg-gray-50">
-                <option value="bulk">Bulk Storage (4TB HDD)</option>
-                <option value="highspeed">High Speed (SSD)</option>
-                <option value="archives">Archives (HDD)</option>
-                <option value="backups">Backups (HDD)</option>
-                <option value="trash">Trash Can</option>
+                <!-- Populated dynamically from storage stats -->
             </select>
             <button onclick="refreshFiles()" class="text-gray-600 hover:text-blue-600" title="Refresh">
                 <i class="bi bi-arrow-clockwise text-xl"></i>
@@ -321,28 +317,45 @@
                 'highspeed': 'bi-lightning-charge text-yellow-500',
                 'archives': 'bi-archive text-gray-500',
                 'backups': 'bi-database-check text-green-500',
-                'trash': 'bi-trash text-red-500'
+                'trash': 'bi-trash text-red-500',
+                'r2': 'bi-cloud text-orange-500',
+                'nas': 'bi-hdd-network text-teal-500'
             };
 
-            nav.innerHTML = storageStats.map(stat => `
+            const isCloud = (root) => root === 'r2' || root === 'nas';
+
+            nav.innerHTML = storageStats.map(stat => {
+                const cloud = isCloud(stat.root);
+                const statsLine = cloud
+                    ? '<div class="text-xs text-gray-500 mt-1">Cloud Storage</div>'
+                    : `<div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${(stat.used_percent || 0).toFixed(1)}%"></div>
+                       </div>
+                       <div class="text-xs text-gray-500 mt-1">
+                        ${formatBytes(stat.used_bytes)} / ${formatBytes(stat.total_bytes)}
+                       </div>`;
+                return `
                 <a href="#" onclick="setRoot('${stat.root}')" class="block px-4 py-3 rounded-lg hover:bg-gray-100 ${currentRoot === stat.root ? 'bg-blue-50' : ''}">
                     <div class="flex items-center gap-3 mb-2">
                         <i class="bi ${icons[stat.root] || 'bi-hdd'}"></i>
                         <span class="font-medium text-gray-700">${stat.label}</span>
                     </div>
-                    <div class="w-full bg-gray-200 rounded-full h-1.5">
-                        <div class="bg-blue-500 h-1.5 rounded-full" style="width: ${stat.used_percent.toFixed(1)}%"></div>
-                    </div>
-                    <div class="text-xs text-gray-500 mt-1">
-                        ${formatBytes(stat.used_bytes)} / ${formatBytes(stat.total_bytes)}
-                    </div>
-                </a>
-            `).join('');
+                    ${statsLine}
+                </a>`;
+            }).join('');
+
+            // Rebuild the root select dropdown from stats
+            const select = document.getElementById('rootSelect');
+            select.innerHTML = storageStats.map(stat =>
+                `<option value="${stat.root}" ${stat.root === currentRoot ? 'selected' : ''}>${stat.label}</option>`
+            ).join('');
         }
 
         function renderTotalStats() {
-            const total = storageStats.reduce((acc, s) => acc + s.total_bytes, 0);
-            const used = storageStats.reduce((acc, s) => acc + s.used_bytes, 0);
+            // Exclude cloud storage (R2/NAS) from local disk totals
+            const localStats = storageStats.filter(s => s.root !== 'r2' && s.root !== 'nas');
+            const total = localStats.reduce((acc, s) => acc + s.total_bytes, 0);
+            const used = localStats.reduce((acc, s) => acc + s.used_bytes, 0);
             const percent = total > 0 ? (used / total * 100) : 0;
 
             document.getElementById('totalUsed').textContent = formatBytes(used);
@@ -732,9 +745,11 @@
             const message = document.getElementById('deleteModalMessage');
             const confirmBtn = document.getElementById('deleteConfirmBtn');
             
-            if (currentRoot === 'trash') {
+            const isCloudRoot = currentRoot === 'r2' || currentRoot === 'nas';
+            if (currentRoot === 'trash' || isCloudRoot) {
                 title.textContent = 'Permanently Delete';
-                message.textContent = `Permanently delete "${contextFile.name}"? This action cannot be undone.`;
+                const loc = isCloudRoot ? getRootLabel(currentRoot) : 'trash';
+                message.textContent = `Permanently delete "${contextFile.name}" from ${loc}? This action cannot be undone.`;
                 confirmBtn.textContent = 'Delete Forever';
                 confirmBtn.className = 'px-4 py-2 bg-red-700 text-white rounded hover:bg-red-800';
             } else {
@@ -1068,7 +1083,9 @@
                 'highspeed': 'High Speed',
                 'archives': 'Archives',
                 'backups': 'Backups',
-                'trash': 'Trash Can'
+                'trash': 'Trash Can',
+                'r2': 'Cloudflare R2',
+                'nas': 'NAS (RustFS)'
             };
             return map[key] || key;
         }

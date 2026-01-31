@@ -26,6 +26,28 @@ type FileManagerHandler struct {
 	UserService *services.UserService
 	TOTPService *services.TOTPService
 	RootPaths   map[string]string
+	R2Backend   *services.S3Backend  // Cloudflare R2 media bucket (nil if not configured)
+	NASBackend  *services.S3Backend  // RustFS/MinIO on TrueNAS (nil if not configured)
+}
+
+func (h *FileManagerHandler) SetR2Backend(b *services.S3Backend)  { h.R2Backend = b }
+func (h *FileManagerHandler) SetNASBackend(b *services.S3Backend) { h.NASBackend = b }
+
+// getS3Backend returns the S3Backend for the given root key, or nil if not an S3 root.
+func (h *FileManagerHandler) getS3Backend(rootKey string) *services.S3Backend {
+	switch rootKey {
+	case "r2":
+		return h.R2Backend
+	case "nas":
+		return h.NASBackend
+	default:
+		return nil
+	}
+}
+
+// isS3Root returns true if the root key maps to an S3 backend.
+func (h *FileManagerHandler) isS3Root(rootKey string) bool {
+	return rootKey == "r2" || rootKey == "nas"
 }
 
 func NewFileManagerHandler(userService *services.UserService, totpService *services.TOTPService, backupDir string) *FileManagerHandler {
@@ -136,6 +158,22 @@ func (h *FileManagerHandler) GetStorageStats(w http.ResponseWriter, r *http.Requ
 		})
 	}
 
+	// Add S3 cloud storage entries (R2 / NAS)
+	if h.R2Backend != nil {
+		stats = append(stats, StorageStats{
+			Root:  "r2",
+			Label: "Cloudflare R2",
+			Path:  "cloud://r2",
+		})
+	}
+	if h.NASBackend != nil {
+		stats = append(stats, StorageStats{
+			Root:  "nas",
+			Label: "NAS (RustFS)",
+			Path:  "s3://nas",
+		})
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(stats)
 }
@@ -168,6 +206,12 @@ func (h *FileManagerHandler) ListFiles(w http.ResponseWriter, r *http.Request) {
 	rootKey := r.URL.Query().Get("root")
 	subPath := r.URL.Query().Get("path")
 	searchQuery := strings.ToLower(r.URL.Query().Get("search"))
+
+	// S3 backend dispatch (R2 / NAS)
+	if backend := h.getS3Backend(rootKey); backend != nil {
+		h.listS3Files(w, r, backend, subPath, searchQuery)
+		return
+	}
 
 	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
@@ -326,6 +370,12 @@ func (h *FileManagerHandler) UploadFile(w http.ResponseWriter, r *http.Request) 
 
 	rootKey := r.FormValue("root")
 	subPath := r.FormValue("path")
+
+	// S3 backend dispatch (R2 / NAS)
+	if backend := h.getS3Backend(rootKey); backend != nil {
+		h.uploadS3File(w, r, backend, subPath)
+		return
+	}
 
 	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
@@ -734,6 +784,12 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 	subPath := r.URL.Query().Get("path")
 	mode := r.URL.Query().Get("mode") // "inline" or "attachment"
 
+	// S3 backend dispatch (R2 / NAS)
+	if backend := h.getS3Backend(rootKey); backend != nil {
+		h.downloadS3File(w, r, backend, subPath, mode)
+		return
+	}
+
 	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -762,6 +818,12 @@ func (h *FileManagerHandler) DownloadFile(w http.ResponseWriter, r *http.Request
 			}
 		}
 		if info == nil {
+			// Fallback: try downloading from cloud backends (NAS → R2)
+			if h.NASBackend != nil || h.R2Backend != nil {
+				if h.tryCloudFallback(w, r, subPath, mode) {
+					return
+				}
+			}
 			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
@@ -868,6 +930,12 @@ func (h *FileManagerHandler) CreateFolder(w http.ResponseWriter, r *http.Request
 func (h *FileManagerHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	rootKey := r.URL.Query().Get("root")
 	subPath := r.URL.Query().Get("path")
+
+	// S3 backend dispatch (R2 / NAS) — permanent delete, no trash
+	if backend := h.getS3Backend(rootKey); backend != nil {
+		h.deleteS3Item(w, r, backend, subPath)
+		return
+	}
 
 	fullPath, err := h.resolvePath(rootKey, subPath)
 	if err != nil {
@@ -1002,6 +1070,12 @@ func (h *FileManagerHandler) MoveItem(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// S3 backend dispatch — handle moves involving R2 or NAS
+	if h.isS3Root(req.SourceRoot) || h.isS3Root(req.DestRoot) {
+		h.moveItemCrossStorage(w, r, req.SourceRoot, req.SourcePath, req.DestRoot, req.DestPath)
 		return
 	}
 
@@ -1216,4 +1290,334 @@ func (h *FileManagerHandler) DeleteBackup(filename string) error {
 	}
 
 	return nil
+}
+
+// ---------------------------------------------------------------------------
+// S3 backend operations (Cloudflare R2, RustFS/MinIO on TrueNAS)
+// ---------------------------------------------------------------------------
+
+// listS3Files lists objects in an S3 bucket using prefix-based navigation.
+func (h *FileManagerHandler) listS3Files(w http.ResponseWriter, r *http.Request, backend *services.S3Backend, subPath, searchQuery string) {
+	ctx := r.Context()
+
+	objects, err := backend.List(ctx, subPath)
+	if err != nil {
+		http.Error(w, "Failed to list files: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	files := []FileInfo{}
+	for _, obj := range objects {
+		fileType := getFileTypeFromName(obj.IsDir, obj.Name)
+
+		// If searching, filter by name
+		if searchQuery != "" && !strings.Contains(strings.ToLower(obj.Name), searchQuery) {
+			continue
+		}
+
+		files = append(files, FileInfo{
+			Name:    obj.Name,
+			Path:    obj.Key,
+			IsDir:   obj.IsDir,
+			Size:    obj.Size,
+			ModTime: obj.ModTime,
+			Type:    fileType,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(ListResponse{
+		Files:       files,
+		CurrentPath: subPath,
+	})
+}
+
+// downloadS3File streams an object from S3 to the HTTP response.
+func (h *FileManagerHandler) downloadS3File(w http.ResponseWriter, r *http.Request, backend *services.S3Backend, key, mode string) {
+	reader, size, err := backend.Download(r.Context(), key)
+	if err != nil {
+		http.Error(w, "File not found: "+err.Error(), http.StatusNotFound)
+		return
+	}
+	defer reader.Close()
+
+	fileName := filepath.Base(key)
+	disposition := "attachment"
+	if mode == "inline" {
+		disposition = "inline"
+	}
+
+	// Set content type based on extension
+	ext := strings.ToLower(filepath.Ext(fileName))
+	switch ext {
+	case ".mp4":
+		w.Header().Set("Content-Type", "video/mp4")
+	case ".mov":
+		w.Header().Set("Content-Type", "video/quicktime")
+	case ".webm":
+		w.Header().Set("Content-Type", "video/webm")
+	case ".jpg", ".jpeg":
+		w.Header().Set("Content-Type", "image/jpeg")
+	case ".png":
+		w.Header().Set("Content-Type", "image/png")
+	case ".gif":
+		w.Header().Set("Content-Type", "image/gif")
+	case ".webp":
+		w.Header().Set("Content-Type", "image/webp")
+	case ".pdf":
+		w.Header().Set("Content-Type", "application/pdf")
+	case ".sql":
+		w.Header().Set("Content-Type", "application/sql")
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, fileName))
+	if size > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+	}
+
+	io.Copy(w, reader)
+}
+
+// uploadS3File handles uploading a file to an S3 backend.
+func (h *FileManagerHandler) uploadS3File(w http.ResponseWriter, r *http.Request, backend *services.S3Backend, subPath string) {
+	ctx := r.Context()
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "Error retrieving file: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// Build S3 key: subpath/filename
+	key := header.Filename
+	if subPath != "" {
+		key = strings.TrimSuffix(subPath, "/") + "/" + header.Filename
+	}
+
+	if err := backend.Upload(ctx, key, file, header.Size); err != nil {
+		http.Error(w, "Upload failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{
+		"status": "success",
+		"file":   header.Filename,
+	})
+}
+
+// deleteS3Item deletes an object or prefix from an S3 backend.
+func (h *FileManagerHandler) deleteS3Item(w http.ResponseWriter, r *http.Request, backend *services.S3Backend, key string) {
+	ctx := r.Context()
+
+	if err := backend.Delete(ctx, key); err != nil {
+		http.Error(w, "Delete failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// moveItemCrossStorage handles moves where at least one side is an S3 backend.
+// Supports: S3↔S3 (same or different), Local→S3, S3→Local.
+func (h *FileManagerHandler) moveItemCrossStorage(w http.ResponseWriter, r *http.Request,
+	srcRoot, srcPath, dstRoot, dstPath string) {
+	ctx := r.Context()
+
+	srcBackend := h.getS3Backend(srcRoot)
+	dstBackend := h.getS3Backend(dstRoot)
+
+	// Extract source filename
+	srcFileName := filepath.Base(srcPath)
+
+	// Build destination key/path: destPath/srcFileName
+	dstKey := srcFileName
+	if dstPath != "" {
+		dstKey = strings.TrimSuffix(dstPath, "/") + "/" + srcFileName
+	}
+
+	// Case 1: S3 → S3 (same or different backends)
+	if srcBackend != nil && dstBackend != nil {
+		var err error
+		if srcBackend == dstBackend {
+			err = srcBackend.Move(ctx, srcPath, dstKey)
+		} else {
+			err = services.CrossBackendMove(ctx, srcBackend, srcPath, dstBackend, dstKey)
+		}
+		if err != nil {
+			http.Error(w, "Move failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		return
+	}
+
+	// Case 2: Local → S3
+	if srcBackend == nil && dstBackend != nil {
+		localPath, err := h.resolvePath(srcRoot, srcPath)
+		if err != nil {
+			http.Error(w, "Invalid source path: "+err.Error(), http.StatusForbidden)
+			return
+		}
+
+		file, err := os.Open(localPath)
+		if err != nil {
+			http.Error(w, "Failed to open source file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		info, err := file.Stat()
+		if err != nil {
+			http.Error(w, "Failed to stat source file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if err := dstBackend.Upload(ctx, dstKey, file, info.Size()); err != nil {
+			http.Error(w, "Upload failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Delete local source after successful upload
+		os.RemoveAll(localPath)
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		return
+	}
+
+	// Case 3: S3 → Local
+	if srcBackend != nil && dstBackend == nil {
+		reader, _, err := srcBackend.Download(ctx, srcPath)
+		if err != nil {
+			http.Error(w, "Download failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer reader.Close()
+
+		localDir, err := h.resolvePath(dstRoot, dstPath)
+		if err != nil {
+			http.Error(w, "Invalid destination path: "+err.Error(), http.StatusForbidden)
+			return
+		}
+
+		if err := os.MkdirAll(localDir, 0777); err != nil {
+			http.Error(w, "Failed to create directory: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		localFile := filepath.Join(localDir, srcFileName)
+		f, err := os.Create(localFile)
+		if err != nil {
+			http.Error(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(f, reader); err != nil {
+			http.Error(w, "Failed to write file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// Delete S3 source after successful download
+		if err := srcBackend.Delete(ctx, srcPath); err != nil {
+			log.Printf("[FileManager] Warning: moved to local but failed to delete S3 source: %v", err)
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		return
+	}
+}
+
+// tryCloudFallback attempts to serve a file from NAS or R2 when the local copy is missing.
+// Tries multiple S3 key patterns (subPath as-is, stripped "media/" prefix).
+// Returns true if the file was served from a cloud backend.
+func (h *FileManagerHandler) tryCloudFallback(w http.ResponseWriter, r *http.Request, subPath, mode string) bool {
+	// Build candidate S3 keys to try
+	candidates := []string{subPath}
+	if strings.HasPrefix(subPath, "media/") {
+		candidates = append(candidates, strings.TrimPrefix(subPath, "media/"))
+	}
+
+	// Try backends in order: NAS first (faster, local network), then R2
+	backends := []*services.S3Backend{}
+	if h.NASBackend != nil {
+		backends = append(backends, h.NASBackend)
+	}
+	if h.R2Backend != nil {
+		backends = append(backends, h.R2Backend)
+	}
+
+	for _, key := range candidates {
+		for _, backend := range backends {
+			reader, size, err := backend.Download(r.Context(), key)
+			if err != nil {
+				continue
+			}
+
+			log.Printf("[FileManager] Cloud fallback: serving %s from %s", key, backend.Name())
+
+			fileName := filepath.Base(key)
+			disposition := "attachment"
+			if mode == "inline" {
+				disposition = "inline"
+			}
+
+			ext := strings.ToLower(filepath.Ext(fileName))
+			switch ext {
+			case ".mp4":
+				w.Header().Set("Content-Type", "video/mp4")
+			case ".mov":
+				w.Header().Set("Content-Type", "video/quicktime")
+			case ".webm":
+				w.Header().Set("Content-Type", "video/webm")
+			case ".jpg", ".jpeg":
+				w.Header().Set("Content-Type", "image/jpeg")
+			case ".png":
+				w.Header().Set("Content-Type", "image/png")
+			case ".gif":
+				w.Header().Set("Content-Type", "image/gif")
+			case ".webp":
+				w.Header().Set("Content-Type", "image/webp")
+			case ".pdf":
+				w.Header().Set("Content-Type", "application/pdf")
+			}
+
+			w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, fileName))
+			if size > 0 {
+				w.Header().Set("Content-Length", strconv.FormatInt(size, 10))
+			}
+
+			io.Copy(w, reader)
+			reader.Close()
+			return true
+		}
+	}
+	return false
+}
+
+// getFileTypeFromName returns the file type string based on name and extension.
+func getFileTypeFromName(isDir bool, name string) string {
+	if isDir {
+		return "dir"
+	}
+	ext := strings.ToLower(filepath.Ext(name))
+	switch ext {
+	case ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg":
+		return "image"
+	case ".pdf":
+		return "pdf"
+	case ".mp4", ".mov", ".avi", ".webm":
+		return "video"
+	case ".zip", ".tar", ".gz", ".rar":
+		return "archive"
+	case ".txt", ".md", ".log":
+		return "text"
+	default:
+		return "file"
+	}
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"os"
 )
 
 // R2 Cloudflare configuration for disaster recovery
@@ -13,7 +14,35 @@ const (
 	R2SecretKey  = "038697927a70289e79774479aa0156c3193e3d9253cf970fdb42b5c1a09a55f7"
 	R2BucketName = "cold-db-backups"
 	R2Region     = "auto"
+
+	// R2 media bucket for 3-2-1 backup (separate from DB backups)
+	R2MediaBucketName = "cold-media"
 )
+
+// NASConfig holds MinIO/S3-compatible NAS connection details (from env vars)
+type NASConfig struct {
+	Endpoint  string // e.g. "http://192.168.1.50:9000"
+	AccessKey string
+	SecretKey string
+	Bucket    string // e.g. "cold-media"
+	Enabled   bool
+}
+
+// LoadNASConfig reads MinIO NAS configuration from environment variables
+func LoadNASConfig() NASConfig {
+	endpoint := os.Getenv("NAS_S3_ENDPOINT")
+	cfg := NASConfig{
+		Endpoint:  endpoint,
+		AccessKey: os.Getenv("NAS_S3_ACCESS_KEY"),
+		SecretKey: os.Getenv("NAS_S3_SECRET_KEY"),
+		Bucket:    os.Getenv("NAS_S3_BUCKET"),
+		Enabled:   endpoint != "",
+	}
+	if cfg.Bucket == "" {
+		cfg.Bucket = "cold-media"
+	}
+	return cfg
+}
 
 // Common passwords to try (CNPG may reset password from secret)
 var CommonPasswords = []string{
