@@ -440,6 +440,21 @@
             }
         }
 
+        // Format bytes per second into human-readable speed
+        function formatUploadSpeed(bytesPerSec) {
+            if (bytesPerSec >= 1048576) return (bytesPerSec / 1048576).toFixed(1) + ' MB/s';
+            if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+            return bytesPerSec.toFixed(0) + ' B/s';
+        }
+
+        // Format seconds into human-readable ETA
+        function formatETA(seconds) {
+            if (!isFinite(seconds) || seconds < 0) return '';
+            if (seconds < 60) return Math.ceil(seconds) + 's left';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.ceil(seconds % 60) + 's left';
+            return Math.floor(seconds / 3600) + 'h ' + Math.ceil((seconds % 3600) / 60) + 'm left';
+        }
+
         // Upload Progress Management
         function showUploadPanel() {
             document.getElementById('uploadPanel').classList.remove('hidden');
@@ -464,17 +479,22 @@
                 <div class="w-full bg-gray-200 rounded-full h-2">
                     <div id="progress-${id}" class="bg-blue-500 h-2 rounded-full transition-all" style="width: 0%"></div>
                 </div>
-                <div class="text-xs text-gray-500 mt-1" id="status-${id}">Uploading...</div>
+                <div class="flex justify-between mt-1">
+                    <div class="text-xs text-gray-500" id="status-${id}">Uploading...</div>
+                    <div class="text-xs text-gray-400" id="speed-${id}"></div>
+                </div>
             `;
             list.appendChild(item);
             showUploadPanel();
         }
 
-        function updateUploadProgress(id, percent, status) {
+        function updateUploadProgress(id, percent, status, speedInfo) {
             const bar = document.getElementById(`progress-${id}`);
             const statusEl = document.getElementById(`status-${id}`);
+            const speedEl = document.getElementById(`speed-${id}`);
             if (bar) bar.style.width = percent + '%';
             if (statusEl) statusEl.textContent = status || `${percent}%`;
+            if (speedEl) speedEl.textContent = speedInfo || '';
         }
 
         function removeUploadItem(id) {
@@ -487,7 +507,7 @@
         function cancelUpload(id) {
             if (uploads[id] && uploads[id].controller) {
                 uploads[id].controller.abort();
-                updateUploadProgress(id, 0, 'Cancelled');
+                updateUploadProgress(id, 0, 'Cancelled', '');
                 removeUploadItem(id);
                 delete uploads[id];
             }
@@ -529,30 +549,35 @@
                     xhr.open('POST', DIRECT_BASE + '/api/files/upload');
                     xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                     xhr.timeout = 600000; // 10 minute timeout
+                    const startTime = Date.now();
 
                     xhr.upload.addEventListener('progress', (e) => {
                         if (e.lengthComputable) {
                             const percent = Math.round((e.loaded / e.total) * 100);
-                            updateUploadProgress(id, percent, `${percent}%`);
+                            const elapsed = (Date.now() - startTime) / 1000;
+                            const speed = elapsed > 0.5 ? e.loaded / elapsed : 0;
+                            const remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+                            const speedInfo = speed > 0 ? formatUploadSpeed(speed) + ' · ' + formatETA(remaining) : '';
+                            updateUploadProgress(id, percent, `${percent}%`, speedInfo);
                         }
                     });
 
                     xhr.addEventListener('load', () => {
                         if (xhr.status === 200) {
-                            updateUploadProgress(id, 100, '✓ Complete');
+                            updateUploadProgress(id, 100, '✓ Complete', '');
                             removeUploadItem(id);
                             delete uploads[id];
                             loadFiles();
                             loadStorageStats();
                         } else {
-                            updateUploadProgress(id, 0, '✗ Failed');
+                            updateUploadProgress(id, 0, '✗ Failed', '');
                             removeUploadItem(id);
                             delete uploads[id];
                         }
                     });
 
                     xhr.addEventListener('error', () => {
-                        updateUploadProgress(id, 0, '✗ Error');
+                        updateUploadProgress(id, 0, '✗ Error', '');
                         removeUploadItem(id);
                         delete uploads[id];
                     });
@@ -564,7 +589,7 @@
                     xhr.send(formData);
 
                 } catch (err) {
-                    updateUploadProgress(id, 0, '✗ Failed');
+                    updateUploadProgress(id, 0, '✗ Failed', '');
                     removeUploadItem(id);
                     delete uploads[id];
                 }
@@ -576,6 +601,7 @@
             const uploadId = generateUUID();
             const targetPath = relativePath ? (currentPath ? `${currentPath}/${relativePath}` : relativePath) : currentPath;
             const chunkProgress = new Array(totalChunks).fill(0); // Track per-chunk progress
+            const chunkedStartTime = Date.now();
 
             // Upload a single chunk
             function uploadOneChunk(chunkIndex) {
@@ -606,7 +632,11 @@
                             chunkProgress[chunkIndex] = e.loaded;
                             const totalLoaded = chunkProgress.reduce((a, b) => a + b, 0);
                             const percent = Math.round((totalLoaded / file.size) * 100);
-                            updateUploadProgress(id, percent, `${percent}%`);
+                            const elapsed = (Date.now() - chunkedStartTime) / 1000;
+                            const speed = elapsed > 0.5 ? totalLoaded / elapsed : 0;
+                            const remaining = speed > 0 ? (file.size - totalLoaded) / speed : 0;
+                            const speedInfo = speed > 0 ? formatUploadSpeed(speed) + ' · ' + formatETA(remaining) : '';
+                            updateUploadProgress(id, percent, `${percent}%`, speedInfo);
                         }
                     };
 
@@ -650,7 +680,7 @@
                 await Promise.all(Array.from({length: workerCount}, () => worker()));
 
                 // All chunks sent successfully
-                updateUploadProgress(id, 100, '✓ Complete');
+                updateUploadProgress(id, 100, '✓ Complete', '');
                 removeUploadItem(id);
                 delete uploads[id];
                 loadFiles();
@@ -658,10 +688,10 @@
 
             } catch (err) {
                 if (err.message === 'Cancelled') {
-                    updateUploadProgress(id, 0, 'Cancelled');
+                    updateUploadProgress(id, 0, 'Cancelled', '');
                 } else {
                     console.error(err);
-                    updateUploadProgress(id, 0, '✗ Failed');
+                    updateUploadProgress(id, 0, '✗ Failed', '');
                 }
                 removeUploadItem(id);
                 delete uploads[id];

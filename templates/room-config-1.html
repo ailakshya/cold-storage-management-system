@@ -489,11 +489,12 @@
                             <div id="integratedUploadProgress" class="hidden mt-2">
                                 <div class="flex justify-between text-xs mb-1">
                                     <span class="text-purple-700 font-bold" id="integratedUploadStatus">Uploading...</span>
-                                    <span id="integratedUploadPercent">0%</span>
+                                    <span><span id="integratedUploadSpeed" class="text-gray-500 mr-1"></span><span id="integratedUploadPercent">0%</span></span>
                                 </div>
                                 <div class="w-full bg-gray-200 rounded-full h-1.5">
                                     <div id="integratedUploadBar" class="bg-purple-600 h-1.5 rounded-full transition-all" style="width: 0%"></div>
                                 </div>
+                                <div id="integratedUploadEta" class="text-xs text-gray-400 mt-0.5 text-right"></div>
                             </div>
                         </div>
 
@@ -1953,9 +1954,13 @@
                  const progressDiv = document.getElementById('integratedUploadProgress');
                  const progressBar = document.getElementById('integratedUploadBar');
                  const statusText = document.getElementById('integratedUploadStatus');
+                 const speedText = document.getElementById('integratedUploadSpeed');
+                 const etaText = document.getElementById('integratedUploadEta');
 
                  progressDiv.classList.remove('hidden');
                  statusText.textContent = 'Uploading files...';
+                 if (speedText) speedText.textContent = '';
+                 if (etaText) etaText.textContent = '';
 
                  const files = fileInput.files;
                  const customerName = selectedEntry.name;
@@ -1989,11 +1994,13 @@
                          const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                          const newFileName = `Thok_${safeThok}_${safeCustomer}_entry_By_${safeEmployee}_ID${userInfo.id}_${timestamp}.${extension}`;
 
-                         const finalFileName = await uploadSingleFile(file, targetPath, (pct) => {
+                         const finalFileName = await uploadSingleFile(file, targetPath, (pct, speedStr, etaStr) => {
                               const totalPct = ((i + (pct/100)) / files.length) * 100;
                               progressBar.style.width = `${totalPct}%`;
                               const pctEl = document.getElementById('integratedUploadPercent');
                               if (pctEl) pctEl.textContent = `${Math.round(totalPct)}%`;
+                              if (speedText) speedText.textContent = speedStr ? speedStr + ' · ' : '';
+                              if (etaText) etaText.textContent = etaStr;
                          }, newFileName);
                          uploadedCount++;
 
@@ -2010,6 +2017,8 @@
                      statusText.textContent = 'Upload Complete';
                      statusText.classList.remove('text-purple-700');
                      statusText.classList.add('text-green-600');
+                     if (speedText) speedText.textContent = '';
+                     if (etaText) etaText.textContent = '';
                  } catch (err) {
                      console.error(err);
                      if (!confirm(`File upload failed after ${uploadedCount} files. Error: ${err.message}. Continue saving entry?`)) {
@@ -2536,6 +2545,22 @@
             }
         }
 
+        // Format bytes per second into human-readable speed
+        function formatUploadSpeed(bytesPerSec) {
+            if (bytesPerSec >= 1048576) return (bytesPerSec / 1048576).toFixed(1) + ' MB/s';
+            if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+            return bytesPerSec.toFixed(0) + ' B/s';
+        }
+
+        // Format seconds into human-readable ETA
+        function formatETA(seconds) {
+            if (!isFinite(seconds) || seconds < 0) return '';
+            if (seconds < 60) return Math.ceil(seconds) + 's left';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.ceil(seconds % 60) + 's left';
+            return Math.floor(seconds / 3600) + 'h ' + Math.ceil((seconds % 3600) / 60) + 'm left';
+        }
+
+        // onProgress receives (percent, speedStr, etaStr)
         function uploadSingleFile(file, path, onProgress, customName = null) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
@@ -2548,11 +2573,15 @@
                 formData.append('path', path);
 
                 const xhr = new XMLHttpRequest();
+                const startTime = Date.now();
 
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
-                        const percent = Math.round((e.loaded / e.total) * 100);
-                        onProgress(percent);
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const speed = elapsed > 0.5 ? e.loaded / elapsed : 0;
+                        const remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+                        onProgress(pct, speed > 0 ? formatUploadSpeed(speed) : '', speed > 0 ? formatETA(remaining) : '');
                     }
                 });
 
@@ -2573,7 +2602,6 @@
                 xhr.addEventListener('error', () => reject(new Error('Network Error')));
 
                 xhr.open('POST', DIRECT_BASE + '/api/files/upload');
-                // Assuming token is globally available (it is in line 519)
                 xhr.setRequestHeader('Authorization', `Bearer ${token}`);
                 xhr.send(formData);
             });

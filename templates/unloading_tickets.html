@@ -620,11 +620,12 @@
                     <div id="pickupUploadProgress" class="hidden mt-2">
                         <div class="flex justify-between text-xs mb-1">
                             <span class="text-green-700 font-bold" id="pickupUploadStatus">Uploading...</span>
-                            <span id="pickupUploadPercent">0%</span>
+                            <span><span id="pickupUploadSpeed" class="text-gray-500 mr-1"></span><span id="pickupUploadPercent">0%</span></span>
                         </div>
                         <div class="w-full bg-gray-200 rounded-full h-1.5">
                             <div id="pickupUploadBar" class="bg-green-600 h-1.5 rounded-full transition-all" style="width: 0%"></div>
                         </div>
+                        <div id="pickupUploadEta" class="text-xs text-gray-400 mt-0.5 text-right"></div>
                     </div>
                 </div>
 
@@ -2410,10 +2411,14 @@
             const progressBar = document.getElementById('pickupUploadBar');
             const statusText = document.getElementById('pickupUploadStatus');
             const percentText = document.getElementById('pickupUploadPercent');
+            const speedText = document.getElementById('pickupUploadSpeed');
+            const etaText = document.getElementById('pickupUploadEta');
 
             progressDiv.classList.remove('hidden');
             statusText.textContent = 'Uploading...';
             statusText.className = 'text-xs font-bold text-green-700';
+            if (speedText) speedText.textContent = '';
+            if (etaText) etaText.textContent = '';
 
             const thockNo = gatePass.thock_number;
             const customerName = gatePass.customer_name;
@@ -2441,10 +2446,12 @@
                 // Step 1: Upload file (returns converted filename for videos)
                 let finalFileName = newFileName;
                 try {
-                    finalFileName = await uploadSingleFile(file, targetPath, (pct) => {
+                    finalFileName = await uploadSingleFile(file, targetPath, (pct, speedStr, etaStr) => {
                         const totalPct = ((i + (pct/100)) / files.length) * 100;
                         progressBar.style.width = `${totalPct}%`;
                         percentText.textContent = `${Math.round(totalPct)}%`;
+                        if (speedText) speedText.textContent = speedStr ? speedStr + ' · ' : '';
+                        if (etaText) etaText.textContent = etaStr;
                     }, newFileName);
                 } catch (uploadErr) {
                     console.error(`File upload failed for ${newFileName}:`, uploadErr);
@@ -2486,14 +2493,33 @@
                 statusText.className = 'text-xs font-bold text-red-700';
             }
 
+            if (speedText) speedText.textContent = '';
+            if (etaText) etaText.textContent = '';
+
             setTimeout(() => {
                 progressDiv.classList.add('hidden');
                 progressBar.style.width = '0%';
             }, 3000);
         }
 
+        // Format bytes per second into human-readable speed
+        function formatUploadSpeed(bytesPerSec) {
+            if (bytesPerSec >= 1048576) return (bytesPerSec / 1048576).toFixed(1) + ' MB/s';
+            if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+            return bytesPerSec.toFixed(0) + ' B/s';
+        }
+
+        // Format seconds into human-readable ETA
+        function formatETA(seconds) {
+            if (!isFinite(seconds) || seconds < 0) return '';
+            if (seconds < 60) return Math.ceil(seconds) + 's left';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.ceil(seconds % 60) + 's left';
+            return Math.floor(seconds / 3600) + 'h ' + Math.ceil((seconds % 3600) / 60) + 'm left';
+        }
+
         // Upload a single file with progress tracking
         // Returns the final filename (may be different for videos converted to MP4)
+        // onProgress receives (percent, speedStr, etaStr)
         function uploadSingleFile(file, path, onProgress, customName = null) {
             return new Promise((resolve, reject) => {
                 const formData = new FormData();
@@ -2502,10 +2528,15 @@
                 formData.append('path', path);
 
                 const xhr = new XMLHttpRequest();
+                const startTime = Date.now();
 
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
-                        onProgress(Math.round((e.loaded / e.total) * 100));
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        const speed = elapsed > 0.5 ? e.loaded / elapsed : 0;
+                        const remaining = speed > 0 ? (e.total - e.loaded) / speed : 0;
+                        onProgress(pct, speed > 0 ? formatUploadSpeed(speed) : '', speed > 0 ? formatETA(remaining) : '');
                     }
                 });
 
