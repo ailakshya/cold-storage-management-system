@@ -1117,6 +1117,166 @@ func (h *FileManagerHandler) MoveItem(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// CopyItem copies a file or directory from one location to another (without removing source)
+func (h *FileManagerHandler) CopyItem(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SourceRoot string `json:"sourceRoot"`
+		SourcePath string `json:"sourcePath"`
+		DestRoot   string `json:"destRoot"`
+		DestPath   string `json:"destPath"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// S3 backend dispatch — handle copies involving R2 or NAS
+	if h.isS3Root(req.SourceRoot) || h.isS3Root(req.DestRoot) {
+		h.copyItemCrossStorage(w, r, req.SourceRoot, req.SourcePath, req.DestRoot, req.DestPath)
+		return
+	}
+
+	srcPath, err := h.resolvePath(req.SourceRoot, req.SourcePath)
+	if err != nil {
+		http.Error(w, "Invalid source path: "+err.Error(), http.StatusForbidden)
+		return
+	}
+
+	destDir, err := h.resolvePath(req.DestRoot, req.DestPath)
+	if err != nil {
+		http.Error(w, "Invalid destination path: "+err.Error(), http.StatusForbidden)
+		return
+	}
+
+	srcName := filepath.Base(srcPath)
+	destPath := filepath.Join(destDir, srcName)
+
+	// Avoid overwriting — add suffix if destination exists
+	if _, err := os.Stat(destPath); err == nil {
+		ext := filepath.Ext(srcName)
+		name := strings.TrimSuffix(srcName, ext)
+		destPath = filepath.Join(destDir, name+"_copy"+ext)
+	}
+
+	// Copy using cp -r (works for both files and directories)
+	cmd := exec.Command("cp", "-r", srcPath, destPath)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to copy: %v (output: %s)", err, out), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// copyItemCrossStorage handles copies where at least one side is an S3 backend.
+func (h *FileManagerHandler) copyItemCrossStorage(w http.ResponseWriter, r *http.Request,
+	srcRoot, srcPath, dstRoot, dstPath string) {
+	ctx := r.Context()
+
+	srcBackend := h.getS3Backend(srcRoot)
+	dstBackend := h.getS3Backend(dstRoot)
+
+	srcFileName := filepath.Base(srcPath)
+
+	dstKey := srcFileName
+	if dstPath != "" {
+		dstKey = strings.TrimSuffix(dstPath, "/") + "/" + srcFileName
+	}
+
+	// Case 1: S3 → S3 (same or different backends)
+	if srcBackend != nil && dstBackend != nil {
+		var err error
+		if srcBackend == dstBackend {
+			err = srcBackend.Copy(ctx, srcPath, dstKey)
+		} else {
+			err = services.CrossBackendTransfer(ctx, srcBackend, srcPath, dstBackend, dstKey)
+		}
+		if err != nil {
+			http.Error(w, "Copy failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		return
+	}
+
+	// Case 2: Local → S3
+	if srcBackend == nil && dstBackend != nil {
+		localPath, err := h.resolvePath(srcRoot, srcPath)
+		if err != nil {
+			http.Error(w, "Invalid source path: "+err.Error(), http.StatusForbidden)
+			return
+		}
+
+		file, err := os.Open(localPath)
+		if err != nil {
+			http.Error(w, "Failed to open source file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer file.Close()
+
+		info, err := file.Stat()
+		if err != nil {
+			http.Error(w, "Failed to stat source file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if err := dstBackend.Upload(ctx, dstKey, file, info.Size()); err != nil {
+			http.Error(w, "Upload failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// No source deletion — this is copy, not move
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		return
+	}
+
+	// Case 3: S3 → Local
+	if srcBackend != nil && dstBackend == nil {
+		reader, _, err := srcBackend.Download(ctx, srcPath)
+		if err != nil {
+			http.Error(w, "Download failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer reader.Close()
+
+		localDir, err := h.resolvePath(dstRoot, dstPath)
+		if err != nil {
+			http.Error(w, "Invalid destination path: "+err.Error(), http.StatusForbidden)
+			return
+		}
+
+		if err := os.MkdirAll(localDir, 0777); err != nil {
+			http.Error(w, "Failed to create directory: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		localFile := filepath.Join(localDir, srcFileName)
+		f, err := os.Create(localFile)
+		if err != nil {
+			http.Error(w, "Failed to create file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(f, reader); err != nil {
+			http.Error(w, "Failed to write file: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		// No S3 source deletion — this is copy, not move
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		return
+	}
+}
+
 // getDirSize calculates directory size recursively
 func getDirSize(path string) (int64, error) {
 	var size int64

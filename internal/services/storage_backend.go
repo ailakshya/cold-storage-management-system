@@ -452,8 +452,23 @@ func (b *S3Backend) Exists(ctx context.Context, key string) (bool, error) {
 
 func (b *S3Backend) Move(ctx context.Context, srcKey, dstKey string) error {
 	// S3 has no native move — copy then delete
-	copySource := b.bucket + "/" + srcKey
+	if err := b.Copy(ctx, srcKey, dstKey); err != nil {
+		return err
+	}
 
+	_, err := b.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(b.bucket),
+		Key:    aws.String(srcKey),
+	})
+	if err != nil {
+		return fmt.Errorf("delete source after move in %s: %w", b.label, err)
+	}
+	return nil
+}
+
+// Copy duplicates an object within the same S3 bucket (no source deletion).
+func (b *S3Backend) Copy(ctx context.Context, srcKey, dstKey string) error {
+	copySource := b.bucket + "/" + srcKey
 	_, err := b.client.CopyObject(ctx, &s3.CopyObjectInput{
 		Bucket:     aws.String(b.bucket),
 		CopySource: aws.String(copySource),
@@ -461,14 +476,6 @@ func (b *S3Backend) Move(ctx context.Context, srcKey, dstKey string) error {
 	})
 	if err != nil {
 		return fmt.Errorf("copy in %s: %w", b.label, err)
-	}
-
-	_, err = b.client.DeleteObject(ctx, &s3.DeleteObjectInput{
-		Bucket: aws.String(b.bucket),
-		Key:    aws.String(srcKey),
-	})
-	if err != nil {
-		return fmt.Errorf("delete source after move in %s: %w", b.label, err)
 	}
 	return nil
 }

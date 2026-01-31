@@ -290,6 +290,9 @@
         <button onclick="bulkCut()" class="hover:text-yellow-400 flex items-center gap-1 transition">
             <i class="bi bi-scissors"></i> Cut
         </button>
+        <button onclick="bulkCopy()" class="hover:text-blue-400 flex items-center gap-1 transition">
+            <i class="bi bi-files"></i> Copy
+        </button>
         <button onclick="bulkDeleteConfirm()" class="hover:text-red-400 flex items-center gap-1 transition">
             <i class="bi bi-trash"></i> Delete
         </button>
@@ -305,6 +308,9 @@
         </button>
         <button onclick="cutSelected()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
             <i class="bi bi-scissors"></i> Cut
+        </button>
+        <button onclick="copySelected()" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
+            <i class="bi bi-files"></i> Copy
         </button>
         <button onclick="openRenameModal(contextFile)" class="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center gap-2">
             <i class="bi bi-pencil"></i> Rename
@@ -869,6 +875,7 @@
         function cutSelected() {
             if (!contextFile) return;
             clipboard = {
+                action: 'cut',
                 root: currentRoot,
                 path: contextFile.path,
                 name: contextFile.name,
@@ -877,6 +884,20 @@
             hideContextMenu();
             updatePasteButton();
             alert(`Cut ${contextFile.name}. Navigate to destination and click Paste.`);
+        }
+
+        function copySelected() {
+            if (!contextFile) return;
+            clipboard = {
+                action: 'copy',
+                root: currentRoot,
+                path: contextFile.path,
+                name: contextFile.name,
+                size: contextFile.size || 0
+            };
+            hideContextMenu();
+            updatePasteButton();
+            alert(`Copied ${contextFile.name}. Navigate to destination and click Paste.`);
         }
 
         // Format duration in human readable form
@@ -922,22 +943,25 @@
         async function pasteFile() {
             if (!clipboard) return;
 
+            const isCopy = clipboard.action === 'copy';
+            const endpoint = isCopy ? '/api/files/copy' : '/api/files/move';
+            const actionLabel = isCopy ? 'Copying' : 'Moving';
             const srcLabel = getRootLabel(clipboard.root);
             const destLabel = getRootLabel(currentRoot);
             const totalSize = clipboard.size || 0;
             const itemCount = clipboard.isBulk ? clipboard.paths.length : 1;
             const itemName = clipboard.isBulk ? `${itemCount} items` : (clipboard.name || 'file');
 
-            showTransferToast('progress', `${itemName} · ${srcLabel} → ${destLabel}${totalSize > 0 ? ' · ' + formatSize(totalSize) : ''}`);
+            showTransferToast('progress', `${actionLabel} ${itemName} · ${srcLabel} → ${destLabel}${totalSize > 0 ? ' · ' + formatSize(totalSize) : ''}`);
             const startTime = Date.now();
 
             try {
                 if (clipboard.isBulk) {
                     let failures = 0;
                     for (let idx = 0; idx < clipboard.paths.length; idx++) {
-                        document.getElementById('transferStatusText').textContent = `Transferring ${idx + 1} of ${clipboard.paths.length}...`;
+                        document.getElementById('transferStatusText').textContent = `${actionLabel} ${idx + 1} of ${clipboard.paths.length}...`;
                         try {
-                            const res = await fetch('/api/files/move', {
+                            const res = await fetch(endpoint, {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', ...getHeaders() },
                                 body: JSON.stringify({
@@ -957,7 +981,7 @@
                         showTransferToast('failed', `${failures} of ${itemCount} items failed`);
                     }
                 } else {
-                     const res = await fetch('/api/files/move', {
+                     const res = await fetch(endpoint, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', ...getHeaders() },
                         body: JSON.stringify({
@@ -972,12 +996,16 @@
 
                 const elapsed = (Date.now() - startTime) / 1000;
                 const speed = totalSize > 0 && elapsed > 0.1 ? totalSize / elapsed : 0;
-                let detail = `${itemName} · ${srcLabel} → ${destLabel} · ${formatDuration(elapsed)}`;
+                const doneLabel = isCopy ? 'Copied' : 'Moved';
+                let detail = `${doneLabel} ${itemName} · ${srcLabel} → ${destLabel} · ${formatDuration(elapsed)}`;
                 if (speed > 0) detail += ` · ${formatUploadSpeed(speed)}`;
 
                 showTransferToast('complete', detail);
 
-                clipboard = null;
+                // Copy keeps clipboard for repeated pastes; cut clears it
+                if (!isCopy) {
+                    clipboard = null;
+                }
                 updatePasteButton();
                 loadFiles();
                 loadStorageStats();
@@ -990,6 +1018,8 @@
             const btn = document.getElementById('pasteBtn');
             if (clipboard) {
                 btn.classList.remove('hidden');
+                const label = clipboard.action === 'copy' ? 'Paste (Copy)' : 'Paste (Move)';
+                btn.querySelector('span').textContent = label;
             } else {
                 btn.classList.add('hidden');
             }
@@ -1329,6 +1359,7 @@
                 if (f) totalSize += (f.size || 0);
             });
             clipboard = {
+                action: 'cut',
                 root: currentRoot,
                 paths: paths,
                 isBulk: true,
@@ -1337,6 +1368,26 @@
             clearSelection();
             updatePasteButton();
             alert(`Cut ${clipboard.paths.length} items. Navigate to destination and click Paste.`);
+        }
+
+        function bulkCopy() {
+            if (selectedFiles.size === 0) return;
+            const paths = Array.from(selectedFiles);
+            let totalSize = 0;
+            paths.forEach(p => {
+                const f = currentFileList.find(f => f.path === p);
+                if (f) totalSize += (f.size || 0);
+            });
+            clipboard = {
+                action: 'copy',
+                root: currentRoot,
+                paths: paths,
+                isBulk: true,
+                size: totalSize
+            };
+            clearSelection();
+            updatePasteButton();
+            alert(`Copied ${clipboard.paths.length} items. Navigate to destination and click Paste.`);
         }
 
         function bulkDeleteConfirm() {

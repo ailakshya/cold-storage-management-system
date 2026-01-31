@@ -62,6 +62,8 @@ func NewRouter(
 	fileManagerHandler *handlers.FileManagerHandler,
 	deletedEntriesHandler *handlers.DeletedEntriesHandler,
 	mediaSyncHandler *handlers.MediaSyncHandler,
+	poolSyncHandler *handlers.PoolSyncHandler,
+	detectionHandler *handlers.DetectionHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -517,6 +519,7 @@ func NewRouter(
 	adminFileAPI.HandleFunc("", fileManagerHandler.DeleteItem).Methods("DELETE")
 	adminFileAPI.HandleFunc("/folder", fileManagerHandler.CreateFolder).Methods("POST")
 	adminFileAPI.HandleFunc("/move", fileManagerHandler.MoveItem).Methods("POST")
+	adminFileAPI.HandleFunc("/copy", fileManagerHandler.CopyItem).Methods("POST")
 	adminFileAPI.HandleFunc("/trash/empty", fileManagerHandler.EmptyTrash).Methods("POST")
 	adminFileAPI.HandleFunc("/stats", fileManagerHandler.GetStorageStats).Methods("GET")
 	adminFileAPI.HandleFunc("/rename", fileManagerHandler.RenameFile).Methods("PUT")
@@ -539,6 +542,18 @@ func NewRouter(
 		mediaSyncAPI.HandleFunc("/initial-sync", mediaSyncHandler.TriggerInitialSync).Methods("POST")
 		mediaSyncAPI.HandleFunc("/retry-failed", mediaSyncHandler.RetryFailed).Methods("POST")
 		mediaSyncAPI.HandleFunc("/restore", mediaSyncHandler.BulkRestore).Methods("POST")
+	}
+
+	// Protected API routes - Pool Sync to NAS (admin only)
+	if poolSyncHandler != nil {
+		poolSyncAPI := r.PathPrefix("/api/admin/pool-sync").Subrouter()
+		poolSyncAPI.Use(authMiddleware.Authenticate)
+		poolSyncAPI.Use(authMiddleware.RequireRole("admin"))
+		poolSyncAPI.HandleFunc("/overview", poolSyncHandler.GetOverview).Methods("GET")
+		poolSyncAPI.HandleFunc("/scan-states", poolSyncHandler.GetScanStates).Methods("GET")
+		poolSyncAPI.HandleFunc("/scan", poolSyncHandler.TriggerScan).Methods("POST")
+		poolSyncAPI.HandleFunc("/retry-failed", poolSyncHandler.RetryFailed).Methods("POST")
+		poolSyncAPI.HandleFunc("/failed", poolSyncHandler.GetRecentFailed).Methods("GET")
 	}
 
 	// Protected API routes - Node Provisioning (admin only)
@@ -821,6 +836,26 @@ func NewRouter(
 		stockAPI.Use(authMiddleware.Authenticate)
 		stockAPI.HandleFunc("", itemsInStockHandler.GetItemsInStock).Methods("GET")
 		stockAPI.HandleFunc("/summary", itemsInStockHandler.GetSummary).Methods("GET")
+	}
+
+	// Protected API routes - Detection (YOLOv8 bag counting)
+	if detectionHandler != nil {
+		detectionAPI := r.PathPrefix("/api/detections").Subrouter()
+		// POST from Python service — no JWT, uses API key checked in handler
+		detectionAPI.HandleFunc("", detectionHandler.CreateSession).Methods("POST")
+		// All other endpoints require JWT
+		detectionAPI.HandleFunc("", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.ListSessions)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/summary", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetDailySummary)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/gate/{gate_id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetRecentByGate)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/room-entry/{room_entry_id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetSessionsByRoomEntry)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/{id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetSession)).ServeHTTP).Methods("GET")
+		detectionAPI.HandleFunc("/{id}", authMiddleware.Authenticate(
+			authMiddleware.RequireRole("admin")(http.HandlerFunc(detectionHandler.UpdateSession)),
+		).ServeHTTP).Methods("PUT")
+		detectionAPI.HandleFunc("/{id}/room-entries", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.LinkRoomEntry)).ServeHTTP).Methods("POST")
+		detectionAPI.HandleFunc("/{id}/room-entries/{room_entry_id}", authMiddleware.Authenticate(
+			authMiddleware.RequireRole("admin")(http.HandlerFunc(detectionHandler.UnlinkRoomEntry)),
+		).ServeHTTP).Methods("DELETE")
 	}
 
 	// Health endpoints (no auth - for monitoring)
