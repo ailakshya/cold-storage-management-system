@@ -1,0 +1,9 @@
+path: ./dataset
+train: train/images
+val: val/images
+test: test/images
+
+names:
+  0: potato_bag
+  1: bag_cluster
+  2: vehicle

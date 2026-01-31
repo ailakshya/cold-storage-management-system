@@ -563,6 +563,11 @@
                                         <i class="bi bi-pin-map text-gray-500"></i>
                                         <span class="font-mono">Gatars: ${item.gatar_locations}</span>
                                     </div>
+
+                                    <button onclick="viewDetectionMedia(${item.entry_id}, '${item.thock_number}')"
+                                        class="mt-3 px-3 py-1.5 bg-purple-600 text-white rounded-lg text-xs font-semibold hover:bg-purple-700 transition-all flex items-center gap-1.5 w-fit">
+                                        <i class="bi bi-camera-video"></i> View Unloading Media
+                                    </button>
                                 </div>
 
                                 <div class="text-right flex-shrink-0">
@@ -599,6 +604,84 @@
 
       function goBack() {
         window.history.back();
+      }
+
+      // Detection media modal
+      async function viewDetectionMedia(entryId, thockNumber) {
+        try {
+          const resp = await fetch(`/api/detections/room-entry/${entryId}`, {
+            headers: { "Authorization": `Bearer ${document.cookie.match(/token=([^;]+)/)?.[1] || ""}` }
+          });
+          if (!resp.ok) {
+            alert("No detection data found for this thock");
+            return;
+          }
+          const sessions = await resp.json();
+
+          if (!sessions || sessions.length === 0) {
+            alert(`No unloading videos linked to ${thockNumber} yet`);
+            return;
+          }
+
+          // Build modal content
+          let html = `
+            <div id="detectionModal" class="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onclick="if(event.target===this)this.remove()">
+              <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto p-6" onclick="event.stopPropagation()">
+                <div class="flex justify-between items-center mb-4">
+                  <h2 class="text-lg font-bold"><i class="bi bi-camera-video text-purple-600"></i> Unloading Media — ${thockNumber}</h2>
+                  <button onclick="document.getElementById('detectionModal').remove()" class="text-gray-400 hover:text-black text-xl">&times;</button>
+                </div>
+                <div class="space-y-4">`;
+
+          sessions.forEach((s, i) => {
+            const date = new Date(s.started_at).toLocaleString("en-IN");
+            const duration = s.duration_seconds ? `${Math.round(s.duration_seconds / 60)}m` : "—";
+            const conf = s.avg_bag_confidence ? `${(s.avg_bag_confidence * 100).toFixed(0)}%` : "—";
+
+            html += `
+              <div class="border rounded-xl p-4">
+                <div class="flex justify-between items-start mb-2">
+                  <div>
+                    <p class="font-semibold">Session #${s.id} — ${s.gate_id}</p>
+                    <p class="text-xs text-gray-500">${date} (${duration})</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-2xl font-bold text-blue-600">${s.estimated_total}</p>
+                    <p class="text-xs text-gray-500">bags detected</p>
+                  </div>
+                </div>
+                <div class="grid grid-cols-3 gap-2 text-xs text-center mb-3">
+                  <div class="bg-gray-50 rounded p-2">
+                    <p class="font-bold">${s.unique_bag_count}</p><p class="text-gray-500">tracked</p>
+                  </div>
+                  <div class="bg-gray-50 rounded p-2">
+                    <p class="font-bold">${s.bag_cluster_count}</p><p class="text-gray-500">clusters</p>
+                  </div>
+                  <div class="bg-gray-50 rounded p-2">
+                    <p class="font-bold">${conf}</p><p class="text-gray-500">confidence</p>
+                  </div>
+                </div>
+                ${s.video_path ? `
+                  <video controls class="w-full rounded-lg bg-black" preload="metadata">
+                    <source src="/files/${s.video_path}" type="video/mp4">
+                  </video>
+                ` : `<p class="text-sm text-gray-400 italic">No video recorded for this session</p>`}
+                ${s.manual_count !== null && s.manual_count !== undefined ? `
+                  <div class="mt-2 text-xs">
+                    <span class="font-semibold">Manual count:</span> ${s.manual_count}
+                    ${s.count_discrepancy ? `<span class="ml-2 ${Math.abs(s.count_discrepancy) > s.estimated_total * 0.1 ? 'text-red-600' : 'text-green-600'}">(${s.count_discrepancy > 0 ? '+' : ''}${s.count_discrepancy})</span>` : ''}
+                  </div>
+                ` : ''}
+              </div>`;
+          });
+
+          html += `</div></div></div>`;
+          document.body.insertAdjacentHTML("beforeend", html);
+
+        } catch (err) {
+          console.error("Error fetching detection media:", err);
+          alert("Failed to load detection data");
+        }
       }
 
       // Initialize
