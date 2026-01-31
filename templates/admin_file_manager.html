@@ -152,6 +152,40 @@
         </main>
     </div>
 
+    <!-- Transfer Progress Toast -->
+    <div id="transferToast" class="hidden fixed bottom-24 right-4 w-96 bg-white shadow-2xl rounded-lg border overflow-hidden z-50">
+        <div class="px-4 py-3">
+            <div class="flex items-center gap-3" id="transferInProgress">
+                <div class="animate-spin rounded-full h-5 w-5 border-2 border-blue-500 border-t-transparent"></div>
+                <div class="flex-1">
+                    <div class="text-sm font-semibold" id="transferStatusText">Transferring...</div>
+                    <div class="text-xs text-gray-500" id="transferDetail"></div>
+                </div>
+            </div>
+            <div class="hidden" id="transferComplete">
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-check-circle-fill text-green-500 text-xl"></i>
+                    <div class="flex-1">
+                        <div class="text-sm font-semibold text-green-700" id="transferCompleteTitle">Transfer Complete</div>
+                        <div class="text-xs text-gray-500" id="transferCompleteDetail"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="hidden" id="transferFailed">
+                <div class="flex items-center gap-3">
+                    <i class="bi bi-x-circle-fill text-red-500 text-xl"></i>
+                    <div class="flex-1">
+                        <div class="text-sm font-semibold text-red-700">Transfer Failed</div>
+                        <div class="text-xs text-gray-500" id="transferFailedDetail"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="w-full bg-gray-200 h-1">
+            <div id="transferBar" class="bg-blue-500 h-1 transition-all" style="width: 0%"></div>
+        </div>
+    </div>
+
     <!-- Upload Progress Panel -->
     <div id="uploadPanel" class="hidden fixed bottom-4 right-4 w-96 bg-white shadow-2xl rounded-lg border overflow-hidden">
         <div class="bg-gray-50 border-b px-4 py-3 flex justify-between items-center">
@@ -837,27 +871,78 @@
             clipboard = {
                 root: currentRoot,
                 path: contextFile.path,
-                name: contextFile.name
+                name: contextFile.name,
+                size: contextFile.size || 0
             };
             hideContextMenu();
             updatePasteButton();
             alert(`Cut ${contextFile.name}. Navigate to destination and click Paste.`);
         }
 
+        // Format duration in human readable form
+        function formatDuration(seconds) {
+            if (seconds < 1) return (seconds * 1000).toFixed(0) + 'ms';
+            if (seconds < 60) return seconds.toFixed(1) + 's';
+            if (seconds < 3600) return Math.floor(seconds / 60) + 'm ' + Math.round(seconds % 60) + 's';
+            return Math.floor(seconds / 3600) + 'h ' + Math.round((seconds % 3600) / 60) + 'm';
+        }
+
+        function showTransferToast(state, detail) {
+            const toast = document.getElementById('transferToast');
+            const inProgress = document.getElementById('transferInProgress');
+            const complete = document.getElementById('transferComplete');
+            const failed = document.getElementById('transferFailed');
+            const bar = document.getElementById('transferBar');
+
+            toast.classList.remove('hidden');
+            inProgress.classList.add('hidden');
+            complete.classList.add('hidden');
+            failed.classList.add('hidden');
+
+            if (state === 'progress') {
+                inProgress.classList.remove('hidden');
+                document.getElementById('transferDetail').textContent = detail || '';
+                bar.style.width = '100%';
+                bar.className = 'bg-blue-500 h-1 transition-all animate-pulse';
+            } else if (state === 'complete') {
+                complete.classList.remove('hidden');
+                document.getElementById('transferCompleteDetail').textContent = detail || '';
+                bar.style.width = '100%';
+                bar.className = 'bg-green-500 h-1';
+                setTimeout(() => toast.classList.add('hidden'), 8000);
+            } else if (state === 'failed') {
+                failed.classList.remove('hidden');
+                document.getElementById('transferFailedDetail').textContent = detail || '';
+                bar.style.width = '100%';
+                bar.className = 'bg-red-500 h-1';
+                setTimeout(() => toast.classList.add('hidden'), 6000);
+            }
+        }
+
         async function pasteFile() {
             if (!clipboard) return;
-            
+
+            const srcLabel = getRootLabel(clipboard.root);
+            const destLabel = getRootLabel(currentRoot);
+            const totalSize = clipboard.size || 0;
+            const itemCount = clipboard.isBulk ? clipboard.paths.length : 1;
+            const itemName = clipboard.isBulk ? `${itemCount} items` : (clipboard.name || 'file');
+
+            showTransferToast('progress', `${itemName} · ${srcLabel} → ${destLabel}${totalSize > 0 ? ' · ' + formatSize(totalSize) : ''}`);
+            const startTime = Date.now();
+
             try {
                 if (clipboard.isBulk) {
                     let failures = 0;
-                    for (const srcPath of clipboard.paths) {
+                    for (let idx = 0; idx < clipboard.paths.length; idx++) {
+                        document.getElementById('transferStatusText').textContent = `Transferring ${idx + 1} of ${clipboard.paths.length}...`;
                         try {
                             const res = await fetch('/api/files/move', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json', ...getHeaders() },
                                 body: JSON.stringify({
                                     sourceRoot: clipboard.root,
-                                    sourcePath: srcPath,
+                                    sourcePath: clipboard.paths[idx],
                                     destRoot: currentRoot,
                                     destPath: currentPath
                                 })
@@ -868,7 +953,9 @@
                             console.error(err);
                         }
                     }
-                    if (failures > 0) alert(`Failed to move ${failures} items.`);
+                    if (failures > 0) {
+                        showTransferToast('failed', `${failures} of ${itemCount} items failed`);
+                    }
                 } else {
                      const res = await fetch('/api/files/move', {
                         method: 'POST',
@@ -883,12 +970,19 @@
                     if (!res.ok) throw new Error(await res.text());
                 }
 
+                const elapsed = (Date.now() - startTime) / 1000;
+                const speed = totalSize > 0 && elapsed > 0.1 ? totalSize / elapsed : 0;
+                let detail = `${itemName} · ${srcLabel} → ${destLabel} · ${formatDuration(elapsed)}`;
+                if (speed > 0) detail += ` · ${formatUploadSpeed(speed)}`;
+
+                showTransferToast('complete', detail);
+
                 clipboard = null;
                 updatePasteButton();
                 loadFiles();
                 loadStorageStats();
             } catch (err) {
-                alert('Move failed: ' + err.message);
+                showTransferToast('failed', err.message);
             }
         }
 
@@ -1228,10 +1322,17 @@
 
         function bulkCut() {
             if (selectedFiles.size === 0) return;
+            const paths = Array.from(selectedFiles);
+            let totalSize = 0;
+            paths.forEach(p => {
+                const f = currentFileList.find(f => f.path === p);
+                if (f) totalSize += (f.size || 0);
+            });
             clipboard = {
                 root: currentRoot,
-                paths: Array.from(selectedFiles),
-                isBulk: true
+                paths: paths,
+                isBulk: true,
+                size: totalSize
             };
             clearSelection();
             updatePasteButton();
