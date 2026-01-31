@@ -80,9 +80,10 @@ func (s *MediaSyncService) EnqueueMedia(ctx context.Context, source string, medi
 		return nil // no targets configured, skip silently
 	}
 
-	// Construct R2 key: {thock_number}/{media_type}_{file_name}
-	// All files for one thock in a single folder, prefixed by media_type
-	r2Key := fmt.Sprintf("%s/%s_%s", thockNumber, mediaType, fileName)
+	// Construct R2 key: {year}/{thock_number}/{media_type}_{file_name}
+	// Year-based organization with all files for one thock in a single folder
+	year := time.Now().Format("2006") // Extract year from current time
+	r2Key := fmt.Sprintf("%s/%s/%s_%s", year, thockNumber, mediaType, fileName)
 
 	// Construct absolute local path
 	localPath := filepath.Join(s.localBaseDir, filePath)
