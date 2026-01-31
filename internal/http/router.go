@@ -63,7 +63,6 @@ func NewRouter(
 	deletedEntriesHandler *handlers.DeletedEntriesHandler,
 	mediaSyncHandler *handlers.MediaSyncHandler,
 	poolSyncHandler *handlers.PoolSyncHandler,
-	detectionHandler *handlers.DetectionHandler,
 ) *mux.Router {
 	r := mux.NewRouter()
 
@@ -836,26 +835,6 @@ func NewRouter(
 		stockAPI.Use(authMiddleware.Authenticate)
 		stockAPI.HandleFunc("", itemsInStockHandler.GetItemsInStock).Methods("GET")
 		stockAPI.HandleFunc("/summary", itemsInStockHandler.GetSummary).Methods("GET")
-	}
-
-	// Protected API routes - Detection (YOLOv8 bag counting)
-	if detectionHandler != nil {
-		detectionAPI := r.PathPrefix("/api/detections").Subrouter()
-		// POST from Python service — no JWT, uses API key checked in handler
-		detectionAPI.HandleFunc("", detectionHandler.CreateSession).Methods("POST")
-		// All other endpoints require JWT
-		detectionAPI.HandleFunc("", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.ListSessions)).ServeHTTP).Methods("GET")
-		detectionAPI.HandleFunc("/summary", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetDailySummary)).ServeHTTP).Methods("GET")
-		detectionAPI.HandleFunc("/gate/{gate_id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetRecentByGate)).ServeHTTP).Methods("GET")
-		detectionAPI.HandleFunc("/room-entry/{room_entry_id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetSessionsByRoomEntry)).ServeHTTP).Methods("GET")
-		detectionAPI.HandleFunc("/{id}", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.GetSession)).ServeHTTP).Methods("GET")
-		detectionAPI.HandleFunc("/{id}", authMiddleware.Authenticate(
-			authMiddleware.RequireRole("admin")(http.HandlerFunc(detectionHandler.UpdateSession)),
-		).ServeHTTP).Methods("PUT")
-		detectionAPI.HandleFunc("/{id}/room-entries", authMiddleware.Authenticate(http.HandlerFunc(detectionHandler.LinkRoomEntry)).ServeHTTP).Methods("POST")
-		detectionAPI.HandleFunc("/{id}/room-entries/{room_entry_id}", authMiddleware.Authenticate(
-			authMiddleware.RequireRole("admin")(http.HandlerFunc(detectionHandler.UnlinkRoomEntry)),
-		).ServeHTTP).Methods("DELETE")
 	}
 
 	// Health endpoints (no auth - for monitoring)
