@@ -173,6 +173,11 @@ func (s *MediaSyncService) processOne(ctx context.Context, workerID int) {
 		s.repo.MarkFailed(ctx, record.ID, "stat file: "+err.Error())
 		return
 	}
+	if info.IsDir() {
+		s.repo.MarkSkipped(ctx, record.ID, "path is a directory, not a file")
+		log.Printf("[MediaSync] Worker %d: skipping directory %s", workerID, localPath)
+		return
+	}
 	fileSize := info.Size()
 
 	var syncErrors []string
