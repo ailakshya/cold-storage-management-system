@@ -53,7 +53,7 @@ services:
       - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET:-}
       - RAZORPAY_WEBHOOK_SECRET=${RAZORPAY_WEBHOOK_SECRET:-}
       # NAS (RustFS on TrueNAS) — 3-2-1 media backup (offsite)
-      - NAS_S3_ENDPOINT=http://mind.ailakshya.in:9002
+      - NAS_S3_ENDPOINT=http://s3.gurukripacoldstore.in:9002
       - NAS_S3_ACCESS_KEY=N6zPFxkImyvA4g0RsWLB
       - NAS_S3_SECRET_KEY=TxJfleqna0WN7I41HQ6ubYXh9ZRSpytzEPM8v5ic
       - NAS_S3_BUCKET=cold
