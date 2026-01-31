@@ -474,7 +474,7 @@
                             <input type="file" id="integratedUploadFiles" multiple accept="image/*,video/*"
                                    onchange="previewEntryMedia(this)" class="hidden">
 
-                            <p class="text-xs text-gray-500 mt-1">Files are uploaded to <span class="font-mono bg-gray-100 px-1">Room Config/Thok_{No}_{Name}</span> on submit.</p>
+                            <p class="text-xs text-gray-500 mt-1">Files are organized by year and thock: <span class="font-mono bg-gray-100 px-1">Room Config/{Year}/{Thock}/</span></p>
 
                             <!-- File Preview Section -->
                             <div id="entryMediaPreview" class="hidden mt-3">
@@ -1966,8 +1966,18 @@
                  const safeEmployee = userInfo.name.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
                  const safeThok = thokNo.toString().replace(/\//g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
 
-                 // Upload directly to Room Config with structured filename
-                 const targetPath = `Room Config`;
+                 // Extract year from thock number (e.g., "TH-2026-0042" → "2026")
+                 function extractYearFromThock(thockNumber) {
+                     const parts = thockNumber.toString().split('-');
+                     if (parts.length >= 2 && parts[1].length === 4 && !isNaN(parts[1])) {
+                         return parts[1];
+                     }
+                     return new Date().getFullYear().toString();
+                 }
+
+                 // Organize files by year and thock: {year}/{thock}/
+                 const year = extractYearFromThock(thokNo);
+                 const targetPath = `Room Config/${year}/${safeThok}`;
 
                  let uploadedCount = 0;
                  try {
@@ -1992,7 +2002,7 @@
                              thock_number: thokNo,
                              media_type: 'entry',
                              file_name: finalFileName,
-                             file_path: `Room Config/${finalFileName}`,
+                             file_path: `Room Config/${year}/${safeThok}/${finalFileName}`,
                              file_type: file.type.startsWith('image/') ? 'image' : 'video',
                              file_size: file.size
                          });
@@ -2470,7 +2480,18 @@
             const safeEmployee = userInfo.name.replace(/[^a-zA-Z0-9 \u0900-\u097F]/g, '').trim().replace(/\s+/g, '_');
             const safeThok = thockNo.toString().replace(/\//g, '-').replace(/[^a-zA-Z0-9\-]/g, '');
 
-            const targetPath = 'Room Config';
+            // Extract year from thock number (e.g., "TH-2026-0042" → "2026")
+            function extractYearFromThock(thockNumber) {
+                const parts = thockNumber.toString().split('-');
+                if (parts.length >= 2 && parts[1].length === 4 && !isNaN(parts[1])) {
+                    return parts[1];
+                }
+                return new Date().getFullYear().toString();
+            }
+
+            // Organize files by year and thock: {year}/{thock}/
+            const year = extractYearFromThock(thockNo);
+            const targetPath = `Room Config/${year}/${safeThok}`;
 
             try {
                 for (let i = 0; i < files.length; i++) {
@@ -2491,7 +2512,7 @@
                         thock_number: thockNo,
                         media_type: 'entry',
                         file_name: finalFileName,
-                        file_path: `Room Config/${finalFileName}`,
+                        file_path: `Room Config/${year}/${safeThok}/${finalFileName}`,
                         file_type: file.type.startsWith('image/') ? 'image' : 'video',
                         file_size: file.size
                     });
